@@ -1,21 +1,19 @@
-import Anthropic from '@anthropic-ai/sdk';
-
 /**
- * Vercel Serverless Function — Anthropic API proxy.
+ * Vercel Edge Function — Anthropic API proxy.
+ *
+ * Usa fetch directo a la API HTTP de Anthropic (no SDK)
+ * para mantener compatibilidad con runtime Edge.
  *
  * La API key vive solo aquí (ANTHROPIC_API_KEY env var en Vercel),
- * nunca llega al browser. El cliente solo conoce `/api/claude`.
- *
- * Endpoints discriminados por `feature` en el body:
- *   - meeting_agenda
- *   - three_options
- *   - regenerate_section
- *   - brain_from_onboarding
+ * nunca llega al browser.
  */
 
-const MODEL = 'claude-sonnet-4-6';
+export const config = { runtime: 'edge' };
 
-// CORS minimal — solo permite POST y JSON
+const MODEL = 'claude-sonnet-4-6';
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2023-06-01';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -52,8 +50,6 @@ type RequestBody =
   | { feature: 'regenerate_section'; context: RegenerateCtx }
   | { feature: 'brain_from_onboarding'; context: BrainCtx };
 
-export const config = { runtime: 'nodejs' };
-
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -74,18 +70,16 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: 'Body JSON inválido' }, 400);
   }
 
-  const anthropic = new Anthropic({ apiKey });
-
   try {
     switch (body.feature) {
       case 'meeting_agenda':
-        return json({ text: await meetingAgenda(anthropic, body.context) });
+        return json({ text: await meetingAgenda(apiKey, body.context) });
       case 'three_options':
-        return json({ options: await threeOptions(anthropic, body.context) });
+        return json({ options: await threeOptions(apiKey, body.context) });
       case 'regenerate_section':
-        return json({ patch: await regenerateSection(anthropic, body.context) });
+        return json({ patch: await regenerateSection(apiKey, body.context) });
       case 'brain_from_onboarding':
-        return json({ brain: await brainFromOnboarding(anthropic, body.context) });
+        return json({ brain: await brainFromOnboarding(apiKey, body.context) });
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -103,19 +97,34 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-async function callText(client: Anthropic, system: string, user: string, maxTokens = 1024): Promise<string> {
-  const res = await client.messages.create({
-    model: MODEL,
-    max_tokens: maxTokens,
-    system,
-    messages: [{ role: 'user', content: user }],
+async function callAnthropic(apiKey: string, system: string, user: string, maxTokens = 1024): Promise<string> {
+  const res = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': ANTHROPIC_VERSION,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: user }],
+    }),
   });
-  const block = res.content.find((b) => b.type === 'text');
-  if (!block || block.type !== 'text') throw new Error('Respuesta sin contenido de texto');
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Anthropic API ${res.status}: ${errText.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
+  const block = data.content?.find((b) => b.type === 'text');
+  if (!block?.text) throw new Error('Respuesta sin contenido de texto');
   return block.text.trim();
 }
 
-async function meetingAgenda(client: Anthropic, ctx: MeetingAgendaCtx): Promise<string> {
+async function meetingAgenda(apiKey: string, ctx: MeetingAgendaCtx): Promise<string> {
   const system = `Eres una estratega senior de marketing digital. Generas agendas de reunión claras, accionables y breves. Devuelve SOLO una lista numerada de 5 puntos, sin introducción ni cierre. Cada punto en una línea.`;
   const user = `Cliente: ${ctx.clientName} (${ctx.industry})
 Tipo de reunión: ${ctx.meetingType}
@@ -123,10 +132,10 @@ Tareas pendientes del cliente: ${ctx.pendingTasksCount}
 Datos de ADS conectados: ${ctx.hasAdsData ? 'sí' : 'no'}
 
 Genera la agenda de 5 puntos para esta reunión.`;
-  return callText(client, system, user, 512);
+  return callAnthropic(apiKey, system, user, 512);
 }
 
-async function threeOptions(client: Anthropic, ctx: ThreeOptionsCtx): Promise<Array<{ id: string; title: string; content: string }>> {
+async function threeOptions(apiKey: string, ctx: ThreeOptionsCtx): Promise<Array<{ id: string; title: string; content: string }>> {
   const sectionPrompts: Record<ThreeOptionsCtx['section'], { focus: string; titles: string[] }> = {
     market: {
       focus: 'lectura del mercado y oportunidad estratégica',
@@ -160,7 +169,7 @@ Cliente: ${ctx.client.businessName} — industria: ${ctx.client.industry}${ctx.c
 
 Genera las 3 opciones. Usa estos títulos sugeridos pero adáptalos al contexto: ${def.titles.join(', ')}.`;
 
-  const txt = await callText(client, system, user, 1500);
+  const txt = await callAnthropic(apiKey, system, user, 1500);
   let parsed: Array<{ title: string; content: string }>;
   try {
     parsed = JSON.parse(extractJson(txt));
@@ -174,39 +183,27 @@ Genera las 3 opciones. Usa estos títulos sugeridos pero adáptalos al contexto:
   }));
 }
 
-async function regenerateSection(client: Anthropic, ctx: RegenerateCtx): Promise<Record<string, unknown>> {
+async function regenerateSection(apiKey: string, ctx: RegenerateCtx): Promise<Record<string, unknown>> {
   const name = ctx.identity?.businessName ?? 'la marca';
   const industry = ctx.identity?.industry ?? 'su industria';
   const founder = ctx.identity?.founderName ?? 'el founder';
 
-  const sectionFields: Record<RegenerateCtx['section'], { fields: string[]; instruction: string }> = {
-    market: {
-      fields: ['executiveSummary', 'gapAnalysis'],
-      instruction: `Genera un análisis ejecutivo actualizado del mercado y un gap analysis. Devuelve JSON con campos "executiveSummary" (3-4 oraciones) y "gapAnalysis" (2-3 oraciones).`,
-    },
-    offer: {
-      fields: ['irresistibleOffer'],
-      instruction: `Genera UNA oferta irresistible en 1-2 oraciones. Debe ser específica, con resultado claro y diferenciador. Devuelve JSON con campo "irresistibleOffer".`,
-    },
-    narrative: {
-      fields: ['executiveSummary'],
-      instruction: `Genera una descripción de la narrativa y tono de marca en 2-3 oraciones. Devuelve JSON con campo "executiveSummary".`,
-    },
-    personas: {
-      fields: ['buyerPersonas'],
-      instruction: `Genera EXACTAMENTE 3 buyer personas diferenciados. Devuelve JSON con campo "buyerPersonas" que es un array de objetos con campos: name, description (1-2 oraciones), pains (array de 3 strings), desires (array de 3 strings).`,
-    },
+  const sectionFields: Record<RegenerateCtx['section'], string> = {
+    market: `Genera un análisis ejecutivo actualizado del mercado y un gap analysis. Devuelve JSON con campos "executiveSummary" (3-4 oraciones) y "gapAnalysis" (2-3 oraciones).`,
+    offer: `Genera UNA oferta irresistible en 1-2 oraciones. Devuelve JSON con campo "irresistibleOffer".`,
+    narrative: `Genera una descripción de la narrativa y tono de marca en 2-3 oraciones. Devuelve JSON con campo "executiveSummary".`,
+    personas: `Genera EXACTAMENTE 3 buyer personas diferenciados. Devuelve JSON con campo "buyerPersonas" que es un array con: name, description, pains (3 strings), desires (3 strings).`,
   };
-  const def = sectionFields[ctx.section];
+  const instruction = sectionFields[ctx.section];
 
-  const system = `Eres estratega senior. Devuelve SOLO JSON válido sin texto antes ni después. ${def.instruction}`;
+  const system = `Eres estratega senior. Devuelve SOLO JSON válido sin texto antes ni después. ${instruction}`;
   const user = `Cliente: ${name} (${industry}) — founder: ${founder}
 
 Contexto actual: ${JSON.stringify(ctx.current).slice(0, 1500)}
 
 Regenera la sección.`;
 
-  const txt = await callText(client, system, user, 1500);
+  const txt = await callAnthropic(apiKey, system, user, 1500);
   try {
     return JSON.parse(extractJson(txt));
   } catch {
@@ -214,7 +211,7 @@ Regenera la sección.`;
   }
 }
 
-async function brainFromOnboarding(client: Anthropic, ctx: BrainCtx): Promise<Record<string, unknown>> {
+async function brainFromOnboarding(apiKey: string, ctx: BrainCtx): Promise<Record<string, unknown>> {
   const system = `Eres estratega senior de marketing digital. A partir del onboarding del cliente, generas un cerebro estratégico completo. Devuelve SOLO JSON válido con esta estructura:
 {
   "executiveSummary": "Resumen ejecutivo del negocio en 3-4 oraciones",
@@ -241,7 +238,7 @@ ${JSON.stringify(ctx.onboarding).slice(0, 3000)}
 
 Genera el cerebro estratégico completo.`;
 
-  const txt = await callText(client, system, user, 3000);
+  const txt = await callAnthropic(apiKey, system, user, 3000);
   try {
     const parsed = JSON.parse(extractJson(txt));
     parsed.generatedAt = new Date().toISOString();
@@ -252,7 +249,6 @@ Genera el cerebro estratégico completo.`;
 }
 
 function extractJson(text: string): string {
-  // Extrae JSON aunque venga rodeado de markdown ```json ... ```
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (fence) return fence[1].trim();
   const start = text.indexOf('{');

@@ -7,3 +7,5 @@ dist
 tsconfig.tsbuildinfo
 tsconfig.node.tsbuildinfo
 .claude/
+vite.config.d.ts
+vite.config.js

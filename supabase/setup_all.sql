@@ -226,7 +226,7 @@ alter table public.notifications         disable row level security;
 --
 --  UUIDs deterministas:
 --    agency:  00000000-0000-0000-0000-0000000000a1
---    owner:   00000000-0000-0000-0000-0000000000u1
+--    owner:   00000000-0000-0000-0000-0000000000f1
 --    fitmind: 00000000-0000-0000-0000-0000000000c1
 --    kuroko:  00000000-0000-0000-0000-0000000000c2
 --    escuela: 00000000-0000-0000-0000-0000000000c3
@@ -249,15 +249,15 @@ delete from public.clients  where id in (
   '00000000-0000-0000-0000-0000000000c3'
 );
 delete from public.agencies where id = '00000000-0000-0000-0000-0000000000a1';
-delete from public.users    where id = '00000000-0000-0000-0000-0000000000u1';
+delete from public.users    where id = '00000000-0000-0000-0000-0000000000f1';
 
 -- USER (owner)
 insert into public.users (id, email, name, role, timezone) values
-('00000000-0000-0000-0000-0000000000u1','estratega@salesbrain.os','Marisol Ochoa','owner','America/Bogota');
+('00000000-0000-0000-0000-0000000000f1','estratega@salesbrain.os','Marisol Ochoa','owner','America/Bogota');
 
 -- AGENCY
 insert into public.agencies (id, name, owner_id, plan) values
-('00000000-0000-0000-0000-0000000000a1','Sales Brain Agency','00000000-0000-0000-0000-0000000000u1','starter');
+('00000000-0000-0000-0000-0000000000a1','Sales Brain Agency','00000000-0000-0000-0000-0000000000f1','starter');
 
 -- FitMind Colombia (ratio 1.08 → verde)
 insert into public.clients (id, agency_id, name, industry, business_type, primary_color, status, project_type, monthly_ads_budget, ads_connected, metrics, onboarding_data, ai_brain_data, created_at, updated_at) values (
@@ -298,7 +298,7 @@ insert into public.clients (id, agency_id, name, industry, business_type, primar
 -- REUNIONES
 insert into public.meetings (client_id, title, type, scheduled_at, duration_min, participants, agenda, video_call_link, notes, notes_updated_at) values
 ('00000000-0000-0000-0000-0000000000c1','Revisión semanal de métricas','weekly_metrics',now()+interval '5 hours',45,
- '[{"userId":"00000000-0000-0000-0000-0000000000u1","name":"Marisol"},{"userId":"u_c1","name":"Laura"}]'::jsonb,
+ '[{"userId":"00000000-0000-0000-0000-0000000000f1","name":"Marisol"},{"userId":"u_c1","name":"Laura"}]'::jsonb,
  E'1. Revisión de métricas de la semana\n2. Análisis de campañas activas\n3. Ajustes de presupuesto\n4. Próximos pasos y compromisos',
  'https://meet.google.com/abc-defg-hij',
  'Última semana ROAS subió a 3.4x. Pendiente decidir si escalamos el ad set "Regulación nerviosa".',
@@ -306,11 +306,11 @@ insert into public.meetings (client_id, title, type, scheduled_at, duration_min,
 
 insert into public.meetings (client_id, title, type, scheduled_at, duration_min, participants) values
 ('00000000-0000-0000-0000-0000000000c2','Sesión estratégica de contenido','content_strategy',now()+interval '1 day 3 hours',60,
- '[{"userId":"00000000-0000-0000-0000-0000000000u1","name":"Marisol"},{"userId":"u_c2","name":"Andrés"}]'::jsonb),
+ '[{"userId":"00000000-0000-0000-0000-0000000000f1","name":"Marisol"},{"userId":"u_c2","name":"Andrés"}]'::jsonb),
 ('00000000-0000-0000-0000-0000000000c3','Kickoff de lanzamiento','kickoff',now()+interval '2 days 2 hours',90,
- '[{"userId":"00000000-0000-0000-0000-0000000000u1","name":"Marisol"},{"userId":"u_c3","name":"Camila"}]'::jsonb),
+ '[{"userId":"00000000-0000-0000-0000-0000000000f1","name":"Marisol"},{"userId":"u_c3","name":"Camila"}]'::jsonb),
 ('00000000-0000-0000-0000-0000000000c1','Revisión de campañas ADS','ads_review',now()+interval '3 days 4 hours',30,
- '[{"userId":"00000000-0000-0000-0000-0000000000u1","name":"Marisol"}]'::jsonb);
+ '[{"userId":"00000000-0000-0000-0000-0000000000f1","name":"Marisol"}]'::jsonb);
 
 -- TAREAS
 insert into public.tasks (client_id, title, description, status, priority, assigned_to, due_date, completed_at, is_delayed, delay_days, module_tag, created_at) values

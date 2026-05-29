@@ -2,19 +2,102 @@ import type { AIBrainData } from '@/types/client';
 import type { OnboardingData } from '@/onboarding/schema';
 
 /**
- * Servicio de integración con Claude API (claude-sonnet-4-20250514).
+ * Cliente del backend Anthropic (Vercel serverless function en /api/claude).
  *
- * En esta primera entrega devuelve un análisis sintetizado a partir
- * del propio formulario (sin llamada real). Se reemplaza por la llamada
- * Anthropic SDK cuando el backend tenga la API key configurada.
+ * En desarrollo local con `npm run dev` (sin vercel dev) NO existe `/api/claude`.
+ * En ese caso caemos al fallback heurístico para que la app siga siendo navegable.
+ *
+ * En producción y en `vercel dev` el endpoint sí existe y usa ANTHROPIC_API_KEY.
  */
 
-export async function generateBrainFromOnboarding(
-  data: OnboardingData,
-): Promise<AIBrainData> {
-  // Simula latencia para que la pantalla "cerebro activando" se sienta real
-  await new Promise((r) => setTimeout(r, 2200));
+const ENDPOINT = '/api/claude';
 
+async function callBackend<T>(feature: string, context: unknown): Promise<T> {
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feature, context }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Claude backend error ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  return (await res.json()) as T;
+}
+
+/* ─────────────── BRAIN desde onboarding ─────────────── */
+
+export async function generateBrainFromOnboarding(data: OnboardingData): Promise<AIBrainData> {
+  try {
+    const { brain } = await callBackend<{ brain: AIBrainData }>('brain_from_onboarding', { onboarding: data });
+    return brain;
+  } catch (e) {
+    console.warn('[claudeApi] brain_from_onboarding falló, usando fallback heurístico.', e);
+    return brainFallback(data);
+  }
+}
+
+/* ─────────────── Meeting Agenda ─────────────── */
+
+export async function generateMeetingAgenda(args: {
+  clientName: string;
+  industry: string;
+  meetingType: string;
+  pendingTasksCount: number;
+  hasAdsData: boolean;
+}): Promise<string> {
+  try {
+    const { text } = await callBackend<{ text: string }>('meeting_agenda', args);
+    return text;
+  } catch (e) {
+    console.warn('[claudeApi] meeting_agenda falló, usando fallback.', e);
+    return meetingAgendaFallback(args);
+  }
+}
+
+/* ─────────────── Three Options ─────────────── */
+
+export interface AIOption {
+  id: string;
+  title: string;
+  content: string;
+}
+
+export async function generateThreeOptions(args: {
+  section: 'market' | 'offer' | 'narrative' | 'personas';
+  client: { businessName: string; industry: string; founderName?: string };
+  signal?: string;
+}): Promise<AIOption[]> {
+  try {
+    const { options } = await callBackend<{ options: AIOption[] }>('three_options', args);
+    return options;
+  } catch (e) {
+    console.warn('[claudeApi] three_options falló, usando fallback.', e);
+    return threeOptionsFallback(args);
+  }
+}
+
+/* ─────────────── Regenerate Section ─────────────── */
+
+export async function regenerateBrainSection(args: {
+  section: 'market' | 'offer' | 'narrative' | 'personas';
+  current: AIBrainData;
+  identity?: { businessName?: string; industry?: string; founderName?: string };
+}): Promise<Partial<AIBrainData>> {
+  try {
+    const { patch } = await callBackend<{ patch: Partial<AIBrainData> }>('regenerate_section', args);
+    return patch;
+  } catch (e) {
+    console.warn('[claudeApi] regenerate_section falló, usando fallback.', e);
+    return regenerateFallback(args);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FALLBACKS heurísticos (cuando el endpoint no existe o falla)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function brainFallback(data: OnboardingData): AIBrainData {
   const business = data.step1.businessName;
   const industry = data.step1.industry;
   const founder = data.step1.founderName;
@@ -48,7 +131,7 @@ export async function generateBrainFromOnboarding(
       },
     ],
     irresistibleOffer: `Sistema integral para ${data.step4.idealClientDescription.split(' ').slice(0, 8).join(' ')}... que ${data.step6.differentiator.split(' ').slice(0, 10).join(' ')}... con garantía de resultados medibles.`,
-    gapAnalysis: `Situación actual: ${data.step3.monthlyRevenue}. Meta: ${currency} ${goal3m.toLocaleString()}/mes en 3 meses. Brecha identificada en ${data.step3.acquisitionChannels.length < 3 ? 'diversificación de canales' : 'optimización de conversión'} y ${data.step3.hasFunnel !== 'yes' ? 'arquitectura de embudo' : 'optimización del embudo existente'}.`,
+    gapAnalysis: `Situación actual: ${data.step3.monthlyRevenue}. Meta: ${currency} ${goal3m.toLocaleString()}/mes en 3 meses. Brecha en ${data.step3.acquisitionChannels.length < 3 ? 'diversificación de canales' : 'optimización de conversión'}.`,
     recommendedSystem: inferSystem(data),
     initialDeliverables: [
       { title: 'Auditoría completa de canales y embudo actual', dueInDays: 5, responsibleRole: 'estratega' },
@@ -60,21 +143,14 @@ export async function generateBrainFromOnboarding(
   };
 }
 
-/**
- * Genera una agenda estructurada para una reunión, adaptada al tipo y al
- * estado del cliente. Mock con latencia ~1.2s; en backend real llama a
- * Claude con el contexto del cliente (tareas pendientes, métricas, ROPRE).
- */
-export async function generateMeetingAgenda(args: {
+function meetingAgendaFallback(args: {
   clientName: string;
   industry: string;
   meetingType: string;
   pendingTasksCount: number;
   hasAdsData: boolean;
-}): Promise<string> {
-  await new Promise((r) => setTimeout(r, 1200));
+}): string {
   const { clientName, industry, meetingType, pendingTasksCount, hasAdsData } = args;
-
   const sections: Record<string, string[]> = {
     weekly_metrics: [
       `Revisión de métricas de la semana — ${clientName}`,
@@ -84,8 +160,8 @@ export async function generateMeetingAgenda(args: {
       'Compromisos para la próxima semana',
     ],
     kickoff: [
-      `Presentación del equipo y alcance del proyecto`,
-      `Revisión del cerebro ya activado de ${clientName}`,
+      'Presentación del equipo y alcance del proyecto',
+      `Revisión del cerebro de ${clientName}`,
       'Acceso a plataformas (Meta, Google, GA4)',
       'Definición de canales prioritarios y audiencias',
       'Próximos pasos para los primeros 14 días',
@@ -119,69 +195,51 @@ export async function generateMeetingAgenda(args: {
       'Próxima revisión',
     ],
   };
-
   const items = sections[meetingType] ?? sections.weekly_metrics;
   return items.map((s, i) => `${i + 1}. ${s}`).join('\n');
 }
 
-/**
- * Genera 3 opciones diferenciadas para una sección del cerebro.
- * En backend real, llama a Claude con un prompt que pide tres ángulos distintos.
- */
-export interface AIOption {
-  id: string;
-  title: string;
-  content: string;
-}
-
-export async function generateThreeOptions(args: {
+function threeOptionsFallback(args: {
   section: 'market' | 'offer' | 'narrative' | 'personas';
   client: { businessName: string; industry: string; founderName?: string };
-  signal?: string; // dirección adicional opcional (para Complementar)
-}): Promise<AIOption[]> {
-  await new Promise((r) => setTimeout(r, 1200));
+  signal?: string;
+}): AIOption[] {
   const { section, client, signal } = args;
-  const ext = signal ? ` Complemento solicitado: "${signal}".` : '';
+  const ext = signal ? ` Complemento: "${signal}".` : '';
 
   if (section === 'market') {
     return [
-      { id: 'mk_data', title: 'Lectura de mercado por datos', content: `${client.businessName} opera en ${client.industry}. Análisis basado en datos: el sector muestra tendencia +18% YoY en búsquedas digitales. Oportunidad de capturar share por contenido educativo de cola larga + paid social.${ext}` },
-      { id: 'mk_emotion', title: 'Lectura por dolor emocional', content: `${client.businessName} entra a un mercado donde el cliente está saturado de promesas vacías. La oportunidad real es construir confianza con narrativa cercana y prueba social fuerte.${ext}` },
-      { id: 'mk_competitive', title: 'Lectura competitiva', content: `${client.businessName} compite contra jugadores con presupuesto mayor pero mensaje genérico. Ventana de diferenciación: voz personal + sistema premium + nicho específico.${ext}` },
+      { id: 'mk_data', title: 'Lectura por datos', content: `${client.businessName} (${client.industry}) muestra tendencia +18% YoY en búsquedas digitales. Oportunidad por contenido educativo de cola larga + paid social.${ext}` },
+      { id: 'mk_emotion', title: 'Lectura emocional', content: `${client.businessName} entra a un mercado saturado de promesas vacías. Oportunidad real: construir confianza con narrativa cercana y prueba social fuerte.${ext}` },
+      { id: 'mk_competitive', title: 'Lectura competitiva', content: `${client.businessName} compite contra jugadores con presupuesto mayor pero mensaje genérico. Diferenciación: voz personal + sistema premium + nicho específico.${ext}` },
     ];
   }
   if (section === 'offer') {
     return [
-      { id: 'of_outcome', title: 'Oferta orientada a resultado', content: `Sistema integral para que ${client.founderName ?? 'el founder'} de ${client.businessName} convierta su autoridad en un flujo predecible de clientes — instalado en 30 días con garantía de resultados o continúa sin costo.${ext}` },
-      { id: 'of_process', title: 'Oferta orientada a proceso', content: `Acompañamiento estratégico semanal para ${client.businessName}: implementación de embudo, optimización continua y reporting ejecutivo — sin contratos largos, mes a mes.${ext}` },
-      { id: 'of_transform', title: 'Oferta transformacional', content: `Más que campañas: una transformación completa del sistema de adquisición de ${client.businessName} en 12 semanas, con playbook propio para escalar después.${ext}` },
+      { id: 'of_outcome', title: 'Orientada a resultado', content: `Sistema integral para que ${client.founderName ?? 'el founder'} de ${client.businessName} convierta su autoridad en un flujo predecible de clientes — instalado en 30 días con garantía de resultados.${ext}` },
+      { id: 'of_process', title: 'Orientada a proceso', content: `Acompañamiento estratégico semanal para ${client.businessName}: implementación de embudo, optimización continua y reporting ejecutivo — mes a mes.${ext}` },
+      { id: 'of_transform', title: 'Transformacional', content: `Más que campañas: transformación completa del sistema de adquisición de ${client.businessName} en 12 semanas, con playbook propio para escalar después.${ext}` },
     ];
   }
   if (section === 'narrative') {
     return [
-      { id: 'na_empathic', title: 'Voz empática y cercana', content: `Tono: empático, cercano, conversacional. Lenguaje del cliente: "me siento atascada", "necesito algo que funcione de verdad". Temas con autoridad: experiencia personal, casos transformados, ciencia accesible.${ext}` },
-      { id: 'na_authority', title: 'Voz experta y autoritaria', content: `Tono: profesional, claro, con datos. Lenguaje: "evidencia muestra que…", "el método consiste en…". Temas: investigación, casos clínicos, frameworks propios.${ext}` },
-      { id: 'na_inspirational', title: 'Voz inspiracional', content: `Tono: motivacional, aspiracional, visual. Lenguaje: "imagina si…", "vas a poder…". Temas: transformaciones, historias de éxito, visión de futuro.${ext}` },
+      { id: 'na_empathic', title: 'Voz empática', content: `Tono: empático, cercano, conversacional. Lenguaje del cliente: "me siento atascada", "necesito algo que funcione". Temas: experiencia personal, casos transformados, ciencia accesible.${ext}` },
+      { id: 'na_authority', title: 'Voz experta', content: `Tono: profesional, claro, con datos. Lenguaje: "evidencia muestra que…", "el método consiste en…". Temas: investigación, casos clínicos, frameworks propios.${ext}` },
+      { id: 'na_inspirational', title: 'Voz inspiracional', content: `Tono: motivacional, aspiracional. Lenguaje: "imagina si…", "vas a poder…". Temas: transformaciones, historias de éxito, visión de futuro.${ext}` },
     ];
   }
-  // personas
   return [
-    { id: 'pe_pro', title: 'Profesional saturada (29-38)', content: 'Mujer profesional, 29-38, ingreso medio-alto. Dolor principal: estrés crónico, agotamiento, falta de tiempo para sí misma. Deseo: recuperar energía sin abandonar carrera. Objeción: "no tengo tiempo para más cosas".' },
-    { id: 'pe_mom',  title: 'Madre regulada (32-45)', content: 'Madre 32-45, busca regulación nerviosa para mejorar su crianza y relaciones. Dolor: reactividad emocional, culpa. Deseo: ser un ancla calmada para su familia. Objeción: "ya probé muchas cosas".' },
-    { id: 'pe_seek', title: 'Buscadora consciente (24-32)', content: 'Joven adulta interesada en bienestar holístico. Dolor: ansiedad social, presión por "tenerlo todo resuelto". Deseo: paz interior real, no estética. Objeción: "es caro".' },
+    { id: 'pe_pro', title: 'Profesional saturada (29-38)', content: 'Mujer profesional, 29-38, ingreso medio-alto. Dolor: estrés crónico, agotamiento. Deseo: recuperar energía sin abandonar carrera. Objeción: "no tengo tiempo".' },
+    { id: 'pe_mom', title: 'Madre regulada (32-45)', content: 'Madre 32-45, busca regulación nerviosa para mejor crianza. Dolor: reactividad emocional, culpa. Deseo: ser ancla calmada para familia. Objeción: "ya probé muchas cosas".' },
+    { id: 'pe_seek', title: 'Buscadora consciente (24-32)', content: 'Joven adulta interesada en bienestar holístico. Dolor: ansiedad social, presión por tenerlo todo resuelto. Deseo: paz interior real. Objeción: "es caro".' },
   ];
 }
 
-/**
- * Regenera una sección específica del cerebro a partir del estado actual del cliente.
- * En backend real, debería llamar a Claude con un prompt acotado a la sección.
- */
-export async function regenerateBrainSection(args: {
+function regenerateFallback(args: {
   section: 'market' | 'offer' | 'narrative' | 'personas';
   current: AIBrainData;
   identity?: { businessName?: string; industry?: string; founderName?: string };
-}): Promise<Partial<AIBrainData>> {
-  await new Promise((r) => setTimeout(r, 1100));
+}): Partial<AIBrainData> {
   const { section, current, identity } = args;
   const name = identity?.businessName ?? 'la marca';
   const industry = identity?.industry ?? 'su industria';
@@ -189,24 +247,20 @@ export async function regenerateBrainSection(args: {
   switch (section) {
     case 'market':
       return {
-        executiveSummary: `${name} opera en ${industry}. Análisis regenerado: la marca muestra señales de tracción orgánica con margen para escalar mediante paid media. Recomendamos validar oferta con prueba A/B durante 14 días antes de duplicar inversión.`,
+        executiveSummary: `${name} opera en ${industry}. Análisis regenerado: la marca muestra señales de tracción orgánica con margen para escalar mediante paid media. Recomendamos validar oferta con A/B durante 14 días antes de duplicar inversión.`,
         gapAnalysis: `Brecha actualizada: diferencial vs competencia más claro pero falta consistencia en frecuencia de publicación. Oportunidad de capturar SEO con contenido educativo de cola larga.`,
       };
     case 'offer':
       return {
-        irresistibleOffer: `Sistema integral para que ${identity?.founderName?.split(' ')[0] ?? 'el founder'} de ${name} convierta su autoridad en un flujo de clientes predecible — instalado en 30 días con garantía de leads o seguimos sin costo.`,
+        irresistibleOffer: `Sistema integral para que ${identity?.founderName?.split(' ')[0] ?? 'el founder'} de ${name} convierta su autoridad en un flujo de clientes predecible — instalado en 30 días con garantía de leads.`,
       };
     case 'narrative':
-      return {
-        // La narrativa vive principalmente en onboardingData.content; aquí podríamos
-        // ampliar buyerPersonas o agregar campos nuevos. Mantenemos current y notificamos.
-        ...current,
-      };
+      return { ...current };
     case 'personas':
       return {
         buyerPersonas: (current.buyerPersonas ?? []).map((p, i) => ({
           ...p,
-          description: `[Regenerado v${Math.floor(Math.random() * 90) + 10}] ${p.description}`,
+          description: `[Regenerado] ${p.description}`,
           pains: i === 0 ? ['Nuevo dolor primario detectado', ...p.pains.slice(0, 2)] : p.pains,
         })),
       };

@@ -52,7 +52,7 @@ type RequestBody =
   | { feature: 'regenerate_section'; context: RegenerateCtx }
   | { feature: 'brain_from_onboarding'; context: BrainCtx };
 
-export const config = { runtime: 'edge' };
+export const config = { runtime: 'nodejs' };
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {

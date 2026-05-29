@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #0A0A0F;
+  color: #F5F5FA;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+@layer components {
+  .surface {
+    @apply bg-bg-surface border border-border-subtle rounded-[14px];
+  }
+  .surface-elevated {
+    @apply bg-bg-elevated border border-border-default rounded-[14px];
+  }
+  .heading {
+    font-family: 'Syne', system-ui, sans-serif;
+    @apply tracking-tight text-text-primary;
+  }
+  .kpi-number {
+    font-family: 'Syne', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.5rem, 2.5vw, 2.25rem);
+    line-height: 1;
+  }
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-accent-violet/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base;
+  }
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #06B6D4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

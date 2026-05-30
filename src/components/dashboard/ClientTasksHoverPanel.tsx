@@ -10,10 +10,10 @@ import type { TaskPriority } from '@/types/task';
 import { cn } from '@/utils/cn';
 
 const PRIORITY_RANK: Record<TaskPriority, number> = { P1: 0, P2: 1, P3: 2 };
-const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'neutral'> = {
+const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'subtle'> = {
   P1: 'danger',
   P2: 'warning',
-  P3: 'neutral',
+  P3: 'subtle',
 };
 
 interface Props {
@@ -57,10 +57,15 @@ export function ClientTasksHoverPanel({ clientId, accent, open }: Props) {
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.15 }}
           className={cn(
-            'absolute left-full top-0 ml-3 w-72 z-30 surface-elevated shadow-2xl',
+            'absolute left-full top-0 ml-3 w-72 z-30 rounded-[14px] border',
             !open && 'pointer-events-none',
           )}
-          style={{ borderColor: withAlpha(accent, 0.3) }}
+          style={{
+            background: 'var(--popover-bg)',
+            borderColor: withAlpha(accent, 0.3),
+            boxShadow: 'var(--popover-shadow)',
+            color: 'var(--popover-text)',
+          }}
         >
           <header
             className="px-3 py-2 border-b border-border-subtle text-[10px] uppercase tracking-wider"

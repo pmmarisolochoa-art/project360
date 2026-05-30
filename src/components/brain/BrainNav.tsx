@@ -41,16 +41,15 @@ export function BrainNav({ accent }: { accent: string }) {
                 className={({ isActive }) =>
                   cn(
                     'group w-full inline-flex items-center justify-center gap-1 rounded-[8px] px-2 py-1.5 text-[10px] whitespace-nowrap transition-all focus-ring',
-                    isActive
-                      ? 'text-text-primary'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated',
+                    isActive ? 'font-semibold' : 'text-text-secondary hover:text-text-primary',
                   )
                 }
                 style={({ isActive }) =>
                   isActive
                     ? {
-                        background: withAlpha(accent, 0.12),
+                        background: withAlpha(accent, 0.18),
                         boxShadow: `inset 0 -2px 0 ${accent}`,
+                        color: 'var(--text-primary)',
                       }
                     : undefined
                 }

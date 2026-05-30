@@ -353,11 +353,11 @@ function FunnelSection({ client, accent }: { client: Client; accent: string }) {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={growthData}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                  <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
                   <XAxis dataKey="label" stroke="#6B6B80" fontSize={11} />
                   <YAxis stroke="#6B6B80" fontSize={11} />
                   <RTooltip
-                    contentStyle={{ background: '#12121A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 12 }}
+                    contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 10, fontSize: 12 }}
                     formatter={(v: number) => formatCurrency(v)}
                   />
                   <Bar dataKey="revenue" fill={accent} radius={[6, 6, 0, 0]} />
@@ -819,7 +819,7 @@ function MarketSection({ client, accent }: { client: Client; accent: string }) {
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData}>
-              <PolarGrid stroke="rgba(255,255,255,0.08)" />
+              <PolarGrid stroke="var(--chart-grid)" />
               <PolarAngleAxis dataKey="metric" tick={{ fill: '#A0A0B4', fontSize: 10 }} />
               <PolarRadiusAxis tick={{ fill: '#6B6B80', fontSize: 9 }} angle={90} domain={[0, 150]} />
               <Radar name="Benchmark" dataKey="Benchmark" stroke="#A0A0B4" fill="#A0A0B4" fillOpacity={0.18} />
@@ -1398,7 +1398,7 @@ function InvestmentSection({ client, accent }: { client: Client; accent: string 
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={stackedData}>
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+              <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
               <XAxis dataKey="month" stroke="#6B6B80" fontSize={11} />
               <YAxis stroke="#6B6B80" fontSize={11} />
               <RTooltip

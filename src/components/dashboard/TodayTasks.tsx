@@ -11,8 +11,8 @@ import type { Task, TaskPriority } from '@/types/task';
 import { cn } from '@/utils/cn';
 
 const PRIORITY_RANK: Record<TaskPriority, number> = { P1: 0, P2: 1, P3: 2 };
-const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'neutral'> = {
-  P1: 'danger', P2: 'warning', P3: 'neutral',
+const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'subtle'> = {
+  P1: 'danger', P2: 'warning', P3: 'subtle',
 };
 
 export function TodayTasks() {

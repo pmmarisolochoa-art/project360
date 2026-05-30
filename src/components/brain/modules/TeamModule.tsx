@@ -203,11 +203,11 @@ function GlobalDashboard({
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+              <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
               <XAxis dataKey="label" stroke="#6B6B80" fontSize={11} />
               <YAxis stroke="#6B6B80" fontSize={11} domain={[0, 100]} />
               <RTooltip
-                contentStyle={{ background: '#12121A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, fontSize: 12 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 10, fontSize: 12 }}
                 labelStyle={{ color: '#A0A0B4' }}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />

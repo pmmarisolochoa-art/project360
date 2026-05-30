@@ -4,24 +4,24 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Theme-aware (cambian entre light/dark via CSS vars en index.css)
+        // Theme-aware con soporte para alpha modifiers (/40, /20, etc.)
         bg: {
-          base: 'var(--bg-base)',
-          surface: 'var(--bg-surface)',
-          elevated: 'var(--bg-elevated)',
-          hover: 'var(--bg-hover)',
-        },
-        border: {
-          subtle: 'var(--border-subtle)',
-          default: 'var(--border-default)',
-          strong: 'var(--border-strong)',
+          base:     'rgb(var(--bg-base-rgb) / <alpha-value>)',
+          surface:  'rgb(var(--bg-surface-rgb) / <alpha-value>)',
+          elevated: 'rgb(var(--bg-elevated-rgb) / <alpha-value>)',
+          hover:    'rgb(var(--bg-hover-rgb) / <alpha-value>)',
         },
         text: {
-          primary: 'var(--text-primary)',
-          secondary: 'var(--text-secondary)',
-          muted: 'var(--text-muted)',
+          primary:   'rgb(var(--text-primary-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+          muted:     'rgb(var(--text-muted-rgb) / <alpha-value>)',
         },
-        // Theme-independent (mismos colores en ambos)
+        border: {
+          subtle:  'var(--border-subtle)',
+          default: 'var(--border-default)',
+          strong:  'var(--border-strong)',
+        },
+        // Theme-independent
         accent: {
           indigo: '#6366F1',
           violet: '#8B5CF6',

@@ -103,10 +103,10 @@ export function TeamPage() {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={complianceData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="week" stroke="#9CA3AF" style={{ fontSize: '11px' }} />
-              <YAxis stroke="#9CA3AF" style={{ fontSize: '11px' }} domain={[0, 100]} />
-              <Tooltip contentStyle={{ background: '#0A0A0F', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="week" stroke="var(--chart-axis)" style={{ fontSize: '11px' }} />
+              <YAxis stroke="var(--chart-axis)" style={{ fontSize: '11px' }} domain={[0, 100]} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12, color: 'var(--chart-tooltip-text)' }} />
               {ROLE_DEFS.map((r, i) => {
                 const colors = ['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EF4444'];
                 return <Bar key={r.slug} dataKey={r.title} fill={colors[i % colors.length]} radius={[3, 3, 0, 0]} />;

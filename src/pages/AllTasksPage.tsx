@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import type { TaskPriority, TaskStatus } from '@/types/task';
 
-const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'neutral'> = {
-  P1: 'danger', P2: 'warning', P3: 'neutral',
+const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'subtle'> = {
+  P1: 'danger', P2: 'warning', P3: 'subtle',
 };
 const STATUS_LABEL: Record<TaskStatus, string> = {
   pending: 'Pendiente', in_progress: 'En progreso', in_review: 'Revisión', completed: 'Completada', blocked: 'Bloqueada',

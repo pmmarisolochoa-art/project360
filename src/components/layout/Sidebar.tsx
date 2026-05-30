@@ -52,8 +52,11 @@ export function Sidebar() {
   }[worstHealth];
 
   return (
-    <aside className="flex w-64 flex-col bg-bg-surface border-r border-border-subtle">
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-border-subtle">
+    <aside
+      className="flex w-64 flex-col border-r"
+      style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--sidebar-border)' }}
+    >
+      <div className="flex items-center gap-3 px-5 py-5 border-b" style={{ borderColor: 'var(--sidebar-border)' }}>
         <motion.div
           animate={{ scale: [1, 1.06, 1], opacity: [0.85, 1, 0.85] }}
           transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
@@ -79,10 +82,13 @@ export function Sidebar() {
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm transition-all focus-ring',
-                isActive
-                  ? 'bg-bg-elevated text-text-primary shadow-glow-accent/40 border border-border-default'
-                  : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
+                isActive ? 'font-medium' : 'text-text-secondary hover:text-text-primary',
               )
+            }
+            style={({ isActive }) =>
+              isActive
+                ? { background: 'var(--sidebar-item-active-bg)', color: 'var(--sidebar-item-active-text)' }
+                : undefined
             }
           >
             <item.icon className="h-4 w-4" />
@@ -101,10 +107,13 @@ export function Sidebar() {
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-[10px] px-3 py-2 text-xs transition-all focus-ring',
-                  isActive
-                    ? 'bg-bg-elevated text-text-primary border border-border-default'
-                    : 'text-text-secondary hover:bg-bg-elevated hover:text-text-primary',
+                  isActive ? 'font-medium' : 'text-text-secondary hover:text-text-primary',
                 )
+              }
+              style={({ isActive }) =>
+                isActive
+                  ? { background: 'var(--sidebar-item-active-bg)', color: 'var(--sidebar-item-active-text)' }
+                  : undefined
               }
             >
               <item.icon className="h-3.5 w-3.5" />

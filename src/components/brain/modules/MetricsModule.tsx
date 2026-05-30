@@ -202,18 +202,19 @@ export function MetricsModule({ client }: { client: Client }) {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trend.map((d) => ({ date: d.date.slice(5), spend: d.metrics.spend, roas: d.metrics.roas }))}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                  <XAxis dataKey="date" stroke="#6B6B80" fontSize={11} />
-                  <YAxis yAxisId="left" stroke="#6B6B80" fontSize={11} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#6B6B80" fontSize={11} />
+                  <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
+                  <XAxis dataKey="date" stroke="var(--chart-axis)" fontSize={11} />
+                  <YAxis yAxisId="left" stroke="var(--chart-axis)" fontSize={11} />
+                  <YAxis yAxisId="right" orientation="right" stroke="var(--chart-axis)" fontSize={11} />
                   <RTooltip
                     contentStyle={{
-                      background: '#12121A',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'var(--chart-tooltip-bg)',
+                      border: '1px solid var(--chart-tooltip-border)',
                       borderRadius: 10,
                       fontSize: 12,
+                      color: 'var(--chart-tooltip-text)',
                     }}
-                    labelStyle={{ color: '#A0A0B4' }}
+                    labelStyle={{ color: 'var(--text-secondary)' }}
                   />
                   <Line yAxisId="left" type="monotone" dataKey="spend" stroke={accent} strokeWidth={2} dot={false} name="Inversión" />
                   <Line yAxisId="right" type="monotone" dataKey="roas" stroke="#06B6D4" strokeWidth={2} dot={false} name="ROAS" />

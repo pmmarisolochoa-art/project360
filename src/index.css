@@ -2,26 +2,120 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Theme tokens (default = dark) ──────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME TOKENS — Dark (default) + Light
+   ════════════════════════════════════════════════════════════════════════════ */
+
 :root, html.theme-dark {
   color-scheme: dark;
 
-  --bg-base:      #0A0A0F;
-  --bg-surface:   #12121A;
-  --bg-elevated:  #1A1A24;
-  --bg-hover:     #22222E;
+  /* Surfaces — RGB triplets para soportar alpha modifiers en Tailwind */
+  --bg-base-rgb:     10 10 15;
+  --bg-surface-rgb:  18 18 26;
+  --bg-elevated-rgb: 26 26 36;
+  --bg-hover-rgb:    34 34 46;
+  --bg-base:      rgb(var(--bg-base-rgb));
+  --bg-surface:   rgb(var(--bg-surface-rgb));
+  --bg-elevated:  rgb(var(--bg-elevated-rgb));
+  --bg-hover:     rgb(var(--bg-hover-rgb));
 
+  /* Borders (alpha overlay, no necesitan triplet) */
   --border-subtle:  rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.10);
   --border-strong:  rgba(255, 255, 255, 0.18);
 
-  --text-primary:   #F5F5FA;
-  --text-secondary: #A0A0B4;
-  --text-muted:     #6B6B80;
+  /* Text */
+  --text-primary-rgb:   245 245 250;
+  --text-secondary-rgb: 160 160 180;
+  --text-muted-rgb:     107 107 128;
+  --text-primary:   rgb(var(--text-primary-rgb));
+  --text-secondary: rgb(var(--text-secondary-rgb));
+  --text-muted:     rgb(var(--text-muted-rgb));
 
+  /* Scrollbar */
   --scrollbar-thumb:       rgba(255, 255, 255, 0.08);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.16);
 
+  /* Sidebar / Header chrome */
+  --sidebar-bg:               var(--bg-surface);
+  --sidebar-border:           var(--border-subtle);
+  --sidebar-item-active-bg:   var(--bg-elevated);
+  --sidebar-item-active-text: var(--text-primary);
+  --sidebar-item-hover-bg:    var(--bg-elevated);
+  --header-bg:                rgba(10, 10, 15, 0.80);
+  --header-border:            var(--border-subtle);
+  --header-search-bg:         var(--bg-surface);
+  --header-search-border:     var(--border-subtle);
+
+  /* Tabs (nav del cerebro) */
+  --tab-active-text: var(--text-primary);
+  --tab-hover-bg:    var(--bg-elevated);
+
+  /* Inputs */
+  --input-bg:          var(--bg-surface);
+  --input-border:      var(--border-default);
+  --input-text:        var(--text-primary);
+  --input-placeholder: var(--text-muted);
+
+  /* Cards / Popovers */
+  --card-shadow:       none;
+  --card-shadow-hover: none;
+  --popover-bg:        var(--bg-surface);
+  --popover-border:    var(--border-default);
+  --popover-text:      var(--text-primary);
+  --popover-text-muted: var(--text-muted);
+  --popover-shadow:    0 12px 32px rgba(0, 0, 0, 0.45);
+
+  /* Tablas */
+  --table-header-bg:   rgba(26, 26, 36, 0.4);
+  --table-header-text: var(--text-muted);
+  --table-row-hover:   rgba(26, 26, 36, 0.5);
+  --table-row-border:  rgba(255, 255, 255, 0.04);
+  --table-row-zebra:   transparent;
+
+  /* Kanban */
+  --kanban-column-bg:   rgba(26, 26, 36, 0.5);
+  --kanban-card-bg:     var(--bg-surface);
+  --kanban-card-border: var(--border-default);
+  --kanban-card-shadow: none;
+
+  /* Charts (Recharts) */
+  --chart-grid:    rgba(255, 255, 255, 0.05);
+  --chart-axis:    #9CA3AF;
+  --chart-tooltip-bg:     #0A0A0F;
+  --chart-tooltip-border: rgba(255, 255, 255, 0.10);
+  --chart-tooltip-text:   #F5F5FA;
+
+  /* Badges — por tono (dark = saturated rgba) */
+  --badge-neutral-bg:   var(--bg-elevated);
+  --badge-neutral-text: var(--text-secondary);
+  --badge-neutral-border: var(--border-default);
+
+  --badge-success-bg:     rgba(16, 185, 129, 0.15);
+  --badge-success-text:   #10B981;
+  --badge-success-border: rgba(16, 185, 129, 0.30);
+
+  --badge-warning-bg:     rgba(245, 158, 11, 0.15);
+  --badge-warning-text:   #F59E0B;
+  --badge-warning-border: rgba(245, 158, 11, 0.30);
+
+  --badge-danger-bg:      rgba(239, 68, 68, 0.15);
+  --badge-danger-text:    #EF4444;
+  --badge-danger-border:  rgba(239, 68, 68, 0.30);
+
+  --badge-info-bg:        rgba(6, 182, 212, 0.15);
+  --badge-info-text:      #06B6D4;
+  --badge-info-border:    rgba(6, 182, 212, 0.30);
+
+  --badge-accent-bg:      rgba(139, 92, 246, 0.15);
+  --badge-accent-text:    #8B5CF6;
+  --badge-accent-border:  rgba(139, 92, 246, 0.30);
+
+  --badge-subtle-bg:      rgba(234, 179, 8, 0.10);
+  --badge-subtle-text:    #EAB308;
+  --badge-subtle-border:  rgba(234, 179, 8, 0.25);
+
+  /* Radii */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -31,21 +125,111 @@
 html.theme-light {
   color-scheme: light;
 
-  --bg-base:      #F8F9FC;
-  --bg-surface:   #FFFFFF;
-  --bg-elevated:  #F1F3F9;
-  --bg-hover:     #E8EAF0;
+  /* Surfaces */
+  --bg-base-rgb:     248 249 252;
+  --bg-surface-rgb:  255 255 255;
+  --bg-elevated-rgb: 241 243 249;
+  --bg-hover-rgb:    232 234 240;
+  --bg-base:      rgb(var(--bg-base-rgb));
+  --bg-surface:   rgb(var(--bg-surface-rgb));
+  --bg-elevated:  rgb(var(--bg-elevated-rgb));
+  --bg-hover:     rgb(var(--bg-hover-rgb));
 
+  /* Borders */
   --border-subtle:  rgba(0, 0, 0, 0.06);
-  --border-default: rgba(0, 0, 0, 0.10);
+  --border-default: #E5E7EB;
   --border-strong:  rgba(0, 0, 0, 0.18);
 
-  --text-primary:   #0A0A0F;
-  --text-secondary: #4B5563;
-  --text-muted:     #6B7280;
+  /* Text */
+  --text-primary-rgb:   17 24 39;
+  --text-secondary-rgb: 75 85 99;
+  --text-muted-rgb:     107 114 128;
+  --text-primary:   rgb(var(--text-primary-rgb));
+  --text-secondary: rgb(var(--text-secondary-rgb));
+  --text-muted:     rgb(var(--text-muted-rgb));
 
+  /* Scrollbar */
   --scrollbar-thumb:       rgba(0, 0, 0, 0.12);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
+
+  /* Sidebar / Header chrome */
+  --sidebar-bg:               #F8F9FC;
+  --sidebar-border:           #E5E7EB;
+  --sidebar-item-active-bg:   #EEF2FF;
+  --sidebar-item-active-text: #4F46E5;
+  --sidebar-item-hover-bg:    #F3F4F6;
+  --header-bg:                #FFFFFF;
+  --header-border:            #E5E7EB;
+  --header-search-bg:         #F3F4F6;
+  --header-search-border:     #E5E7EB;
+
+  /* Tabs */
+  --tab-active-text: #4F46E5;
+  --tab-hover-bg:    #F3F4F6;
+
+  /* Inputs */
+  --input-bg:          #FFFFFF;
+  --input-border:      #D1D5DB;
+  --input-text:        #111827;
+  --input-placeholder: #9CA3AF;
+
+  /* Cards / Popovers */
+  --card-shadow:       0 1px 3px rgba(0, 0, 0, 0.08);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.10);
+  --popover-bg:        #FFFFFF;
+  --popover-border:    #E5E7EB;
+  --popover-text:      #111827;
+  --popover-text-muted: #6B7280;
+  --popover-shadow:    0 4px 20px rgba(0, 0, 0, 0.12);
+
+  /* Tablas */
+  --table-header-bg:   #F9FAFB;
+  --table-header-text: #374151;
+  --table-row-hover:   #F0F9FF;
+  --table-row-border:  #E5E7EB;
+  --table-row-zebra:   #F9FAFB;
+
+  /* Kanban */
+  --kanban-column-bg:   #F3F4F6;
+  --kanban-card-bg:     #FFFFFF;
+  --kanban-card-border: #E5E7EB;
+  --kanban-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+  /* Charts */
+  --chart-grid:    #E5E7EB;
+  --chart-axis:    #6B7280;
+  --chart-tooltip-bg:     #FFFFFF;
+  --chart-tooltip-border: #E5E7EB;
+  --chart-tooltip-text:   #111827;
+
+  /* Badges — por tono (light = pasteles con texto oscuro) */
+  --badge-neutral-bg:     #F3F4F6;
+  --badge-neutral-text:   #374151;
+  --badge-neutral-border: #E5E7EB;
+
+  --badge-success-bg:     #DCFCE7;
+  --badge-success-text:   #166534;
+  --badge-success-border: #BBF7D0;
+
+  --badge-warning-bg:     #FEF3C7;
+  --badge-warning-text:   #92400E;
+  --badge-warning-border: #FDE68A;
+
+  --badge-danger-bg:      #FEE2E2;
+  --badge-danger-text:    #991B1B;
+  --badge-danger-border:  #FECACA;
+
+  --badge-info-bg:        #DBEAFE;
+  --badge-info-text:      #1E40AF;
+  --badge-info-border:    #BFDBFE;
+
+  --badge-accent-bg:      #EDE9FE;
+  --badge-accent-text:    #5B21B6;
+  --badge-accent-border:  #DDD6FE;
+
+  --badge-subtle-bg:      #FEF9C3;
+  --badge-subtle-text:    #854D0E;
+  --badge-subtle-border:  #FEF08A;
 }
 
 * {
@@ -73,10 +257,16 @@ html, body, #root {
 
 @layer components {
   .surface {
-    @apply bg-bg-surface border border-border-subtle rounded-[14px];
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    box-shadow: var(--card-shadow);
+    transition: box-shadow 200ms ease;
   }
   .surface-elevated {
-    @apply bg-bg-elevated border border-border-default rounded-[14px];
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: 14px;
   }
   .heading {
     font-family: 'Syne', system-ui, sans-serif;

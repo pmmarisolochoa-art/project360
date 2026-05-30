@@ -23,12 +23,16 @@ export const Textarea = forwardRef<HTMLTextAreaElement, Props>(function Textarea
         ref={ref}
         rows={rest.rows ?? 4}
         className={cn(
-          'w-full rounded-[10px] bg-bg-surface border px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted outline-none resize-y transition-colors',
+          'w-full rounded-[10px] border px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted outline-none resize-y transition-colors',
           error
             ? 'border-status-danger/60'
-            : 'border-border-subtle focus:border-accent-violet/60 focus:shadow-glow-accent/30',
+            : 'focus:border-accent-violet/60 focus:shadow-glow-accent/30',
           className,
         )}
+        style={{
+          background: 'var(--input-bg)',
+          borderColor: error ? undefined : 'var(--input-border)',
+        }}
         required={required}
         {...rest}
       />

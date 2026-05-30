@@ -9,14 +9,21 @@ export function Header() {
   const unread = useNotificationStore((s) => s.notifications.filter((n) => !n.isRead).length);
 
   return (
-    <header className="h-16 flex items-center justify-between px-6 border-b border-border-subtle bg-bg-base/80 backdrop-blur-md">
+    <header
+      className="h-16 flex items-center justify-between px-6 border-b backdrop-blur-md"
+      style={{ background: 'var(--header-bg)', borderColor: 'var(--header-border)' }}
+    >
       <div className="flex items-center gap-3 flex-1 max-w-md">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
           <input
             type="search"
             placeholder="Buscar cliente, tarea, reunión…"
-            className="w-full h-10 pl-10 pr-3 rounded-[10px] bg-bg-surface border border-border-subtle text-sm text-text-primary placeholder:text-text-muted focus-ring"
+            className="w-full h-10 pl-10 pr-3 rounded-[10px] border text-sm text-text-primary focus-ring"
+            style={{
+              background: 'var(--header-search-bg)',
+              borderColor: 'var(--header-search-border)',
+            }}
           />
         </div>
       </div>

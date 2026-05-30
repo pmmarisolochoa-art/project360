@@ -29,11 +29,15 @@ export const Select = forwardRef<HTMLSelectElement, Props>(function Select(
       )}
       <span
         className={cn(
-          'relative flex items-center h-10 rounded-[10px] bg-bg-surface border transition-colors',
+          'relative flex items-center h-10 rounded-[10px] border transition-colors',
           error
             ? 'border-status-danger/60'
-            : 'border-border-subtle focus-within:border-accent-violet/60 focus-within:shadow-glow-accent/30',
+            : 'focus-within:border-accent-violet/60 focus-within:shadow-glow-accent/30',
         )}
+        style={{
+          background: 'var(--input-bg)',
+          borderColor: error ? undefined : 'var(--input-border)',
+        }}
       >
         <select
           ref={ref}

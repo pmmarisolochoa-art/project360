@@ -31,10 +31,10 @@ const COLUMNS: Array<{ status: TaskStatus; label: string; tone: 'neutral' | 'inf
   { status: 'blocked', label: 'Bloqueado', tone: 'danger' },
 ];
 
-const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'neutral'> = {
+const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'subtle'> = {
   P1: 'danger',
   P2: 'warning',
-  P3: 'neutral',
+  P3: 'subtle',
 };
 
 export function TasksModule({ client }: { client: Client }) {

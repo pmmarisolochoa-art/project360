@@ -86,10 +86,16 @@ export function ClientTasksHoverPanel({ clientId, accent, open }: Props) {
                   <div className="flex items-start gap-2">
                     <Badge tone={PRIORITY_TONE[t.priority]} className="shrink-0">{t.priority}</Badge>
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs text-text-primary leading-snug line-clamp-2">
+                      <div
+                        className="text-xs font-medium leading-snug line-clamp-2"
+                        style={{ color: 'var(--popover-text)' }}
+                      >
                         {t.title}
                       </div>
-                      <div className="text-[10px] text-text-muted mt-1">
+                      <div
+                        className="text-[10px] mt-1"
+                        style={{ color: 'var(--popover-text-muted)' }}
+                      >
                         {formatRelative(t.dueDate)}
                         {t.assignedTo && <> · {t.assignedTo}</>}
                       </div>

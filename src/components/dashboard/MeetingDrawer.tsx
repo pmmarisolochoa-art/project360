@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/Badge';
 import { generateMeetingAgenda } from '@/services/claudeApi';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
+import { genId } from '@/utils/id';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Estrategia de contenido',
@@ -222,7 +223,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
                 onConfirm={(selected) => {
                   for (const t of selected) {
                     const task: Task = {
-                      id: `t_${Math.random().toString(36).slice(2, 7)}`,
+                      id: genId(),
                       clientId: meeting.clientId,
                       title: t.title,
                       status: 'pending',

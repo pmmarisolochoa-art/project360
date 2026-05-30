@@ -21,6 +21,8 @@ import { useClientStore } from '@/store/useClientStore';
 import { generateBrainFromOnboarding } from '@/services/claudeApi';
 import { generateAccentColor } from '@/utils/colorGenerator';
 import type { Client, ProjectType } from '@/types/client';
+import { useAuthStore } from '@/store/useAuthStore';
+import { genId } from '@/utils/id';
 
 export function OnboardingWizard() {
   const navigate = useNavigate();
@@ -144,8 +146,8 @@ function buildClientFromOnboarding(data: OnboardingData, brain: Awaited<ReturnTy
   const adsBudget = parseBudgetMid(data.step5.adsBudgetMonthly);
 
   return {
-    id: `c_${Math.random().toString(36).slice(2, 8)}`,
-    agencyId: 'a_1',
+    id: genId(),
+    agencyId: useAuthStore.getState().agencyId ?? 'a_1',
     name,
     industry: data.step1.industry,
     businessType: data.step2.businessType,

@@ -15,6 +15,7 @@ import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { differenceInDays, format, parseISO, max as dateMax, min as dateMin } from 'date-fns';
+import { genId } from '@/utils/id';
 
 const DELIV_COLS: Array<{ status: DeliverableStatus; label: string; tone: 'neutral' | 'info' | 'warning' | 'success' }> = [
   { status: 'todo', label: 'Por hacer', tone: 'neutral' },
@@ -353,7 +354,7 @@ function DeliverablesSection({
             leftIcon={<Plus className="h-3.5 w-3.5" />}
             onClick={() =>
               add({
-                id: `r_${Math.random().toString(36).slice(2, 8)}`,
+                id: genId(),
                 clientId,
                 type: 'deliverable',
                 title: 'Nuevo entregable',
@@ -393,7 +394,7 @@ function buildTaskFromDeliverable(item: RopreItem, clientId: string): Task {
   const priority: TaskPriority =
     item.status === 'review' ? 'P1' : item.status === 'in_progress' ? 'P2' : 'P3';
   return {
-    id: `t_${Math.random().toString(36).slice(2, 8)}`,
+    id: genId(),
     clientId,
     title: item.title,
     description: item.description,

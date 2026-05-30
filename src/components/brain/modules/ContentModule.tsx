@@ -23,6 +23,7 @@ import { useContentStore, DATE_FIELD_LABEL, STATUS_FLOW, type DateField } from '
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
+import { genId } from '@/utils/id';
 
 export function ContentModule({ client }: { client: Client }) {
   const allPieces = useContentStore((s) => s.pieces);
@@ -622,7 +623,7 @@ function DateInput({
 function buildEmpty(clientId: string, when: Date): ContentPiece {
   const iso = when.toISOString();
   return {
-    id: `ct_${Math.random().toString(36).slice(2, 8)}`,
+    id: genId(),
     clientId,
     title: '',
     platform: 'instagram',

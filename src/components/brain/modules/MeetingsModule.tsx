@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
+import { genId } from '@/utils/id';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff',
@@ -384,7 +385,7 @@ function NewMeetingModal({ clientId, onClose, onCreate }: {
     if (!title.trim()) return;
     const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
     const meeting: Meeting = {
-      id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: genId(),
       clientId,
       title: title.trim(),
       type,

@@ -22,6 +22,7 @@ import { useClientStore } from '@/store/useClientStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { formatRelative } from '@/utils/dateHelpers';
+import { genId } from '@/utils/id';
 
 const COLUMNS: Array<{ status: TaskStatus; label: string; tone: 'neutral' | 'info' | 'warning' | 'success' | 'danger' }> = [
   { status: 'pending', label: 'Pendiente', tone: 'neutral' },
@@ -196,7 +197,7 @@ export function TasksModule({ client }: { client: Client }) {
           onClose={() => setCreating(false)}
           onSave={(patch) => {
             addTask({
-              id: `t_${Math.random().toString(36).slice(2, 8)}`,
+              id: genId(),
               clientId: client.id,
               title: patch.title ?? '',
               description: patch.description,

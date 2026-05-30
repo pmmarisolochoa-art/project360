@@ -5,6 +5,7 @@ import { BrainHeader } from '@/components/brain/BrainHeader';
 import { BrainNav, BRAIN_MODULES } from '@/components/brain/BrainNav';
 import { ProfileModule } from '@/components/brain/modules/ProfileModule';
 import { PlaceholderModule } from '@/components/brain/modules/PlaceholderModule';
+import { MeetingsModule } from '@/components/brain/modules/MeetingsModule';
 import { TasksModule } from '@/components/brain/modules/TasksModule';
 import { RopreModule } from '@/components/brain/modules/RopreModule';
 import { MetricsModule } from '@/components/brain/modules/MetricsModule';
@@ -143,6 +144,8 @@ export function ClientBrainPage() {
           <ProjectionsModule client={client} />
         ) : module === 'planning' ? (
           <PlanningModule client={client} />
+        ) : module === 'meetings' ? (
+          <MeetingsModule client={client} />
         ) : (
           <PlaceholderModule
             title={`${moduleDef.index.toString().padStart(2, '0')} · ${moduleDef.fullLabel}`}

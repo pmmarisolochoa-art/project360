@@ -44,13 +44,12 @@ export function IntegrationsModal({ open, onClose }: { open: boolean; onClose: (
                 </div>
                 <Button
                   size="sm"
-                  variant={connected ? 'secondary' : 'primary'}
-                  onClick={() => {
-                    state.toggle(it.key);
-                    toast.success(connected ? `${it.name} desconectado` : `${it.name} conectado`);
-                  }}
+                  variant="secondary"
+                  disabled
+                  title="Integración real en desarrollo"
+                  onClick={() => toast.info(`${it.name} — Próximamente`)}
                 >
-                  {connected ? 'Desconectar' : 'Conectar'}
+                  Próximamente
                 </Button>
               </div>
               {it.key === 'calendly' && data.connected && 'url' in data && (
@@ -67,7 +66,7 @@ export function IntegrationsModal({ open, onClose }: { open: boolean; onClose: (
       </div>
 
       <div className="mt-4 rounded-md border border-border-subtle bg-bg-base/30 p-3 text-[11px] text-text-muted leading-relaxed">
-        <strong>Nota:</strong> Las integraciones reales requieren configuración de API keys en <code>.env</code> (<code>VITE_GOOGLE_CALENDAR_CLIENT_ID</code>, <code>VITE_ZOOM_OAUTH_TOKEN</code>, etc.). Los datos de reuniones se sincronizan cada 15 minutos.
+        <strong>En desarrollo:</strong> las integraciones OAuth reales con Google Calendar, Calendly, Zoom, Meet y Teams se habilitarán en una fase posterior. La infraestructura está lista (endpoint <code>/api/google/*</code> y tablas de tokens), falta la implementación final del flujo OAuth.
       </div>
     </Modal>
   );

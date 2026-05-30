@@ -2,12 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ─── Theme tokens (default = dark) ──────────────────────────────────── */
+:root, html.theme-dark {
   color-scheme: dark;
+
+  --bg-base:      #0A0A0F;
+  --bg-surface:   #12121A;
+  --bg-elevated:  #1A1A24;
+  --bg-hover:     #22222E;
+
+  --border-subtle:  rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-strong:  rgba(255, 255, 255, 0.18);
+
+  --text-primary:   #F5F5FA;
+  --text-secondary: #A0A0B4;
+  --text-muted:     #6B6B80;
+
+  --scrollbar-thumb:       rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.16);
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
+}
+
+html.theme-light {
+  color-scheme: light;
+
+  --bg-base:      #F8F9FC;
+  --bg-surface:   #FFFFFF;
+  --bg-elevated:  #F1F3F9;
+  --bg-hover:     #E8EAF0;
+
+  --border-subtle:  rgba(0, 0, 0, 0.06);
+  --border-default: rgba(0, 0, 0, 0.10);
+  --border-strong:  rgba(0, 0, 0, 0.18);
+
+  --text-primary:   #0A0A0F;
+  --text-secondary: #4B5563;
+  --text-muted:     #6B7280;
+
+  --scrollbar-thumb:       rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
 }
 
 * {
@@ -17,20 +55,21 @@
 html, body, #root {
   height: 100%;
   margin: 0;
-  background: #0A0A0F;
-  color: #F5F5FA;
+  background: var(--bg-base);
+  color: var(--text-primary);
   font-family: 'DM Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.08);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 @layer components {
   .surface {

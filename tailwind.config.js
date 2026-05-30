@@ -4,26 +4,28 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Theme-aware (cambian entre light/dark via CSS vars en index.css)
         bg: {
-          base: '#0A0A0F',
-          surface: '#12121A',
-          elevated: '#1A1A24',
-          hover: '#22222E',
+          base: 'var(--bg-base)',
+          surface: 'var(--bg-surface)',
+          elevated: 'var(--bg-elevated)',
+          hover: 'var(--bg-hover)',
         },
+        border: {
+          subtle: 'var(--border-subtle)',
+          default: 'var(--border-default)',
+          strong: 'var(--border-strong)',
+        },
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
+        },
+        // Theme-independent (mismos colores en ambos)
         accent: {
           indigo: '#6366F1',
           violet: '#8B5CF6',
           cyan: '#06B6D4',
-        },
-        border: {
-          subtle: 'rgba(255,255,255,0.06)',
-          default: 'rgba(255,255,255,0.10)',
-          strong: 'rgba(255,255,255,0.18)',
-        },
-        text: {
-          primary: '#F5F5FA',
-          secondary: '#A0A0B4',
-          muted: '#6B6B80',
         },
         status: {
           success: '#10B981',
@@ -37,7 +39,7 @@ export default {
       },
       backgroundImage: {
         'gradient-accent': 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-        'gradient-surface': 'linear-gradient(180deg, #12121A 0%, #0A0A0F 100%)',
+        'gradient-surface': 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-base) 100%)',
       },
       boxShadow: {
         'glow-accent': '0 0 24px -4px rgba(139, 92, 246, 0.45)',

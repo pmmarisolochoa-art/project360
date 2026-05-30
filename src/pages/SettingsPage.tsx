@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User as UserIcon, Database, Bell, LogOut, AlertTriangle, Check, X, Sliders } from 'lucide-react';
+import { User as UserIcon, Database, Bell, LogOut, AlertTriangle, Check, X, Sliders, Moon, Sun, Palette } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { useIntegrationsStore } from '@/store/useIntegrationsStore';
 import { usingRemote } from '@/services/supabase';
@@ -26,6 +26,8 @@ export function SettingsPage() {
   const signOut = useAppStore((s) => s.signOut);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const theme = useAppStore((s) => s.theme);
+  const setTheme = useAppStore((s) => s.setTheme);
   const signIn = useAppStore((s) => s.signIn);
   const integrations = useIntegrationsStore();
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
@@ -64,6 +66,45 @@ export function SettingsPage() {
           Perfil, preferencias, integraciones y backend.
         </p>
       </header>
+
+      <section className="surface p-5">
+        <header className="flex items-center gap-2 mb-4">
+          <Palette className="h-4 w-4 text-accent-violet" />
+          <h2 className="heading text-base font-semibold">Apariencia</h2>
+        </header>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-sm text-text-primary">Tema de la interfaz</div>
+            <div className="text-xs text-text-muted mt-0.5">
+              Se aplica al instante y se recuerda para próximas sesiones.
+            </div>
+          </div>
+          <div className="inline-flex rounded-[10px] border border-border-default bg-bg-base/40 p-1">
+            <button
+              onClick={() => setTheme('dark')}
+              aria-pressed={theme === 'dark'}
+              className={`h-9 px-4 rounded-md text-sm font-medium inline-flex items-center gap-2 transition-all duration-300 ${
+                theme === 'dark'
+                  ? 'bg-accent-indigo text-white shadow-sm'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              <Moon className="h-4 w-4" /> Oscuro
+            </button>
+            <button
+              onClick={() => setTheme('light')}
+              aria-pressed={theme === 'light'}
+              className={`h-9 px-4 rounded-md text-sm font-medium inline-flex items-center gap-2 transition-all duration-300 ${
+                theme === 'light'
+                  ? 'bg-accent-indigo text-white shadow-sm'
+                  : 'text-text-muted hover:text-text-primary'
+              }`}
+            >
+              <Sun className="h-4 w-4" /> Claro
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section className="surface p-5">
         <header className="flex items-center gap-2 mb-4">

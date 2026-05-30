@@ -5,6 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sales Brain OS</title>
+    <script>
+      // Aplica el theme antes del primer paint para evitar flash blanco/negro.
+      try {
+        var t = localStorage.getItem('p360-theme') === 'light' ? 'light' : 'dark';
+        document.documentElement.classList.add('theme-' + t);
+      } catch (e) { document.documentElement.classList.add('theme-dark'); }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

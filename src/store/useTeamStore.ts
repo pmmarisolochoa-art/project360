@@ -1,6 +1,18 @@
 import { create } from 'zustand';
 import type { RoleAssignment, TeamRoleSlug } from '@/types/team';
 import { ROLE_DEFS } from '@/types/team';
+import { TeamRepo } from '@/services/repositories';
+
+const upsertTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function scheduleUpsert(a: RoleAssignment) {
+  const key = `${a.clientId}:${a.roleSlug}`;
+  const existing = upsertTimers.get(key);
+  if (existing) clearTimeout(existing);
+  upsertTimers.set(key, setTimeout(() => {
+    upsertTimers.delete(key);
+    void TeamRepo.upsert(a).catch((e) => console.warn('[team.upsert]', key, e));
+  }, 500));
+}
 
 interface TeamState {
   assignments: RoleAssignment[];
@@ -86,12 +98,17 @@ export const useTeamStore = create<TeamState>((set, get) => ({
         kpiValues: seedKpiValues(clientId, r.slug),
       }));
     set((s) => ({ assignments: [...s.assignments, ...toCreate] }));
+    // Persist los nuevos a Supabase (sin debounce — primera vez)
+    toCreate.forEach((a) => void TeamRepo.upsert(a).catch((e) => console.warn('[team.upsert:initial]', e)));
   },
-  update: (clientId, roleSlug, patch) =>
+  update: (clientId, roleSlug, patch) => {
     set((s) => ({
       assignments: s.assignments.map((a) =>
         a.clientId === clientId && a.roleSlug === roleSlug ? { ...a, ...patch } : a,
       ),
-    })),
+    }));
+    const updated = get().assignments.find((a) => a.clientId === clientId && a.roleSlug === roleSlug);
+    if (updated) scheduleUpsert(updated);
+  },
   forClient: (clientId) => get().assignments.filter((a) => a.clientId === clientId),
 }));

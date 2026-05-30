@@ -106,6 +106,12 @@ export const RopreRepo = {
     if (error) throw error;
     return (data ?? []).map(rowToRopre);
   },
+  async listByClientIds(clientIds: string[]): Promise<RopreItem[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase.from('ropre_items').select('*').in('client_id', clientIds);
+    if (error) throw error;
+    return (data ?? []).map(rowToRopre);
+  },
   async create(item: RopreItem): Promise<RopreItem> {
     if (!usingRemote || !supabase) return item;
     const { data, error } = await supabase.from('ropre_items').insert(ropreToRow(item)).select().single();
@@ -115,6 +121,45 @@ export const RopreRepo = {
   async update(id: string, patch: Partial<RopreItem>): Promise<void> {
     if (!usingRemote || !supabase) return;
     const { error } = await supabase.from('ropre_items').update(ropreToRow(patch as RopreItem, true)).eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('ropre_items').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+/* ─────────────── TEAM (client_team_members) ─────────────── */
+
+export interface TeamAssignmentRow {
+  clientId: string;
+  roleSlug: string;
+  memberName: string;
+  bottleneck: string;
+  weeklyAchievements: string;
+  kpiValues: Record<string, number>;
+}
+
+export const TeamRepo = {
+  async listByClientIds(clientIds: string[]): Promise<TeamAssignmentRow[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase.from('client_team_members').select('*').in('client_id', clientIds);
+    if (error) throw error;
+    return (data ?? []).map(rowToTeam);
+  },
+  /** Upsert por (client_id, role_slug) — crea o actualiza el assignment. */
+  async upsert(a: TeamAssignmentRow): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const row = {
+      client_id: a.clientId,
+      role_slug: a.roleSlug,
+      member_name: a.memberName,
+      bottleneck: a.bottleneck,
+      weekly_achievements: a.weeklyAchievements,
+      kpi_values: a.kpiValues,
+    };
+    const { error } = await supabase.from('client_team_members').upsert(row, { onConflict: 'client_id,role_slug' });
     if (error) throw error;
   },
 };
@@ -451,5 +496,17 @@ function projectionToRow(s: ProjectionState): Record<string, unknown> {
     duration_months: s.durationMonths,
     debriefing: s.debriefing,
     updated_at: new Date().toISOString(),
+  };
+}
+
+function rowToTeam(row: Record<string, unknown>): TeamAssignmentRow {
+  const r = row as any;
+  return {
+    clientId: r.client_id,
+    roleSlug: r.role_slug,
+    memberName: r.member_name,
+    bottleneck: r.bottleneck ?? '',
+    weeklyAchievements: r.weekly_achievements ?? '',
+    kpiValues: r.kpi_values ?? {},
   };
 }

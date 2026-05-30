@@ -2,8 +2,10 @@ import { supabase, usingRemote } from './supabase';
 import { useClientStore } from '@/store/useClientStore';
 import { useContentStore } from '@/store/useContentStore';
 import { useProjectionStore } from '@/store/useProjectionStore';
+import { useRopreStore } from '@/store/useRopreStore';
+import { useTeamStore } from '@/store/useTeamStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { ContentRepo, ProjectionsRepo } from './repositories';
+import { ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo } from './repositories';
 import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
@@ -46,20 +48,20 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
 
       // Hidratar content_pieces y projections en paralelo
       try {
-        const [contentPieces, projections] = await Promise.all([
+        const [contentPieces, projections, ropre, teamAssignments] = await Promise.all([
           ContentRepo.listByClientIds(clientIds),
           ProjectionsRepo.listByClientIds(clientIds),
+          RopreRepo.listByClientIds(clientIds),
+          TeamRepo.listByClientIds(clientIds),
         ]);
-        if (contentPieces.length > 0) {
-          useContentStore.setState({ pieces: contentPieces });
-        }
-        if (Object.keys(projections).length > 0) {
-          useProjectionStore.setState({ states: projections });
-        }
+        if (contentPieces.length > 0) useContentStore.setState({ pieces: contentPieces });
+        if (Object.keys(projections).length > 0) useProjectionStore.setState({ states: projections });
+        if (ropre.length > 0) useRopreStore.setState({ items: ropre });
+        if (teamAssignments.length > 0) useTeamStore.setState({ assignments: teamAssignments });
         // eslint-disable-next-line no-console
-        console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
+        console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
       } catch (e) {
-        console.warn('[bootstrap] Falló hidratación de content/projections — UI usa seed local.', e);
+        console.warn('[bootstrap] Falló hidratación parcial — UI usa estado local.', e);
       }
     } else {
       // eslint-disable-next-line no-console

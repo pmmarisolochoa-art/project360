@@ -137,7 +137,7 @@ export function ClientsPage() {
         <div className="surface overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default bg-bg-elevated/40">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default [background:var(--table-header-bg)] [color:var(--table-header-text)]">
                 <th className="py-2 pl-4 pr-3">Cliente</th>
                 <th className="py-2 pr-3">Industria</th>
                 <th className="py-2 pr-3">Proyecto</th>
@@ -153,7 +153,7 @@ export function ClientsPage() {
                 <tr
                   key={c.id}
                   onClick={() => navigate(`/client/${c.id}`)}
-                  className="border-b border-border-subtle/30 cursor-pointer hover:bg-bg-elevated/20"
+                  className="border-b border-border-subtle/30 cursor-pointer hover:[background:var(--table-row-hover)]"
                 >
                   <td className="py-2.5 pl-4 pr-3">
                     <span className="inline-flex items-center gap-2">

@@ -128,7 +128,11 @@ export function TasksModule({ client }: { client: Client }) {
           {COLUMNS.map((col) => {
             const colTasks = filtered.filter((t) => t.status === col.status);
             return (
-              <div key={col.status} className="surface p-3 min-h-[400px] flex flex-col">
+              <div
+                key={col.status}
+                className="rounded-[14px] p-3 min-h-[400px] flex flex-col border border-border-subtle"
+                style={{ background: 'var(--kanban-column-bg)' }}
+              >
                 <header className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Badge tone={col.tone}>{col.label}</Badge>
@@ -250,14 +254,17 @@ function TaskCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.03 }}
       onClick={onOpen}
-      className="w-full text-left rounded-[10px] border border-border-subtle bg-bg-base/40 p-3 hover:bg-bg-elevated transition focus-ring"
-      style={
-        task.isDelayed && task.status !== 'completed'
-          ? { borderColor: 'rgba(239,68,68,0.4)' }
-          : dueSoon
-          ? { borderColor: 'rgba(245,158,11,0.4)' }
-          : undefined
-      }
+      className="w-full text-left rounded-[10px] border p-3 transition focus-ring hover:brightness-[1.02]"
+      style={{
+        background: 'var(--kanban-card-bg)',
+        borderColor:
+          task.isDelayed && task.status !== 'completed'
+            ? 'rgba(239,68,68,0.5)'
+            : dueSoon
+            ? 'rgba(245,158,11,0.5)'
+            : 'var(--kanban-card-border)',
+        boxShadow: 'var(--kanban-card-shadow)',
+      }}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5">
@@ -550,7 +557,7 @@ function TasksList({
     <div className="surface overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default bg-bg-elevated/40">
+          <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default [background:var(--table-header-bg)] [color:var(--table-header-text)]">
             <th className="py-2 pl-3 pr-3">Prioridad</th>
             <th className="py-2 pr-3">Tarea</th>
             <th className="py-2 pr-3">Responsable</th>

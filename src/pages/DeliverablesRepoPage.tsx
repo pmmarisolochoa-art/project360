@@ -66,7 +66,7 @@ export function DeliverablesRepoPage() {
       <div className="surface overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default bg-bg-elevated/40">
+            <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default [background:var(--table-header-bg)] [color:var(--table-header-text)]">
               <th className="py-2 pl-3 pr-3">Entregable</th>
               <th className="py-2 pr-3">Cliente</th>
               <th className="py-2 pr-3">Tipo</th>
@@ -81,7 +81,7 @@ export function DeliverablesRepoPage() {
             ) : filtered.map((d) => {
               const c = clients.find((x) => x.id === d.clientId);
               return (
-                <tr key={d.id} className="border-b border-border-subtle/30 hover:bg-bg-elevated/20">
+                <tr key={d.id} className="border-b border-border-subtle/30 hover:[background:var(--table-row-hover)]">
                   <td className="py-2.5 pl-3 pr-3 text-text-primary">
                     <div className="flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5 text-text-muted" /> {d.name}

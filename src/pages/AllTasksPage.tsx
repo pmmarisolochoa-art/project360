@@ -49,7 +49,7 @@ export function AllTasksPage() {
       <div className="surface overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default bg-bg-elevated/40">
+            <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default [background:var(--table-header-bg)] [color:var(--table-header-text)]">
               <th className="py-2 pl-3 pr-3">Prioridad</th>
               <th className="py-2 pr-3">Tarea</th>
               <th className="py-2 pr-3">Cliente</th>
@@ -65,7 +65,7 @@ export function AllTasksPage() {
               const c = clients.find((x) => x.id === t.clientId);
               return (
                 <tr key={t.id} onClick={() => navigate(`/client/${t.clientId}/tasks`)}
-                  className="border-b border-border-subtle/30 cursor-pointer hover:bg-bg-elevated/20">
+                  className="border-b border-border-subtle/30 cursor-pointer hover:[background:var(--table-row-hover)]">
                   <td className="py-2.5 pl-3 pr-3"><Badge tone={PRIORITY_TONE[t.priority]}>{t.priority}</Badge></td>
                   <td className="py-2.5 pr-3 text-text-primary">{t.title}</td>
                   <td className="py-2.5 pr-3">

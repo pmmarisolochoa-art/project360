@@ -424,7 +424,11 @@ function DeliverablesKanban({
       {DELIV_COLS.map((col) => {
         const colItems = items.filter((i) => (i.status ?? 'todo') === col.status);
         return (
-          <div key={col.status} className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 min-h-[220px]">
+          <div
+            key={col.status}
+            className="rounded-[10px] border border-border-subtle p-3 min-h-[220px]"
+            style={{ background: 'var(--kanban-column-bg)' }}
+          >
             <header className="flex items-center justify-between mb-3">
               <Badge tone={col.tone}>{col.label}</Badge>
               <span className="text-xs text-text-muted font-mono">{colItems.length}</span>
@@ -439,7 +443,12 @@ function DeliverablesKanban({
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03 }}
-                    className="rounded-md border border-border-subtle bg-bg-surface p-2.5"
+                    className="rounded-md border p-2.5 transition"
+                    style={{
+                      background: 'var(--kanban-card-bg)',
+                      borderColor: 'var(--kanban-card-border)',
+                      boxShadow: 'var(--kanban-card-shadow)',
+                    }}
                   >
                     <div className="text-sm text-text-primary leading-snug mb-1.5">{item.title}</div>
                     <div className="flex items-center justify-between text-[11px] text-text-muted">

@@ -848,7 +848,7 @@ function MarketSection({ client, accent }: { client: Client; accent: string }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default bg-bg-elevated/40">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default [background:var(--table-header-bg)] [color:var(--table-header-text)]">
                 <th className="py-2 pl-2 pr-3">Métrica</th>
                 <th className="py-2 pr-3 text-right">Benchmark</th>
                 <th className="py-2 pr-3 text-right">Tu proyección</th>
@@ -1442,7 +1442,7 @@ function InvestmentSection({ client, accent }: { client: Client; accent: string 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default bg-bg-elevated/40">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-default [background:var(--table-header-bg)] [color:var(--table-header-text)]">
                 <th className="py-2 pr-3 pl-2">Categoría</th>
                 {Array.from({ length: state.durationMonths }).map((_, i) => (
                   <th key={i} className="py-2 px-2 text-right">M{i + 1}</th>

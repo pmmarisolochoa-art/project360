@@ -206,11 +206,15 @@ export function SettingsPage() {
           </div>
           <Button
             variant="secondary"
-            onClick={() => {
-              if (confirm('¿Cerrar sesión?')) {
-                signOut();
-                toast.success('Sesión cerrada');
-              }
+            onClick={async () => {
+              if (!confirm('¿Cerrar sesión?')) return;
+              signOut();
+              try {
+                const { signOut: supaSignOut } = await import('@/services/auth');
+                await supaSignOut();
+              } catch { /* noop */ }
+              toast.success('Sesión cerrada');
+              window.location.href = '/login';
             }}
           >
             <LogOut className="h-4 w-4" /> Cerrar sesión

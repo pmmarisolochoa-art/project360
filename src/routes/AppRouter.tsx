@@ -11,10 +11,12 @@ import { ClientsPage } from '@/pages/ClientsPage';
 import { AgendaPage } from '@/pages/AgendaPage';
 import { TeamPage } from '@/pages/TeamPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { LoginPage } from '@/pages/LoginPage';
 
 export function AppRouter() {
   return (
     <Routes>
+      <Route path="login" element={<LoginPage />} />
       <Route element={<Layout />}>
         <Route index element={<DashboardMacro />} />
         <Route path="clients" element={<ClientsPage />} />

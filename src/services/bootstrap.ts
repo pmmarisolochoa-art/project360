@@ -1,6 +1,9 @@
 import { supabase, usingRemote } from './supabase';
 import { useClientStore } from '@/store/useClientStore';
+import { useContentStore } from '@/store/useContentStore';
+import { useProjectionStore } from '@/store/useProjectionStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { ContentRepo, ProjectionsRepo } from './repositories';
 import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
@@ -40,8 +43,24 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
 
     if (clients.length > 0) {
       useClientStore.setState({ clients, tasks, meetings });
-      // eslint-disable-next-line no-console
-      console.info(`[bootstrap] Hidratado desde Supabase: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
+
+      // Hidratar content_pieces y projections en paralelo
+      try {
+        const [contentPieces, projections] = await Promise.all([
+          ContentRepo.listByClientIds(clientIds),
+          ProjectionsRepo.listByClientIds(clientIds),
+        ]);
+        if (contentPieces.length > 0) {
+          useContentStore.setState({ pieces: contentPieces });
+        }
+        if (Object.keys(projections).length > 0) {
+          useProjectionStore.setState({ states: projections });
+        }
+        // eslint-disable-next-line no-console
+        console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
+      } catch (e) {
+        console.warn('[bootstrap] Falló hidratación de content/projections — UI usa seed local.', e);
+      }
     } else {
       // eslint-disable-next-line no-console
       console.info('[bootstrap] Sin clientes en esta agencia — usando seed in-memory.');

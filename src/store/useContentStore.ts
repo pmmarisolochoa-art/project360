@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { ContentPiece, ContentStatus } from '@/types/content';
 import { isoFromNow } from '@/utils/dateHelpers';
+import { ContentRepo } from '@/services/repositories';
 
 interface ContentState {
   pieces: ContentPiece[];
@@ -107,9 +108,18 @@ const seed: ContentPiece[] = [
 
 export const useContentStore = create<ContentState>((set, get) => ({
   pieces: seed,
-  add: (piece) => set((s) => ({ pieces: [piece, ...s.pieces] })),
-  update: (id, patch) => set((s) => ({ pieces: s.pieces.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
-  remove: (id) => set((s) => ({ pieces: s.pieces.filter((p) => p.id !== id) })),
+  add: (piece) => {
+    set((s) => ({ pieces: [piece, ...s.pieces] }));
+    void ContentRepo.create(piece).catch((e) => console.warn('[content.create]', e));
+  },
+  update: (id, patch) => {
+    set((s) => ({ pieces: s.pieces.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+    void ContentRepo.update(id, patch).catch((e) => console.warn('[content.update]', e));
+  },
+  remove: (id) => {
+    set((s) => ({ pieces: s.pieces.filter((p) => p.id !== id) }));
+    void ContentRepo.remove(id).catch((e) => console.warn('[content.remove]', e));
+  },
   byClient: (clientId) => get().pieces.filter((p) => p.clientId === clientId),
 }));
 

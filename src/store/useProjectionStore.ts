@@ -4,6 +4,26 @@ import type {
   DebriefingSections, ProjectPhase, ScenarioId,
 } from '@/types/projection';
 import type { ProjectType } from '@/types/client';
+import { ProjectionsRepo } from '@/services/repositories';
+
+/**
+ * Auto-save debounced por clientId — evita golpear Supabase en cada keystroke.
+ * Acumula cambios y dispara save 500ms después del último cambio.
+ */
+const SAVE_DEBOUNCE_MS = 500;
+const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleSave(clientId: string, getState: () => Store) {
+  const existing = saveTimers.get(clientId);
+  if (existing) clearTimeout(existing);
+  const t = setTimeout(() => {
+    saveTimers.delete(clientId);
+    const state = getState().states[clientId];
+    if (!state) return;
+    void ProjectionsRepo.save(state).catch((e) => console.warn('[projections.save]', clientId, e));
+  }, SAVE_DEBOUNCE_MS);
+  saveTimers.set(clientId, t);
+}
 
 interface Store {
   states: Record<string, ProjectionState>;
@@ -180,7 +200,7 @@ function defaultInvestment(adsBudget: number): InvestmentLine[] {
   ];
 }
 
-export const useProjectionStore = create<Store>((set) => ({
+export const useProjectionStore = create<Store>((set, get) => ({
   states: {},
   ensure: (clientId, defaults) =>
     set((s) => {
@@ -218,39 +238,61 @@ export const useProjectionStore = create<Store>((set) => ({
         durationMonths: 12,
         debriefing: defaults.debriefing ?? {},
       };
+      // Persist el state inicial (sin debounce, ya que es solo al primer load)
+      void ProjectionsRepo.save(fresh).catch((e) => console.warn('[projections.save:initial]', e));
       return { states: { ...s.states, [clientId]: fresh } };
     }),
-  patchFunnel: (clientId, patch) =>
+  patchFunnel: (clientId, patch) => {
     set((s) => ({
       states: { ...s.states, [clientId]: { ...s.states[clientId], funnel: { ...s.states[clientId].funnel, ...patch } } },
-    })),
-  patchMarket: (clientId, patch) =>
+    }));
+    scheduleSave(clientId, get);
+  },
+  patchMarket: (clientId, patch) => {
     set((s) => ({
       states: { ...s.states, [clientId]: { ...s.states[clientId], market: { ...s.states[clientId].market, ...patch } } },
-    })),
-  patchDebriefing: (clientId, patch) =>
+    }));
+    scheduleSave(clientId, get);
+  },
+  patchDebriefing: (clientId, patch) => {
     set((s) => ({
       states: { ...s.states, [clientId]: { ...s.states[clientId], debriefing: { ...s.states[clientId].debriefing, ...patch } } },
-    })),
-  setOkrs: (clientId, okrs) =>
-    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], okrs } } })),
-  setInvestment: (clientId, lines) =>
-    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], investment: lines } } })),
-  setBenchmarkOverride: (clientId, key, value) =>
+    }));
+    scheduleSave(clientId, get);
+  },
+  setOkrs: (clientId, okrs) => {
+    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], okrs } } }));
+    scheduleSave(clientId, get);
+  },
+  setInvestment: (clientId, lines) => {
+    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], investment: lines } } }));
+    scheduleSave(clientId, get);
+  },
+  setBenchmarkOverride: (clientId, key, value) => {
     set((s) => {
       const next = { ...s.states[clientId].benchmarksOverride };
       if (value === undefined) delete next[key];
       else next[key] = value;
       return { states: { ...s.states, [clientId]: { ...s.states[clientId], benchmarksOverride: next } } };
-    }),
-  setDuration: (clientId, months) =>
-    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], durationMonths: months } } })),
-  setSuccessIndicators: (clientId, indicators) =>
-    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], successIndicators: indicators } } })),
-  setPhases: (clientId, phases) =>
-    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], phases } } })),
-  setActiveScenario: (clientId, scenario) =>
-    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], activeScenario: scenario } } })),
+    });
+    scheduleSave(clientId, get);
+  },
+  setDuration: (clientId, months) => {
+    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], durationMonths: months } } }));
+    scheduleSave(clientId, get);
+  },
+  setSuccessIndicators: (clientId, indicators) => {
+    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], successIndicators: indicators } } }));
+    scheduleSave(clientId, get);
+  },
+  setPhases: (clientId, phases) => {
+    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], phases } } }));
+    scheduleSave(clientId, get);
+  },
+  setActiveScenario: (clientId, scenario) => {
+    set((s) => ({ states: { ...s.states, [clientId]: { ...s.states[clientId], activeScenario: scenario } } }));
+    scheduleSave(clientId, get);
+  },
 }));
 
 export const SCENARIO_META: Record<ScenarioId, { label: string; factor: number; tone: string }> = {

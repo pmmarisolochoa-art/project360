@@ -3,6 +3,8 @@ import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
 import type { RopreItem } from '@/types/ropre';
+import type { ContentPiece } from '@/types/content';
+import type { ProjectionState } from '@/types/projection';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { useRopreStore } from '@/store/useRopreStore';
 
@@ -113,6 +115,62 @@ export const RopreRepo = {
   async update(id: string, patch: Partial<RopreItem>): Promise<void> {
     if (!usingRemote || !supabase) return;
     const { error } = await supabase.from('ropre_items').update(ropreToRow(patch as RopreItem, true)).eq('id', id);
+    if (error) throw error;
+  },
+};
+
+/* ─────────────── CONTENT PIECES ─────────────── */
+
+export const ContentRepo = {
+  async listByClient(clientId: string): Promise<ContentPiece[]> {
+    if (!usingRemote || !supabase) return [];
+    const { data, error } = await supabase.from('content_pieces').select('*').eq('client_id', clientId);
+    if (error) throw error;
+    return (data ?? []).map(rowToContent);
+  },
+  async listByClientIds(clientIds: string[]): Promise<ContentPiece[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase.from('content_pieces').select('*').in('client_id', clientIds);
+    if (error) throw error;
+    return (data ?? []).map(rowToContent);
+  },
+  async create(piece: ContentPiece): Promise<ContentPiece> {
+    if (!usingRemote || !supabase) return piece;
+    const { data, error } = await supabase.from('content_pieces').insert(contentToRow(piece)).select().single();
+    if (error) throw error;
+    return rowToContent(data);
+  },
+  async update(id: string, patch: Partial<ContentPiece>): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('content_pieces').update(contentToRow(patch as ContentPiece, true)).eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('content_pieces').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+/* ─────────────── PROJECTIONS ─────────────── */
+
+export const ProjectionsRepo = {
+  async listByClientIds(clientIds: string[]): Promise<Record<string, ProjectionState>> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return {};
+    const { data, error } = await supabase.from('projections').select('*').in('client_id', clientIds);
+    if (error) throw error;
+    const out: Record<string, ProjectionState> = {};
+    (data ?? []).forEach((r: Record<string, unknown>) => {
+      const state = rowToProjection(r);
+      out[state.clientId] = state;
+    });
+    return out;
+  },
+  /** Upsert: crea o actualiza el state de una agencia/cliente. */
+  async save(state: ProjectionState): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const row = projectionToRow(state);
+    const { error } = await supabase.from('projections').upsert(row, { onConflict: 'client_id' });
     if (error) throw error;
   },
 };
@@ -303,4 +361,95 @@ function ropreToRow(i: Partial<RopreItem>, partial = false): Record<string, unkn
     row[map[key]] = i[key];
   }
   return row;
+}
+
+function rowToContent(row: Record<string, unknown>): ContentPiece {
+  const r = row as any;
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    title: r.title,
+    platform: r.platform,
+    format: r.format,
+    copyText: r.copy_text ?? '',
+    mediaUrl: r.media_url ?? undefined,
+    productionNotes: r.production_notes ?? undefined,
+    approvalNotes: r.approval_notes ?? undefined,
+    status: r.status,
+    approval: r.approval,
+    recordingDate: r.recording_date ?? undefined,
+    editingDate: r.editing_date ?? undefined,
+    approvalDate: r.approval_date ?? undefined,
+    publishDate: r.publish_date ?? undefined,
+    hasLeadMagnet: !!r.has_lead_magnet,
+    leadMagnetDescription: r.lead_magnet_description ?? undefined,
+    createdBy: r.created_by ?? undefined,
+    approvedBy: r.approved_by ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+function contentToRow(c: Partial<ContentPiece>, partial = false): Record<string, unknown> {
+  const map: Record<keyof ContentPiece, string> = {
+    id: 'id',
+    clientId: 'client_id',
+    title: 'title',
+    platform: 'platform',
+    format: 'format',
+    copyText: 'copy_text',
+    mediaUrl: 'media_url',
+    productionNotes: 'production_notes',
+    approvalNotes: 'approval_notes',
+    status: 'status',
+    approval: 'approval',
+    recordingDate: 'recording_date',
+    editingDate: 'editing_date',
+    approvalDate: 'approval_date',
+    publishDate: 'publish_date',
+    hasLeadMagnet: 'has_lead_magnet',
+    leadMagnetDescription: 'lead_magnet_description',
+    createdBy: 'created_by',
+    approvedBy: 'approved_by',
+    createdAt: 'created_at',
+  };
+  const row: Record<string, unknown> = {};
+  for (const key of Object.keys(c) as Array<keyof ContentPiece>) {
+    if (partial && c[key] === undefined) continue;
+    row[map[key]] = c[key];
+  }
+  return row;
+}
+
+function rowToProjection(row: Record<string, unknown>): ProjectionState {
+  const r = row as any;
+  return {
+    clientId: r.client_id,
+    funnel: r.funnel_inputs ?? {},
+    activeScenario: r.active_scenario ?? 'realistic',
+    phases: r.phases ?? [],
+    okrs: r.okrs ?? [],
+    successIndicators: r.success_indicators ?? [],
+    benchmarksOverride: r.benchmarks_override ?? {},
+    market: r.market_sizing ?? { tam: 0, sam: 0, somPercent: 0 },
+    investment: r.investment_lines ?? [],
+    durationMonths: r.duration_months ?? 12,
+    debriefing: r.debriefing ?? {},
+  };
+}
+
+function projectionToRow(s: ProjectionState): Record<string, unknown> {
+  return {
+    client_id: s.clientId,
+    funnel_inputs: s.funnel,
+    active_scenario: s.activeScenario,
+    phases: s.phases,
+    okrs: s.okrs,
+    success_indicators: s.successIndicators,
+    benchmarks_override: s.benchmarksOverride,
+    market_sizing: s.market,
+    investment_lines: s.investment,
+    duration_months: s.durationMonths,
+    debriefing: s.debriefing,
+    updated_at: new Date().toISOString(),
+  };
 }

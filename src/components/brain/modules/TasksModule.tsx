@@ -12,6 +12,7 @@ import {
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
 import type { Task, TaskPriority, TaskStatus } from '@/types/task';
+import { TASK_TAG_LABEL } from '@/types/task';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
@@ -53,6 +54,8 @@ export function TasksModule({ client }: { client: Client }) {
 
   const [filterAssignee, setFilterAssignee] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
+  const [filterTag, setFilterTag] = useState<string>('');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'mine' | 'overdue' | 'today' | 'week'>('all');
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [view, setView] = useState<'kanban' | 'list' | 'gantt'>('kanban');
@@ -62,18 +65,61 @@ export function TasksModule({ client }: { client: Client }) {
     [tasks],
   );
 
-  const filtered = tasks.filter(
-    (t) =>
-      (!filterAssignee || t.assignedTo === filterAssignee) &&
-      (!filterPriority || t.priority === filterPriority),
-  );
+  const filtered = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 86400000);
+    const weekEnd = new Date(todayStart.getTime() + 7 * 86400000);
+    return tasks.filter((t) => {
+      if (filterAssignee && t.assignedTo !== filterAssignee) return false;
+      if (filterPriority && t.priority !== filterPriority) return false;
+      if (filterTag && t.tag !== filterTag) return false;
+      if (quickFilter === 'mine' && t.assignedTo !== 'Marisol Ochoa') return false;
+      if (quickFilter === 'overdue' && !(t.isDelayed && t.status !== 'completed')) return false;
+      if (quickFilter === 'today') {
+        const d = new Date(t.dueDate);
+        if (d < todayStart || d >= todayEnd) return false;
+      }
+      if (quickFilter === 'week') {
+        const d = new Date(t.dueDate);
+        if (d < todayStart || d >= weekEnd) return false;
+      }
+      return true;
+    });
+  }, [tasks, filterAssignee, filterPriority, filterTag, quickFilter]);
 
   const accent = client.primaryColor;
 
   const overdueCount = filtered.filter((t) => t.isDelayed && t.status !== 'completed').length;
 
+  const QUICK_FILTERS: Array<{ key: typeof quickFilter; label: string }> = [
+    { key: 'all', label: 'Todas' },
+    { key: 'mine', label: 'Mis tareas' },
+    { key: 'overdue', label: 'Vencidas' },
+    { key: 'today', label: 'Hoy' },
+    { key: 'week', label: 'Esta semana' },
+  ];
+
   return (
     <div className="space-y-4">
+      {/* Quick filters chips */}
+      <div className="surface p-2 flex flex-wrap items-center gap-1.5">
+        {QUICK_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setQuickFilter(f.key)}
+            className={cn(
+              'px-3 py-1 rounded-full text-xs font-medium transition',
+              quickFilter === f.key
+                ? 'bg-accent-violet/15 text-accent-violet border border-accent-violet/40'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated/40 border border-transparent',
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {/* Toolbar */}
       <div className="surface p-3 flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1.5 text-xs text-text-muted mr-2">
@@ -98,6 +144,15 @@ export function TasksModule({ client }: { client: Client }) {
           value={filterPriority}
           onChange={(e) => setFilterPriority(e.target.value)}
           className="min-w-[180px]"
+        />
+        <Select
+          options={[
+            { value: '', label: 'Todas las etiquetas' },
+            ...Object.entries(TASK_TAG_LABEL).map(([v, l]) => ({ value: v, label: l })),
+          ]}
+          value={filterTag}
+          onChange={(e) => setFilterTag(e.target.value)}
+          className="min-w-[160px]"
         />
 
         <div className="ml-auto flex items-center gap-2">
@@ -305,14 +360,31 @@ function TaskCard({
 
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <span
-          className="flex items-center gap-1 text-text-muted"
-          style={task.isDelayed && task.status !== 'completed' ? { color: '#EF4444' } : undefined}
+          className="flex items-center gap-1"
+          style={{
+            color:
+              task.isDelayed && task.status !== 'completed'
+                ? '#EF4444'
+                : hoursUntil >= 0 && hoursUntil <= 72
+                ? hoursUntil <= 24 ? '#EF4444' : '#F59E0B'
+                : task.status !== 'completed' ? '#10B981' : 'var(--text-muted)',
+          }}
         >
           <Clock className="h-3 w-3" />
           {task.isDelayed && task.status !== 'completed'
-            ? `${task.delayDays}d vencida`
+            ? `+${task.delayDays}d vencida`
             : formatRelative(task.dueDate)}
         </span>
+        {(task.subtasks?.length ?? 0) > 0 && (
+          <span className="text-text-muted text-[10px]" title="Subtareas">
+            ☑ {task.subtasks!.filter((s) => s.done).length}/{task.subtasks!.length}
+          </span>
+        )}
+        {(task.comments?.length ?? 0) > 0 && (
+          <span className="text-text-muted text-[10px]" title="Comentarios">
+            💬 {task.comments!.length}
+          </span>
+        )}
         <span
           className="h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-white"
           style={{ background: `linear-gradient(135deg, ${accent}, ${accent}aa)` }}
@@ -389,10 +461,28 @@ function TaskModal({
     task?.dueDate ? task.dueDate.slice(0, 16) : new Date().toISOString().slice(0, 16),
   );
   const [moduleTag, setModuleTag] = useState(task?.moduleTag ?? '');
+  const [tag, setTag] = useState<string>(task?.tag ?? '');
   const [input, setInput] = useState(task?.input ?? '');
   const [output, setOutput] = useState(task?.output ?? '');
   const [dependsOn, setDependsOn] = useState<string[]>(task?.dependsOn ?? []);
+  const [subtasks, setSubtasks] = useState(task?.subtasks ?? []);
+  const [comments, setComments] = useState(task?.comments ?? []);
+  const [newComment, setNewComment] = useState('');
+  const [newSubtask, setNewSubtask] = useState('');
   const dependents = task ? allTasks.filter((t) => t.dependsOn?.includes(task.id)) : [];
+
+  const addSubtask = () => {
+    if (!newSubtask.trim() || subtasks.length >= 5) return;
+    setSubtasks([...subtasks, { id: genId(), title: newSubtask.trim(), done: false }]);
+    setNewSubtask('');
+  };
+  const toggleSubtask = (id: string) => setSubtasks(subtasks.map((s) => s.id === id ? { ...s, done: !s.done } : s));
+  const removeSubtask = (id: string) => setSubtasks(subtasks.filter((s) => s.id !== id));
+  const addComment = () => {
+    if (!newComment.trim()) return;
+    setComments([...comments, { id: genId(), author: 'Yo', text: newComment.trim(), createdAt: new Date().toISOString() }]);
+    setNewComment('');
+  };
 
   return (
     <Modal
@@ -422,9 +512,12 @@ function TaskModal({
                 title, description, status, priority, assignedTo,
                 dueDate: new Date(dueDate).toISOString(),
                 moduleTag: moduleTag || undefined,
+                tag: (tag || undefined) as Task['tag'],
                 input: input || undefined,
                 output: output || undefined,
                 dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
+                subtasks,
+                comments,
               })
             }
           >
@@ -477,12 +570,23 @@ function TaskModal({
           />
         </div>
 
-        <Input
-          label="Etiqueta de módulo"
-          value={moduleTag}
-          onChange={(e) => setModuleTag(e.target.value)}
-          placeholder="content, ads, strategy, ops…"
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <Select
+            label="Etiqueta"
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            options={[
+              { value: '', label: '— Sin etiqueta —' },
+              ...Object.entries(TASK_TAG_LABEL).map(([v, l]) => ({ value: v, label: l })),
+            ]}
+          />
+          <Input
+            label="Tag libre (opcional)"
+            value={moduleTag}
+            onChange={(e) => setModuleTag(e.target.value)}
+            placeholder="ej: q4-launch"
+          />
+        </div>
 
         <div className="grid grid-cols-1 gap-3 rounded-[10px] border border-border-subtle bg-bg-base/30 p-3">
           <Textarea
@@ -532,10 +636,91 @@ function TaskModal({
           )}
         </div>
 
+        {/* Subtareas */}
+        <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-text-secondary">Subtareas ({subtasks.length}/5)</label>
+            {subtasks.length > 0 && (
+              <span className="text-[10px] text-text-muted">
+                {subtasks.filter((s) => s.done).length}/{subtasks.length} hechas
+              </span>
+            )}
+          </div>
+          {subtasks.map((s) => (
+            <div key={s.id} className="flex items-center gap-2 group">
+              <input
+                type="checkbox"
+                checked={s.done}
+                onChange={() => toggleSubtask(s.id)}
+                className="h-3.5 w-3.5 accent-accent-violet shrink-0"
+              />
+              <span className={cn('flex-1 text-xs', s.done && 'line-through text-text-muted')}>{s.title}</span>
+              <button
+                onClick={() => removeSubtask(s.id)}
+                className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-status-danger transition"
+                aria-label="Eliminar subtarea"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          {subtasks.length < 5 && (
+            <div className="flex gap-2">
+              <input
+                value={newSubtask}
+                onChange={(e) => setNewSubtask(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubtask(); } }}
+                placeholder="Nueva subtarea…"
+                className="flex-1 bg-bg-surface border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent-violet/60"
+              />
+              <button
+                onClick={addSubtask}
+                disabled={!newSubtask.trim()}
+                className="px-2 py-1 rounded-md bg-accent-violet/15 text-accent-violet text-xs hover:bg-accent-violet/25 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Agregar
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Comentarios */}
         {task && (
-          <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 text-xs text-text-muted flex items-center gap-2">
-            <MessageSquare className="h-3.5 w-3.5" />
-            Hilo de comentarios y subtareas — disponible en próxima iteración.
+          <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-2">
+            <label className="text-xs font-medium text-text-secondary flex items-center gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5" /> Comentarios ({comments.length})
+            </label>
+            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              {comments.length === 0 ? (
+                <div className="text-[11px] text-text-muted italic py-2">Sin comentarios aún.</div>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="rounded-md border border-border-subtle bg-bg-surface p-2">
+                    <div className="flex items-center justify-between text-[10px] text-text-muted mb-1">
+                      <span className="font-semibold text-text-secondary">{c.author}</span>
+                      <span>{formatRelative(c.createdAt)}</span>
+                    </div>
+                    <div className="text-xs text-text-primary whitespace-pre-wrap">{c.text}</div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment(); } }}
+                placeholder="Escribe un comentario…"
+                className="flex-1 bg-bg-surface border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent-violet/60"
+              />
+              <button
+                onClick={addComment}
+                disabled={!newComment.trim()}
+                className="px-2 py-1 rounded-md bg-accent-violet/15 text-accent-violet text-xs hover:bg-accent-violet/25 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Enviar
+              </button>
+            </div>
           </div>
         )}
       </div>

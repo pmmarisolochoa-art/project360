@@ -111,6 +111,14 @@ function rowToTask(r: Record<string, unknown>): Task {
     moduleTag: x.module_tag ?? undefined,
     isDelayed: !!x.is_delayed,
     delayDays: x.delay_days ?? 0,
+    input: x.input ?? undefined,
+    output: x.output ?? undefined,
+    dependsOn: x.depends_on ?? undefined,
+    startDate: x.start_date ?? undefined,
+    origin: x.origin ?? undefined,
+    subtasks: x.subtasks ?? [],
+    comments: x.comments ?? [],
+    tag: x.tag ?? undefined,
     createdAt: x.created_at,
   };
 }

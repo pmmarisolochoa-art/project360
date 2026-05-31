@@ -285,6 +285,14 @@ function rowToTask(row: Record<string, unknown>): Task {
     moduleTag: r.module_tag ?? undefined,
     isDelayed: !!r.is_delayed,
     delayDays: r.delay_days ?? 0,
+    input: r.input ?? undefined,
+    output: r.output ?? undefined,
+    dependsOn: r.depends_on ?? undefined,
+    startDate: r.start_date ?? undefined,
+    origin: r.origin ?? undefined,
+    subtasks: r.subtasks ?? [],
+    comments: r.comments ?? [],
+    tag: r.tag ?? undefined,
     createdAt: r.created_at,
   };
 }
@@ -304,6 +312,14 @@ function taskToRow(t: Partial<Task>, partial = false): Record<string, unknown> {
     moduleTag: 'module_tag',
     isDelayed: 'is_delayed',
     delayDays: 'delay_days',
+    input: 'input',
+    output: 'output',
+    dependsOn: 'depends_on',
+    startDate: 'start_date',
+    origin: 'origin',
+    subtasks: 'subtasks',
+    comments: 'comments',
+    tag: 'tag',
     createdAt: 'created_at',
   };
   const row: Record<string, unknown> = {};

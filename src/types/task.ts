@@ -25,5 +25,23 @@ export interface Task {
   dependsOn?: string[];
   // Para vista Gantt — si falta, se infiere desde createdAt/dueDate.
   startDate?: string;
+  // Subtareas (hasta 5 recomendado, no enforced)
+  subtasks?: Array<{ id: string; title: string; done: boolean }>;
+  // Comentarios — historial de la tarea
+  comments?: Array<{ id: string; author: string; text: string; createdAt: string }>;
+  // Etiqueta semántica (ADS / Contenido / Estrategia / Reunión / Entregable / ROPRE / Otro)
+  tag?: TaskTag;
   createdAt: string;
 }
+
+export type TaskTag = 'ads' | 'content' | 'strategy' | 'meeting' | 'deliverable' | 'ropre' | 'other';
+
+export const TASK_TAG_LABEL: Record<TaskTag, string> = {
+  ads: 'ADS',
+  content: 'Contenido',
+  strategy: 'Estrategia',
+  meeting: 'Reunión',
+  deliverable: 'Entregable',
+  ropre: 'ROPRE',
+  other: 'Otro',
+};

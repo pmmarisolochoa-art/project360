@@ -2,6 +2,7 @@ import type { AIBrainData } from '@/types/client';
 import type { OnboardingData } from '@/onboarding/schema';
 import type { TaskPriority, TaskTag } from '@/types/task';
 import type { TeamRoleSlug } from '@/types/team';
+import { toast } from '@/store/useToastStore';
 import {
   ACTION_VERBS,
   BULLET_REGEXES,
@@ -61,7 +62,9 @@ export async function generateMeetingAgenda(args: {
     const { text } = await callBackend<{ text: string }>('meeting_agenda', args);
     return text;
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] meeting_agenda falló, usando fallback.', e);
+    toast.warning(`IA no disponible — usando plantilla. (${msg.slice(0, 80)})`);
     return meetingAgendaFallback(args);
   }
 }
@@ -88,7 +91,9 @@ export async function extractTasksFromNotes(args: {
     const { tasks } = await callBackend<{ tasks: ExtractedTask[] }>('extract_tasks', args);
     return tasks;
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] extract_tasks falló, usando fallback heurístico.', e);
+    toast.warning(`IA no disponible — usando heurístico. (${msg.slice(0, 80)})`);
     return extractTasksFallback(args);
   }
 }

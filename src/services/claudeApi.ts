@@ -1,5 +1,16 @@
 import type { AIBrainData } from '@/types/client';
 import type { OnboardingData } from '@/onboarding/schema';
+import type { TaskPriority, TaskTag } from '@/types/task';
+import type { TeamRoleSlug } from '@/types/team';
+import {
+  ACTION_VERBS,
+  BULLET_REGEXES,
+  URGENCY_RULES,
+  ROLE_KEYWORDS,
+  TAG_KEYWORDS,
+  PRIORITY_KEYWORDS,
+  EXTRACTION_CONFIG,
+} from '@/data/taskExtractionKeywords';
 
 /**
  * Cliente del backend Anthropic (Vercel serverless function en /api/claude).
@@ -52,6 +63,33 @@ export async function generateMeetingAgenda(args: {
   } catch (e) {
     console.warn('[claudeApi] meeting_agenda falló, usando fallback.', e);
     return meetingAgendaFallback(args);
+  }
+}
+
+/* ─────────────── Extract Tasks ─────────────── */
+
+export interface ExtractedTask {
+  title: string;
+  responsibleRole: string;
+  dueInDays: number;
+  priority?: TaskPriority;
+  tag?: TaskTag;
+}
+
+export async function extractTasksFromNotes(args: {
+  clientName: string;
+  industry: string;
+  meetingType: string;
+  notes: string;
+  agenda?: string;
+  availableRoles: string[];
+}): Promise<ExtractedTask[]> {
+  try {
+    const { tasks } = await callBackend<{ tasks: ExtractedTask[] }>('extract_tasks', args);
+    return tasks;
+  } catch (e) {
+    console.warn('[claudeApi] extract_tasks falló, usando fallback heurístico.', e);
+    return extractTasksFallback(args);
   }
 }
 
@@ -197,6 +235,80 @@ function meetingAgendaFallback(args: {
   };
   const items = sections[meetingType] ?? sections.weekly_metrics;
   return items.map((s, i) => `${i + 1}. ${s}`).join('\n');
+}
+
+function extractTasksFallback(args: {
+  notes: string;
+  agenda?: string;
+  availableRoles: string[];
+}): ExtractedTask[] {
+  const text = `${args.agenda ?? ''}\n${args.notes}`;
+  const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+
+  // Construye regex de verbos a partir del repositorio
+  const verbsAlt = ACTION_VERBS
+    .map((v) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const actionVerbsRE = new RegExp(`^(?:${verbsAlt})\\b`, 'i');
+
+  const candidates: string[] = [];
+  for (const line of lines) {
+    let bulletMatch: string | null = null;
+    for (const re of BULLET_REGEXES) {
+      const m = line.match(re);
+      if (m) { bulletMatch = m[1].trim(); break; }
+    }
+    if (bulletMatch) {
+      candidates.push(bulletMatch);
+    } else if (
+      actionVerbsRE.test(line) &&
+      line.length >= EXTRACTION_CONFIG.minLineLength &&
+      line.length <= EXTRACTION_CONFIG.maxLineLength
+    ) {
+      candidates.push(line);
+    }
+  }
+
+  const fallbackRole: TeamRoleSlug = (args.availableRoles[0] as TeamRoleSlug) ?? 'strategist';
+  const tasks: ExtractedTask[] = [];
+
+  for (const raw of candidates.slice(0, EXTRACTION_CONFIG.maxTasks)) {
+    // Urgencia + prioridad implícita
+    let dueInDays = EXTRACTION_CONFIG.defaultDueInDays;
+    let priority: TaskPriority = EXTRACTION_CONFIG.defaultPriority;
+    for (const rule of URGENCY_RULES) {
+      if (rule.pattern.test(raw)) {
+        dueInDays = rule.dueInDays;
+        if (rule.priority) priority = rule.priority;
+        break;
+      }
+    }
+
+    // Prioridad explícita (sobreescribe la implícita)
+    for (const rule of PRIORITY_KEYWORDS) {
+      if (rule.pattern.test(raw)) { priority = rule.priority; break; }
+    }
+
+    // Rol
+    let role: TeamRoleSlug = fallbackRole;
+    for (const rule of ROLE_KEYWORDS) {
+      if (rule.pattern.test(raw)) {
+        // Verifica que el rol esté disponible (o úsalo de todos modos como sugerencia)
+        role = args.availableRoles.includes(rule.role) ? rule.role : rule.role;
+        break;
+      }
+    }
+
+    // Tag
+    let tag: TaskTag = EXTRACTION_CONFIG.defaultTag;
+    for (const rule of TAG_KEYWORDS) {
+      if (rule.pattern.test(raw)) { tag = rule.tag; break; }
+    }
+
+    tasks.push({ title: raw, responsibleRole: role, dueInDays, priority, tag });
+  }
+
+  return tasks;
 }
 
 function threeOptionsFallback(args: {

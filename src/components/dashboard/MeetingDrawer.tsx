@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
-import { generateMeetingAgenda } from '@/services/claudeApi';
+import { generateMeetingAgenda, extractTasksFromNotes, type ExtractedTask } from '@/services/claudeApi';
+import { ROLE_DEFS } from '@/types/team';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
@@ -35,6 +36,8 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
   const [notes, setNotes] = useState(meeting.notes ?? '');
   const [recordingUrl, setRecordingUrl] = useState(meeting.recordingUrl ?? '');
   const [generating, setGenerating] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractedDraft, setExtractedDraft] = useState<ExtractedTask[]>(meeting.extractedTasks ?? []);
   const [saveIndicator, setSaveIndicator] = useState<string>('');
   const initialNotes = useRef(meeting.notes ?? '');
 
@@ -68,6 +71,35 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
       toast.success('Agenda generada con IA');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const runExtractTasks = async () => {
+    if (!client) return;
+    const sourceText = `${notes}\n${agenda}`.trim();
+    if (sourceText.length < 10) {
+      toast.error('Escribe notas o agenda primero para extraer tareas');
+      return;
+    }
+    setExtracting(true);
+    try {
+      const result = await extractTasksFromNotes({
+        clientName: client.name,
+        industry: client.industry,
+        meetingType: meeting.type,
+        notes,
+        agenda,
+        availableRoles: ROLE_DEFS.map((r) => r.slug),
+      });
+      if (result.length === 0) {
+        toast.info('No se detectaron tareas accionables en las notas');
+        return;
+      }
+      setExtractedDraft(result);
+      updateMeeting(meeting.id, { extractedTasks: result });
+      toast.success(`${result.length} tarea${result.length === 1 ? '' : 's'} extraída${result.length === 1 ? '' : 's'} — revisa y confirma`);
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -210,16 +242,16 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               <Button size="sm" variant="secondary" leftIcon={<Mic className="h-3.5 w-3.5" />}
                 onClick={() => toast.info('Transcripción disponible próximamente')}>Transcribir con IA</Button>
               <Button size="sm" variant="secondary" leftIcon={<ListChecks className="h-3.5 w-3.5" />}
-                onClick={() => toast.info('Extracción de tareas disponible próximamente')}>Extraer tareas</Button>
+                loading={extracting} onClick={runExtractTasks}>Extraer tareas</Button>
             </div>
           </section>
 
           {/* Tareas extraídas */}
-          {meeting.extractedTasks && meeting.extractedTasks.length > 0 && (
+          {extractedDraft.length > 0 && (
             <section>
-              <SectionTitle text="✅ Tareas generadas" accent={accent} />
+              <SectionTitle text="✅ Tareas detectadas — revisa y confirma" accent={accent} />
               <ExtractedTasksList
-                tasks={meeting.extractedTasks}
+                tasks={extractedDraft}
                 onConfirm={(selected) => {
                   for (const t of selected) {
                     const task: Task = {
@@ -227,17 +259,21 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
                       clientId: meeting.clientId,
                       title: t.title,
                       status: 'pending',
-                      priority: 'P2',
+                      priority: t.priority ?? 'P2',
                       assignedTo: t.responsibleRole,
                       dueDate: new Date(Date.now() + t.dueInDays * 86400000).toISOString(),
                       isDelayed: false,
                       delayDays: 0,
                       moduleTag: 'meeting',
+                      tag: t.tag ?? 'meeting',
+                      origin: undefined,
                       createdAt: new Date().toISOString(),
                     };
                     addTask(task);
                   }
-                  toast.success(`${selected.length} tarea${selected.length === 1 ? '' : 's'} creada${selected.length === 1 ? '' : 's'}`);
+                  setExtractedDraft([]);
+                  updateMeeting(meeting.id, { extractedTasks: [] });
+                  toast.success(`${selected.length} tarea${selected.length === 1 ? '' : 's'} creada${selected.length === 1 ? '' : 's'} en el módulo Tareas`);
                 }}
               />
             </section>
@@ -281,21 +317,29 @@ function Field({ label, value }: { label: string; value: string }) {
 function ExtractedTasksList({
   tasks, onConfirm,
 }: {
-  tasks: NonNullable<Meeting['extractedTasks']>;
-  onConfirm: (selected: NonNullable<Meeting['extractedTasks']>) => void;
+  tasks: ExtractedTask[];
+  onConfirm: (selected: ExtractedTask[]) => void;
 }) {
-  const [checked, setChecked] = useState<boolean[]>(tasks.map(() => false));
+  const [checked, setChecked] = useState<boolean[]>(tasks.map(() => true));
   const selectedCount = checked.filter(Boolean).length;
+  const priorityTone: Record<string, 'danger' | 'warning' | 'neutral'> = { P1: 'danger', P2: 'warning', P3: 'neutral' };
   return (
     <div className="mt-2 space-y-1.5">
       {tasks.map((t, i) => (
-        <label key={i} className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-base/30 px-3 py-2 cursor-pointer">
+        <label key={i} className="flex items-start gap-2 rounded-md border border-border-subtle bg-bg-base/30 px-3 py-2 cursor-pointer">
           <input type="checkbox" checked={checked[i]} onChange={() => {
             const next = [...checked]; next[i] = !next[i]; setChecked(next);
-          }} className="h-3.5 w-3.5 accent-accent-violet" />
-          <FileText className="h-3.5 w-3.5 text-text-muted shrink-0" />
-          <span className="flex-1 text-xs text-text-primary">{t.title}</span>
-          <span className="text-[10px] text-text-muted">+{t.dueInDays}d</span>
+          }} className="h-3.5 w-3.5 mt-1 accent-accent-violet" />
+          <FileText className="h-3.5 w-3.5 text-text-muted shrink-0 mt-1" />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-text-primary">{t.title}</div>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+              {t.priority && <Badge tone={priorityTone[t.priority] ?? 'neutral'}>{t.priority}</Badge>}
+              <Badge tone="neutral">{t.responsibleRole}</Badge>
+              {t.tag && t.tag !== 'other' && <Badge tone="neutral">{t.tag}</Badge>}
+              <span className="text-[10px] text-text-muted">+{t.dueInDays}d</span>
+            </div>
+          </div>
         </label>
       ))}
       <Button size="sm" disabled={selectedCount === 0} onClick={() => onConfirm(tasks.filter((_, i) => checked[i]))}>

@@ -44,11 +44,21 @@ interface BrainCtx {
   onboarding: Record<string, unknown>;
 }
 
+interface ExtractTasksCtx {
+  clientName: string;
+  industry: string;
+  meetingType: string;
+  notes: string;
+  agenda?: string;
+  availableRoles: string[];
+}
+
 type RequestBody =
   | { feature: 'meeting_agenda'; context: MeetingAgendaCtx }
   | { feature: 'three_options'; context: ThreeOptionsCtx }
   | { feature: 'regenerate_section'; context: RegenerateCtx }
-  | { feature: 'brain_from_onboarding'; context: BrainCtx };
+  | { feature: 'brain_from_onboarding'; context: BrainCtx }
+  | { feature: 'extract_tasks'; context: ExtractTasksCtx };
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -80,6 +90,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ patch: await regenerateSection(apiKey, body.context) });
       case 'brain_from_onboarding':
         return json({ brain: await brainFromOnboarding(apiKey, body.context) });
+      case 'extract_tasks':
+        return json({ tasks: await extractTasks(apiKey, body.context) });
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -245,6 +257,42 @@ Genera el cerebro estratégico completo.`;
     return parsed;
   } catch {
     throw new Error('Claude devolvió JSON inválido para brain_from_onboarding');
+  }
+}
+
+async function extractTasks(apiKey: string, ctx: ExtractTasksCtx): Promise<Array<{ title: string; responsibleRole: string; dueInDays: number }>> {
+  const system = `Eres una PM senior. Extraes tareas accionables de las notas de una reunión. Devuelve SOLO un array JSON válido (sin texto antes ni después) con esta forma:
+[
+  {"title": "Tarea clara y accionable (verbo + objeto)", "responsibleRole": "uno de los roles disponibles", "dueInDays": número entre 1 y 30},
+  ...
+]
+Reglas:
+- Máximo 8 tareas, mínimo 0.
+- Si no hay tareas claras, devuelve [].
+- Cada title empieza con verbo en infinitivo.
+- Asigna el rol más apropiado de la lista disponible.
+- dueInDays: urgente=2, normal=7, baja=14.`;
+
+  const user = `Cliente: ${ctx.clientName} (${ctx.industry})
+Tipo de reunión: ${ctx.meetingType}
+Roles disponibles: ${ctx.availableRoles.join(', ')}
+
+${ctx.agenda ? `Agenda:\n${ctx.agenda}\n\n` : ''}Notas de la reunión:
+${ctx.notes}
+
+Extrae las tareas accionables.`;
+
+  const txt = await callAnthropic(apiKey, system, user, 1200);
+  try {
+    const parsed = JSON.parse(extractJson(txt));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, 8).map((t: { title?: string; responsibleRole?: string; dueInDays?: number }) => ({
+      title: String(t.title ?? '').slice(0, 200),
+      responsibleRole: String(t.responsibleRole ?? ctx.availableRoles[0] ?? 'estratega'),
+      dueInDays: Math.max(1, Math.min(30, Number(t.dueInDays) || 7)),
+    })).filter((t) => t.title.length > 0);
+  } catch {
+    throw new Error('Claude devolvió JSON inválido para extract_tasks');
   }
 }
 

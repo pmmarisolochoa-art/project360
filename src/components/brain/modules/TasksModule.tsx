@@ -465,6 +465,7 @@ function TaskModal({
   const [input, setInput] = useState(task?.input ?? '');
   const [output, setOutput] = useState(task?.output ?? '');
   const [dependsOn, setDependsOn] = useState<string[]>(task?.dependsOn ?? []);
+  const [showDepsEditor, setShowDepsEditor] = useState((task?.dependsOn?.length ?? 0) > 0);
   const [subtasks, setSubtasks] = useState(task?.subtasks ?? []);
   const [comments, setComments] = useState(task?.comments ?? []);
   const [newComment, setNewComment] = useState('');
@@ -607,20 +608,53 @@ function TaskModal({
 
         <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-3">
           <div>
-            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Esta tarea depende de</label>
-            <select
-              multiple
-              value={dependsOn}
-              onChange={(e) => setDependsOn(Array.from(e.target.selectedOptions).map((o) => o.value))}
-              className="w-full bg-bg-surface border border-border-subtle rounded-md px-2 py-2 text-sm text-text-primary outline-none focus:border-accent-violet/60 min-h-[80px]"
-            >
-              {allTasks.filter((t) => t.id !== task?.id).map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.priority} · {t.title.slice(0, 60)}
-                </option>
-              ))}
-            </select>
-            <div className="text-[10px] text-text-muted mt-1">Mantén Cmd/Ctrl para seleccionar varias</div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium text-text-secondary">
+                Dependencias {dependsOn.length > 0 && <span className="text-text-muted">({dependsOn.length})</span>}
+              </label>
+              {!showDepsEditor && (
+                <button
+                  type="button"
+                  onClick={() => setShowDepsEditor(true)}
+                  className="text-[11px] text-accent-violet hover:underline"
+                >
+                  + Configurar dependencias
+                </button>
+              )}
+              {showDepsEditor && dependsOn.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setDependsOn([]); }}
+                  className="text-[11px] text-status-danger hover:underline"
+                >
+                  Limpiar selección
+                </button>
+              )}
+            </div>
+            {!showDepsEditor && dependsOn.length === 0 ? (
+              <div className="text-xs text-text-muted italic px-2 py-2">Sin dependencias — esta tarea es independiente.</div>
+            ) : (
+              <>
+                <div className="space-y-1 mb-2 max-h-[180px] overflow-y-auto pr-1">
+                  {allTasks.filter((t) => t.id !== task?.id).map((t) => {
+                    const checked = dependsOn.includes(t.id);
+                    return (
+                      <label key={t.id} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 cursor-pointer text-xs ${checked ? 'border-accent-violet/40 bg-accent-violet/10' : 'border-border-subtle bg-bg-surface hover:bg-bg-hover'}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setDependsOn(checked ? dependsOn.filter((id) => id !== t.id) : [...dependsOn, t.id])}
+                          className="h-3.5 w-3.5 accent-accent-violet"
+                        />
+                        <span className="text-text-muted font-semibold">{t.priority}</span>
+                        <span className="text-text-primary truncate flex-1">{t.title}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] text-text-muted">Marca solo las tareas que deben completarse antes que esta.</div>
+              </>
+            )}
           </div>
           {task && dependents.length > 0 && (
             <div>

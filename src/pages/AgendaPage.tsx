@@ -23,7 +23,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { IntegrationsModal } from '@/components/dashboard/IntegrationsModal';
 import { MeetingDrawer } from '@/components/dashboard/MeetingDrawer';
-import type { MeetingType } from '@/types/meeting';
+import type { Meeting, MeetingType } from '@/types/meeting';
+import type { Client } from '@/types/client';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff',
@@ -208,8 +209,8 @@ function WeekGrid({
   onClick,
 }: {
   range: { start: Date; end: Date };
-  meetings: ReturnType<typeof useClientStore>['meetings'];
-  clientById: Record<string, ReturnType<typeof useClientStore>['clients'][number]>;
+  meetings: Meeting[];
+  clientById: Record<string, Client>;
   onClick: (id: string) => void;
 }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(range.start, i));
@@ -271,8 +272,8 @@ function MonthGrid({
   onClick,
 }: {
   range: { start: Date; end: Date };
-  meetings: ReturnType<typeof useClientStore>['meetings'];
-  clientById: Record<string, ReturnType<typeof useClientStore>['clients'][number]>;
+  meetings: Meeting[];
+  clientById: Record<string, Client>;
   onClick: (id: string) => void;
 }) {
   const gridStart = startOfWeek(range.start, { weekStartsOn: 1 });

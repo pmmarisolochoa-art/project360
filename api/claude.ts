@@ -26,6 +26,17 @@ interface MeetingAgendaCtx {
   meetingType: string;
   pendingTasksCount: number;
   hasAdsData: boolean;
+  // ─── Contexto extendido (todos opcionales para retro-compatibilidad) ───
+  notes?: string;                          // Pre-brief que el usuario escribió
+  brainSummary?: string;                   // executiveSummary del cerebro IA
+  brainOffer?: string;                     // irresistibleOffer del cerebro IA
+  brainPersonas?: string;                  // resumen corto de buyer personas
+  recentMeetings?: Array<{                 // últimas 3 reuniones (cronológicas)
+    type: string;
+    scheduledAt: string;
+    summary?: string;                      // si tiene summary lo usamos, si no notes
+    notes?: string;
+  }>;
 }
 
 interface ThreeOptionsCtx {
@@ -137,14 +148,40 @@ async function callAnthropic(apiKey: string, system: string, user: string, maxTo
 }
 
 async function meetingAgenda(apiKey: string, ctx: MeetingAgendaCtx): Promise<string> {
-  const system = `Eres una estratega senior de marketing digital. Generas agendas de reunión claras, accionables y breves. Devuelve SOLO una lista numerada de 5 puntos, sin introducción ni cierre. Cada punto en una línea.`;
-  const user = `Cliente: ${ctx.clientName} (${ctx.industry})
-Tipo de reunión: ${ctx.meetingType}
-Tareas pendientes del cliente: ${ctx.pendingTasksCount}
-Datos de ADS conectados: ${ctx.hasAdsData ? 'sí' : 'no'}
+  const system = `Eres una estratega senior de marketing digital. Generas agendas de reunión claras, accionables y breves, siempre adaptadas al contexto real del cliente (cerebro estratégico, notas del pre-brief y reuniones previas). Devuelve SOLO una lista numerada de 5 puntos, sin introducción ni cierre. Cada punto debe ser específico al cliente — evita genéricos como "Revisar performance".`;
 
-Genera la agenda de 5 puntos para esta reunión.`;
-  return callAnthropic(apiKey, system, user, 512);
+  // Construimos el prompt en bloques opcionales — solo añadimos lo que vino
+  const parts: string[] = [
+    `Cliente: ${ctx.clientName} (${ctx.industry})`,
+    `Tipo de reunión: ${ctx.meetingType}`,
+    `Tareas pendientes: ${ctx.pendingTasksCount}`,
+    `Datos de ADS conectados: ${ctx.hasAdsData ? 'sí' : 'no'}`,
+  ];
+
+  if (ctx.brainSummary) {
+    parts.push('', '— CEREBRO ESTRATÉGICO DEL CLIENTE —');
+    parts.push(`Resumen: ${ctx.brainSummary.slice(0, 600)}`);
+    if (ctx.brainOffer) parts.push(`Oferta irresistible: ${ctx.brainOffer.slice(0, 300)}`);
+    if (ctx.brainPersonas) parts.push(`Buyer personas: ${ctx.brainPersonas.slice(0, 500)}`);
+  }
+
+  if (ctx.notes && ctx.notes.trim().length > 0) {
+    parts.push('', '— PRE-BRIEF / NOTAS QUE YA TENGO PARA ESTA REUNIÓN —');
+    parts.push(ctx.notes.slice(0, 2000));
+  }
+
+  if (ctx.recentMeetings && ctx.recentMeetings.length > 0) {
+    parts.push('', '— REUNIONES PREVIAS RECIENTES (más nueva primero) —');
+    ctx.recentMeetings.slice(0, 3).forEach((m, i) => {
+      const body = (m.summary || m.notes || '').slice(0, 400);
+      if (body) parts.push(`[${i + 1}] ${m.type} (${m.scheduledAt.slice(0, 10)}): ${body}`);
+    });
+  }
+
+  parts.push('', 'Genera la agenda de 5 puntos para esta reunión, dándole continuidad al contexto anterior. Si hay seguimiento pendiente de reuniones previas, inclúyelo. Si las notas del pre-brief mencionan temas concretos, abórdalos primero.');
+
+  const user = parts.join('\n');
+  return callAnthropic(apiKey, system, user, 700);
 }
 
 async function threeOptions(apiKey: string, ctx: ThreeOptionsCtx): Promise<Array<{ id: string; title: string; content: string }>> {

@@ -28,6 +28,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
   const updateMeeting = useClientStore((s) => s.updateMeeting);
   const deleteMeeting = useClientStore((s) => s.deleteMeeting);
   const tasksByClient = useClientStore((s) => s.tasks);
+  const allMeetings = useClientStore((s) => s.meetings);
   const addTask = useClientStore((s) => s.addTask);
   const accent = client?.primaryColor ?? '#8B5CF6';
 
@@ -59,16 +60,46 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
     try {
       const pendingTasks = tasksByClient.filter((t) => t.clientId === client.id && t.status !== 'completed').length;
       const hasAds = Object.values(client.adsConnected).some(Boolean);
+
+      // ─── Contexto extendido: cerebro IA ───
+      const brain = client.aiBrainData ?? {};
+      const brainSummary = (brain as { executiveSummary?: string }).executiveSummary;
+      const brainOffer = (brain as { irresistibleOffer?: string }).irresistibleOffer;
+      const personas = (brain as { buyerPersonas?: Array<{ name: string; description: string }> }).buyerPersonas;
+      const brainPersonas = personas && personas.length > 0
+        ? personas.slice(0, 3).map((p) => `${p.name}: ${p.description}`).join(' | ')
+        : undefined;
+
+      // ─── Contexto extendido: últimas 3 reuniones del mismo cliente, anteriores a esta ───
+      const recentMeetings = allMeetings
+        .filter((m) => m.clientId === client.id && m.id !== meeting.id && new Date(m.scheduledAt) < new Date(meeting.scheduledAt))
+        .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+        .slice(0, 3)
+        .map((m) => ({
+          type: m.type,
+          scheduledAt: m.scheduledAt,
+          summary: m.summary,
+          notes: m.notes,
+        }));
+
       const result = await generateMeetingAgenda({
         clientName: client.name,
         industry: client.industry,
         meetingType: meeting.type,
         pendingTasksCount: pendingTasks,
         hasAdsData: hasAds,
+        notes: notes || undefined,
+        brainSummary,
+        brainOffer,
+        brainPersonas,
+        recentMeetings: recentMeetings.length > 0 ? recentMeetings : undefined,
       });
       setAgenda(result);
       updateMeeting(meeting.id, { agenda: result });
-      toast.success('Agenda generada con IA');
+      // toast.success solo si NO cayó al fallback (el fallback ya muestra warning)
+      // Heurística: el fallback siempre devuelve EXACTAMENTE 5 líneas con prefijo "N. ".
+      // La IA real suele variar el formato — pero si dudamos, no mostramos success.
+      // Para evitar falso positivo, simplemente no mostramos toast.success acá.
     } finally {
       setGenerating(false);
     }

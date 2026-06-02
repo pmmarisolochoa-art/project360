@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { motion } from 'framer-motion';
 import {
-  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks,
+  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip,
 } from 'lucide-react';
+import { marked } from 'marked';
+import mammoth from 'mammoth';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Meeting, MeetingType } from '@/types/meeting';
@@ -45,6 +47,8 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
   const [generating, setGenerating] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractedDraft, setExtractedDraft] = useState<ExtractedTask[]>(meeting.extractedTasks ?? []);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveIndicator, setSaveIndicator] = useState<string>('');
   const initialNotes = useRef(meeting.notes ?? '');
 
@@ -155,6 +159,45 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
     consumeAutoGen();
     void generateAgenda();
   }, [autoGenAgenda, agenda, generateAgenda, consumeAutoGen]);
+
+  // Sección 1 — Subir resumen sin consumir tokens.
+  // Parsea .md/.docx 100% en cliente y pega el texto plano en las notas.
+  // La IA solo se llama cuando el usuario hace click en "Extraer tareas".
+  const handleResumeUpload = async (file: File) => {
+    try {
+      const name = file.name.toLowerCase();
+      let plainText = '';
+      if (name.endsWith('.md') || name.endsWith('.markdown')) {
+        const raw = await file.text();
+        const html = await marked.parse(raw);
+        plainText = String(html)
+          .replace(/<[^>]+>/g, '\n')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+      } else if (name.endsWith('.docx')) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        plainText = result.value.trim();
+      } else {
+        toast.error('Formato no soportado. Usa .md o .docx');
+        return;
+      }
+      if (!plainText) {
+        toast.error('No se pudo extraer texto del archivo');
+        return;
+      }
+      // Prepend al campo de notas con separador para no perder lo que ya había.
+      const next = notes.trim().length > 0
+        ? `${plainText}\n\n— Notas previas —\n${notes}`
+        : plainText;
+      setNotes(next);
+      setUploadedFileName(file.name);
+      toast.success('Resumen cargado correctamente — sin consumo de tokens ✓');
+    } catch (e) {
+      console.warn('[resume upload]', e);
+      toast.error('Error al procesar el archivo');
+    }
+  };
 
   const runExtractTasks = async () => {
     if (!client) return;
@@ -360,6 +403,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
+            {uploadedFileName && (
+              <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-text-secondary rounded-md border border-border-subtle bg-bg-base/40 px-2 py-1">
+                <FileText className="h-3 w-3" /> Archivo cargado: <span className="font-medium text-text-primary">{uploadedFileName}</span>
+              </div>
+            )}
           </section>
 
           {/* Grabación */}
@@ -373,8 +421,21 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               onBlur={() => updateMeeting(meeting.id, { recordingUrl: recordingUrl || undefined })}
             />
             <div className="mt-2 flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" leftIcon={<Paperclip className="h-3.5 w-3.5" />}
+                onClick={() => fileInputRef.current?.click()}>Subir resumen (.md o .docx)</Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".md,.markdown,.docx"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleResumeUpload(f);
+                  e.target.value = '';
+                }}
+              />
               <Button size="sm" variant="secondary" leftIcon={<Upload className="h-3.5 w-3.5" />}
-                onClick={() => toast.info('Upload disponible próximamente')}>Subir archivo</Button>
+                onClick={() => toast.info('Upload de audio/video disponible próximamente')}>Subir archivo</Button>
               <Button size="sm" variant="secondary" leftIcon={<Mic className="h-3.5 w-3.5" />}
                 onClick={() => toast.info('Transcripción disponible próximamente')}>Transcribir con IA</Button>
               <Button size="sm" variant="secondary" leftIcon={<ListChecks className="h-3.5 w-3.5" />}

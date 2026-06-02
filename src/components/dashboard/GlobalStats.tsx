@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Users, CalendarClock, AlertTriangle, BellRing, ArrowRight, Check } from 'lucide-react';
@@ -32,7 +32,20 @@ export function GlobalStats() {
   const weekMeetings = meetings.filter((m) => isThisWeek(parseISO(m.scheduledAt), { weekStartsOn: 1 }));
   const meetingsThisWeek = weekMeetings.length;
   const overdueTasks = tasks.filter((t) => t.isDelayed && t.status !== 'completed');
-  const unread = notifications.filter((n) => !n.isRead).length;
+  // El conteo de alertas excluye las obsoletas (entidad origen ya resuelta).
+  // Misma lógica que AlertsPanel.isStale para mantener consistencia.
+  const unread = notifications.filter((n) => {
+    if (n.isRead) return false;
+    if ((n.type === 'task_overdue' || n.type === 'task_due_soon' || n.type === 'task_comment') && n.entityId) {
+      const task = tasks.find((t) => t.id === n.entityId);
+      if (!task || task.status === 'completed') return false;
+    }
+    if (n.type === 'meeting_soon' && n.entityId) {
+      const meeting = meetings.find((m) => m.id === n.entityId);
+      if (!meeting || meeting.completed) return false;
+    }
+    return true;
+  }).length;
 
   const stats: Array<{ label: string; value: string; hint: string; icon: typeof Users; tone: Tone }> = [
     { label: 'Clientes activos', value: String(activeClients), hint: `de ${clients.length} totales`, icon: Users, tone: 'accent' },
@@ -226,9 +239,38 @@ function AlertsPanel() {
   const meetings = useClientStore((s) => s.meetings);
   const openMeeting = useUIDrawerStore((s) => s.openMeeting);
 
+  // Una alerta es "obsoleta" cuando su entidad origen ya no requiere acción:
+  // tarea completada/inexistente, reunión hecha/inexistente.
+  const isStale = (n: Notification): boolean => {
+    if (n.type === 'task_overdue' || n.type === 'task_due_soon' || n.type === 'task_comment') {
+      if (!n.entityId) return false;
+      const task = tasks.find((t) => t.id === n.entityId);
+      return !task || task.status === 'completed';
+    }
+    if (n.type === 'meeting_soon') {
+      if (!n.entityId) return false;
+      const meeting = meetings.find((m) => m.id === n.entityId);
+      return !meeting || !!meeting.completed;
+    }
+    return false;
+  };
+
   const unread = notifications.filter((n) => !n.isRead);
+
+  // Auto-markRead las que son obsoletas (no las mostramos).
+  // Se ejecuta tras render para evitar warning de setState durante render.
+  useEffect(() => {
+    const stale = unread.filter(isStale);
+    if (stale.length > 0) {
+      stale.forEach((n) => markRead(n.id));
+    }
+    // tasks/meetings como deps para reaccionar cuando cambia el estado de la entidad
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, meetings, notifications]);
+
+  const visible = unread.filter((n) => !isStale(n));
   const grouped = (['critical', 'high', 'normal', 'low'] as NotificationUrgency[])
-    .map((u) => ({ urgency: u, items: unread.filter((n) => n.urgency === u) }))
+    .map((u) => ({ urgency: u, items: visible.filter((n) => n.urgency === u) }))
     .filter((g) => g.items.length > 0);
 
   const handleResolve = (n: Notification) => {

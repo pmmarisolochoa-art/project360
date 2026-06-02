@@ -38,6 +38,7 @@ export function useTaskMonitor() {
             push({
               userId: 'u_owner',
               clientId: t.clientId,
+              entityId: t.id,
               type: 'task_overdue',
               urgency: 'high',
               channel: 'in_app',
@@ -51,6 +52,7 @@ export function useTaskMonitor() {
             push({
               userId: 'u_owner',
               clientId: t.clientId,
+              entityId: t.id,
               type: 'task_due_soon',
               urgency: 'normal',
               channel: 'in_app',

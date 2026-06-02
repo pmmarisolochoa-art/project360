@@ -31,6 +31,9 @@ export interface Task {
   comments?: Array<{ id: string; author: string; text: string; createdAt: string }>;
   // Etiqueta semántica (ADS / Contenido / Estrategia / Reunión / Entregable / ROPRE / Otro)
   tag?: TaskTag;
+  // Embudo: si la tarea pertenece a un Funnel (sistema de lanzamiento), enlace + fase.
+  funnelId?: string;
+  phaseId?: string;
   createdAt: string;
 }
 

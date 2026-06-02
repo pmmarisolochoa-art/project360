@@ -5,6 +5,7 @@ import type { Meeting } from '@/types/meeting';
 import type { RopreItem } from '@/types/ropre';
 import type { ContentPiece } from '@/types/content';
 import type { ProjectionState } from '@/types/projection';
+import type { Funnel, FunnelPhase } from '@/types/funnel';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { useRopreStore } from '@/store/useRopreStore';
 
@@ -220,6 +221,103 @@ export const ProjectionsRepo = {
   },
 };
 
+/* ─────────────── FUNNEL LAUNCH (embudos con fases) ─────────────── */
+
+export const FunnelLaunchRepo = {
+  async listByClientIds(clientIds: string[]): Promise<{ funnels: Funnel[]; phases: FunnelPhase[] }> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return { funnels: [], phases: [] };
+    const { data: fData, error: fErr } = await supabase.from('funnels').select('*').in('client_id', clientIds);
+    if (fErr) throw fErr;
+    const funnels = (fData ?? []).map(rowToFunnel);
+    if (funnels.length === 0) return { funnels, phases: [] };
+    const { data: pData, error: pErr } = await supabase.from('funnel_phases').select('*').in('funnel_id', funnels.map((f) => f.id));
+    if (pErr) throw pErr;
+    const phases = (pData ?? []).map(rowToFunnelPhase);
+    return { funnels, phases };
+  },
+  async create(funnel: Funnel, phases: FunnelPhase[]): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error: fErr } = await supabase.from('funnels').insert(funnelToRow(funnel));
+    if (fErr) throw fErr;
+    if (phases.length > 0) {
+      const { error: pErr } = await supabase.from('funnel_phases').insert(phases.map(funnelPhaseToRow));
+      if (pErr) throw pErr;
+    }
+  },
+  async update(id: string, patch: Partial<Funnel>): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const row = funnelToRow(patch, true);
+    const { error } = await supabase.from('funnels').update(row).eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    // Las fases se borran en cascada por FK.
+    const { error } = await supabase.from('funnels').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+function rowToFunnel(row: Record<string, unknown>): Funnel {
+  const r = row as Record<string, any>;
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    templateKey: r.template_key,
+    name: r.name,
+    status: r.status,
+    startDate: r.start_date,
+    eventDate: r.event_date ?? undefined,
+    endDate: r.end_date ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+function funnelToRow(f: Partial<Funnel>, partial = false): Record<string, unknown> {
+  const map: Record<keyof Funnel, string> = {
+    id: 'id',
+    clientId: 'client_id',
+    templateKey: 'template_key',
+    name: 'name',
+    status: 'status',
+    startDate: 'start_date',
+    eventDate: 'event_date',
+    endDate: 'end_date',
+    createdAt: 'created_at',
+  };
+  const row: Record<string, unknown> = {};
+  for (const key of Object.keys(f) as Array<keyof Funnel>) {
+    if (partial && f[key] === undefined) continue;
+    row[map[key]] = f[key];
+  }
+  return row;
+}
+
+function rowToFunnelPhase(row: Record<string, unknown>): FunnelPhase {
+  const r = row as Record<string, any>;
+  return {
+    id: r.id,
+    funnelId: r.funnel_id,
+    order: r.order_idx,
+    name: r.name,
+    color: r.color,
+    dayStart: r.day_start,
+    dayEnd: r.day_end,
+  };
+}
+
+function funnelPhaseToRow(p: FunnelPhase): Record<string, unknown> {
+  return {
+    id: p.id,
+    funnel_id: p.funnelId,
+    order_idx: p.order,
+    name: p.name,
+    color: p.color,
+    day_start: p.dayStart,
+    day_end: p.dayEnd,
+  };
+}
+
 /* ─────────────── Mappers snake_case ↔ camelCase ─────────────── */
 
 function rowToClient(row: Record<string, unknown>): Client {
@@ -293,6 +391,8 @@ function rowToTask(row: Record<string, unknown>): Task {
     subtasks: r.subtasks ?? [],
     comments: r.comments ?? [],
     tag: r.tag ?? undefined,
+    funnelId: r.funnel_id ?? undefined,
+    phaseId: r.phase_id ?? undefined,
     createdAt: r.created_at,
   };
 }
@@ -320,6 +420,8 @@ function taskToRow(t: Partial<Task>, partial = false): Record<string, unknown> {
     subtasks: 'subtasks',
     comments: 'comments',
     tag: 'tag',
+    funnelId: 'funnel_id',
+    phaseId: 'phase_id',
     createdAt: 'created_at',
   };
   const row: Record<string, unknown> = {};

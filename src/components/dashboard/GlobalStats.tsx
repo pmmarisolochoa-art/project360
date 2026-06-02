@@ -10,7 +10,8 @@ import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { withAlpha } from '@/utils/colorGenerator';
-import type { NotificationUrgency } from '@/types/notification';
+import type { Notification, NotificationUrgency } from '@/types/notification';
+import { toast } from '@/store/useToastStore';
 
 type Tone = 'accent' | 'default' | 'warning' | 'danger';
 const TONE_COLOR: Record<Tone, string> = {
@@ -217,13 +218,81 @@ const URGENCY_TONE: Record<NotificationUrgency, { label: string; color: string }
 };
 
 function AlertsPanel() {
+  const navigate = useNavigate();
   const notifications = useNotificationStore((s) => s.notifications);
   const markRead = useNotificationStore((s) => s.markRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
+  const tasks = useClientStore((s) => s.tasks);
+  const meetings = useClientStore((s) => s.meetings);
+  const openMeeting = useUIDrawerStore((s) => s.openMeeting);
+
   const unread = notifications.filter((n) => !n.isRead);
   const grouped = (['critical', 'high', 'normal', 'low'] as NotificationUrgency[])
     .map((u) => ({ urgency: u, items: unread.filter((n) => n.urgency === u) }))
     .filter((g) => g.items.length > 0);
+
+  const handleResolve = (n: Notification) => {
+    // 1. Tarea (vencida / próxima a vencer / con comentario)
+    if (n.type === 'task_overdue' || n.type === 'task_due_soon' || n.type === 'task_comment') {
+      if (n.entityId) {
+        const task = tasks.find((t) => t.id === n.entityId);
+        if (!task) {
+          toast.info('Esta tarea ya no existe.');
+          markRead(n.id);
+          return;
+        }
+        if (task.status === 'completed') {
+          toast.success('Esta tarea ya fue completada ✓');
+          markRead(n.id);
+          return;
+        }
+        // Navega al módulo Tasks del cliente con query param para auto-abrir el detalle
+        navigate(`/client/${n.clientId ?? task.clientId}/tasks?task=${n.entityId}`);
+      } else if (n.clientId) {
+        navigate(`/client/${n.clientId}/tasks`);
+      }
+      markRead(n.id);
+      return;
+    }
+
+    // 2. Reunión próxima
+    if (n.type === 'meeting_soon') {
+      if (n.entityId) {
+        const meeting = meetings.find((m) => m.id === n.entityId);
+        if (!meeting) {
+          toast.info('Esta reunión ya no existe.');
+          markRead(n.id);
+          return;
+        }
+        if (meeting.completed) {
+          toast.success('Esta reunión ya fue realizada ✓');
+          markRead(n.id);
+          return;
+        }
+        openMeeting(n.entityId);
+        navigate(`/client/${n.clientId ?? meeting.clientId}/agenda`);
+      } else if (n.clientId) {
+        navigate(`/client/${n.clientId}/agenda`);
+      }
+      markRead(n.id);
+      return;
+    }
+
+    // 3. Contenido pendiente de aprobación
+    if (n.type === 'content_pending_approval') {
+      if (n.clientId) {
+        navigate(`/client/${n.clientId}/content?filter=in_review`);
+      }
+      markRead(n.id);
+      return;
+    }
+
+    // 4. Default: cerebro del cliente
+    if (n.clientId) {
+      navigate(`/client/${n.clientId}`);
+    }
+    markRead(n.id);
+  };
 
   return (
     <div>
@@ -248,7 +317,7 @@ function AlertsPanel() {
                   <li key={n.id} className="flex items-center gap-3 rounded-md border px-3 py-2"
                     style={{ borderColor: withAlpha(meta.color, 0.3), background: withAlpha(meta.color, 0.05) }}>
                     <div className="flex-1 text-sm text-text-primary">{n.message}</div>
-                    <Button size="sm" variant="secondary" onClick={() => markRead(n.id)}>
+                    <Button size="sm" variant="secondary" onClick={() => handleResolve(n)}>
                       Resolver <ArrowRight className="h-3 w-3" />
                     </Button>
                   </li>

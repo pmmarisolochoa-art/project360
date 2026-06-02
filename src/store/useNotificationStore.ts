@@ -15,6 +15,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       id: 'n_1',
       userId: 'u_owner',
       clientId: 'c_kuroko',
+      entityId: 't_2', // Tarea seedeada en seed.ts
       type: 'task_overdue',
       message: 'Tarea "Solicitar acceso a Business Manager" vencida hace 1 día',
       urgency: 'high',
@@ -27,6 +28,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       id: 'n_2',
       userId: 'u_owner',
       clientId: 'c_fitmind',
+      entityId: 'm_1', // Meeting seedeada en seed.ts
       type: 'meeting_soon',
       message: 'Revisión semanal con FitMind en 5 horas',
       urgency: 'normal',

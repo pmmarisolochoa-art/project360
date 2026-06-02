@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutGrid, CalendarDays, Plus, X, Sparkles, Trash2, Save,
@@ -34,6 +35,20 @@ export function ContentModule({ client }: { client: Client }) {
   const [view, setView] = useState<'kanban' | 'calendar'>('calendar');
   const [editing, setEditing] = useState<ContentPiece | null>(null);
   const [creating, setCreating] = useState<{ date: Date } | null>(null);
+
+  // Atajo desde AlertsPanel "Resolver →" sobre content_pending_approval:
+  // si la URL trae ?filter=in_review, cambiamos a kanban (donde la columna
+  // "Revisión" hace de filtro visual) y avisamos al usuario.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('filter') === 'in_review') {
+      setView('kanban');
+      toast.info('Contenidos en revisión visibles en la columna "Revisión"');
+      const next = new URLSearchParams(searchParams);
+      next.delete('filter');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   return (
     <div className="space-y-4">

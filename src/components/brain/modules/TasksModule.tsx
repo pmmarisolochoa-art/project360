@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, Filter, Clock, AlertTriangle, Trash2, ArrowRight, MessageSquare, Link2,
@@ -59,6 +59,22 @@ export function TasksModule({ client }: { client: Client }) {
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [view, setView] = useState<'kanban' | 'list' | 'gantt'>('kanban');
+
+  // Auto-abrir el detalle de una tarea si la URL trae ?task=<id>.
+  // Lo usa "Resolver →" del AlertsPanel para navegar directo al origen del problema.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const taskId = searchParams.get('task');
+    if (!taskId) return;
+    const target = tasks.find((t) => t.id === taskId);
+    if (target) {
+      setEditing(target);
+      // Limpia el query param para que cerrar/reabrir no re-abra el modal.
+      const next = new URLSearchParams(searchParams);
+      next.delete('task');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, tasks, setSearchParams]);
 
   const assignees = useMemo(
     () => Array.from(new Set(tasks.map((t) => t.assignedTo).filter(Boolean))),

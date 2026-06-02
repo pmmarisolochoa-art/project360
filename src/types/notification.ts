@@ -21,4 +21,7 @@ export interface Notification {
   channel: NotificationChannel;
   sentAt: string;
   createdAt: string;
+  // ID de la entidad origen (taskId para task_*, meetingId para meeting_*, contentPieceId para content_*).
+  // Permite que "Resolver →" navegue directo a la entidad y abra su detalle.
+  entityId?: string;
 }

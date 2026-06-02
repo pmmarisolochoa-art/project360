@@ -63,7 +63,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (requiresAuth && !user && location.pathname !== '/login') {
+  // Rutas públicas (sin auth): /login y portal cliente.
+  const isPublicRoute = location.pathname === '/login' || location.pathname.startsWith('/client-portal/');
+  if (requiresAuth && !user && !isPublicRoute) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 

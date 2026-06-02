@@ -64,7 +64,9 @@ export function OnboardingWizard() {
       const client = buildClientFromOnboarding(parsed.data, brain);
       addClient(client);
       reset();
-      navigate(`/client/${client.id}`);
+      // Aterrizamos directo en Planeación → tab Embudos para que el PM elija
+      // la plantilla de lanzamiento ANTES de configurar el resto del cerebro.
+      navigate(`/client/${client.id}/planning`);
     } catch {
       setError('No pudimos activar el cerebro. Reintenta en unos segundos.');
       setActivating(false);

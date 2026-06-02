@@ -12,11 +12,14 @@ import { AgendaPage } from '@/pages/AgendaPage';
 import { TeamPage } from '@/pages/TeamPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { ClientPortalFunnelPage } from '@/pages/ClientPortalFunnelPage';
 
 export function AppRouter() {
   return (
     <Routes>
       <Route path="login" element={<LoginPage />} />
+      {/* Portal cliente — público (sin Layout) para que el cliente final acceda sin login */}
+      <Route path="client-portal/funnel/:funnelId" element={<ClientPortalFunnelPage />} />
       <Route element={<Layout />}>
         <Route index element={<DashboardMacro />} />
         <Route path="clients" element={<ClientsPage />} />

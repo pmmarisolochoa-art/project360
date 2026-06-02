@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Rocket, Trash2, Play, Pause } from 'lucide-react';
+import { Plus, Rocket, Trash2, Play, Pause, Share2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Client } from '@/types/client';
 import type { FunnelTemplate } from '@/types/funnel';
@@ -80,6 +80,18 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
               <Badge tone={selectedFunnel.status === 'active' ? 'success' : 'warning'}>{selectedFunnel.status}</Badge>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<Share2 className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  const url = `${window.location.origin}/client-portal/funnel/${selectedFunnel.id}`;
+                  void navigator.clipboard.writeText(url);
+                  toast.success('Link del portal cliente copiado al portapapeles');
+                }}
+              >
+                Compartir con cliente
+              </Button>
               {selectedFunnel.status !== 'active' && (
                 <Button size="sm" variant="secondary" leftIcon={<Play className="h-3.5 w-3.5" />} onClick={() => { setStatus(selectedFunnel.id, 'active'); toast.success('Embudo activado'); }}>
                   Activar

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ChevronDown, ChevronUp, Pencil, Save, X, AlertTriangle, TrendingUp, TrendingDown, Minus, Trophy,
-  Briefcase, Megaphone, Wand2, Palette, Users as UsersIcon, Wrench,
+  Briefcase, Megaphone, Wand2, Palette, Users as UsersIcon, Wrench, Film, PhoneCall, HeartHandshake,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip as RTooltip, Legend,
@@ -32,6 +32,9 @@ const ROLE_ICON: Record<TeamRoleSlug, typeof Briefcase> = {
   designer: Palette,
   community: UsersIcon,
   funnel_builder: Wrench,
+  editor: Film,
+  closer: PhoneCall,
+  onboarding: HeartHandshake,
 };
 
 export function TeamModule({ client }: { client: Client }) {
@@ -113,6 +116,35 @@ function GlobalDashboard({
       text: a.bottleneck,
     }));
 
+  // Miembro con más carga activa (más tareas no completadas asignadas).
+  const memberLoad = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.status === 'completed') continue;
+      counts.set(t.assignedTo, (counts.get(t.assignedTo) ?? 0) + 1);
+    }
+    const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    return sorted[0] ? { name: sorted[0][0], count: sorted[0][1] } : null;
+  }, [tasks]);
+
+  // Miembro con peor cumplimiento (menos % tareas completadas).
+  const worstMember = useMemo(() => {
+    const stats = new Map<string, { done: number; total: number }>();
+    for (const t of tasks) {
+      const s = stats.get(t.assignedTo) ?? { done: 0, total: 0 };
+      s.total++;
+      if (t.status === 'completed') s.done++;
+      stats.set(t.assignedTo, s);
+    }
+    let worst: { name: string; rate: number } | null = null;
+    for (const [name, s] of stats.entries()) {
+      if (s.total < 3) continue; // ignora miembros con muy pocas tareas
+      const rate = s.done / s.total;
+      if (!worst || rate < worst.rate) worst = { name, rate: Math.round(rate * 100) };
+    }
+    return worst;
+  }, [tasks]);
+
   // Datos para gráfica de cumplimiento por rol (últimas 4 semanas)
   const chartData = ['Sem -3', 'Sem -2', 'Sem -1', 'Actual'].map((label, i) => {
     const row: Record<string, string | number> = { label };
@@ -129,7 +161,7 @@ function GlobalDashboard({
         <header className="flex items-center justify-between mb-4">
           <div>
             <h3 className="heading text-base font-bold">Salud del equipo · {client.name}</h3>
-            <p className="text-[11px] text-text-muted">6 roles · semáforo según KPIs del rol</p>
+            <p className="text-[11px] text-text-muted">{ROLE_DEFS.length} roles · semáforo según KPIs del rol</p>
           </div>
           <div className="text-right">
             <div className="text-[10px] uppercase tracking-wider text-text-muted">Cumplimiento global</div>
@@ -137,7 +169,31 @@ function GlobalDashboard({
           </div>
         </header>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+        {/* Mini-stats: carga y peor cumplimiento */}
+        {(memberLoad || worstMember || activeBottlenecks.length > 0) && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+            {memberLoad && (
+              <div className="rounded-md border border-border-subtle bg-bg-base/30 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wider text-text-muted">Mayor carga activa</div>
+                <div className="text-xs text-text-primary mt-0.5"><strong>{memberLoad.name}</strong> · {memberLoad.count} tarea{memberLoad.count === 1 ? '' : 's'}</div>
+              </div>
+            )}
+            {worstMember && (
+              <div className="rounded-md border border-status-danger/30 bg-status-danger/5 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wider text-status-danger">Peor cumplimiento</div>
+                <div className="text-xs text-text-primary mt-0.5"><strong>{worstMember.name}</strong> · {worstMember.rate}% completado</div>
+              </div>
+            )}
+            {activeBottlenecks.length > 0 && (
+              <div className="rounded-md border border-status-warning/30 bg-status-warning/5 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wider text-status-warning">Bloqueos activos</div>
+                <div className="text-xs text-text-primary mt-0.5"><strong>{activeBottlenecks.length}</strong> en todo el equipo</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-5 gap-2.5">
           {roleHealth.map(({ def, assignment, health }, i) => {
             const Icon = ROLE_ICON[def.slug];
             const style = HEALTH_STYLE[health];
@@ -215,7 +271,7 @@ function GlobalDashboard({
                 <Bar
                   key={def.slug}
                   dataKey={def.title}
-                  fill={['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EF4444'][i]}
+                  fill={['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#14B8A6', '#A855F7'][i] ?? '#94A3B8'}
                   radius={[2, 2, 0, 0]}
                 />
               ))}

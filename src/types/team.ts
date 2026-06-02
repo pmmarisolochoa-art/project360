@@ -4,7 +4,10 @@ export type TeamRoleSlug =
   | 'copywriter'
   | 'designer'
   | 'community'
-  | 'funnel_builder';
+  | 'funnel_builder'
+  | 'editor'
+  | 'closer'
+  | 'onboarding';
 
 export type KpiDirection = 'higher_better' | 'lower_better';
 
@@ -42,8 +45,8 @@ export interface RoleAssignment {
 export const ROLE_DEFS: RoleDef[] = [
   {
     slug: 'strategist',
-    title: 'Estratega Digital',
-    fullTitle: 'Estratega Digital / Account Strategist',
+    title: 'Estratega',
+    fullTitle: 'Estratega / Project Manager',
     functions: [
       'Definir y documentar la estrategia omnicanal del cliente',
       'Supervisar el cumplimiento del ROPRE',
@@ -130,8 +133,8 @@ export const ROLE_DEFS: RoleDef[] = [
   },
   {
     slug: 'community',
-    title: 'Community Manager',
-    fullTitle: 'Community Manager / Social Media Manager',
+    title: 'Content Manager',
+    fullTitle: 'Content Manager / Community Manager',
     functions: [
       'Publicar y programar contenido en todas las plataformas',
       'Gestión diaria de comentarios, DMs y menciones',
@@ -153,8 +156,8 @@ export const ROLE_DEFS: RoleDef[] = [
   },
   {
     slug: 'funnel_builder',
-    title: 'Funnel Builder',
-    fullTitle: 'Funnel Builder / Marketing Automation',
+    title: 'Líder Operativo',
+    fullTitle: 'Líder Operativo / Funnel Builder / Marketing Automation',
     functions: [
       'Construir y mantener landing pages',
       'Configurar secuencias de email y automatizaciones',
@@ -171,6 +174,62 @@ export const ROLE_DEFS: RoleDef[] = [
       { key: 'active_automations', label: 'Automatizaciones activas', target: 8, direction: 'higher_better', redThreshold: 2, yellowThreshold: 5 },
       { key: 'email_delivery', label: 'Entrega email', unit: '%', target: 98, direction: 'higher_better', redThreshold: 92, yellowThreshold: 96 },
       { key: 'sequence_open', label: 'Apertura secuencias', unit: '%', target: 30, direction: 'higher_better', redThreshold: 15, yellowThreshold: 25 },
+    ],
+  },
+  {
+    slug: 'editor',
+    title: 'Editor',
+    fullTitle: 'Editor / Producción Audiovisual',
+    functions: [
+      'Editar videos para reels, ADS y webinars',
+      'Ajustar testimonios y clips según briefing',
+      'Montar hooks y VSL según estrategia definida',
+      'Color grading y mezcla de audio básica',
+      'Entregar en formato y calidad acordados',
+    ],
+    kpis: [
+      { key: 'videos_on_time', label: 'Videos a tiempo', unit: '%', target: 90, direction: 'higher_better', redThreshold: 70, yellowThreshold: 82 },
+      { key: 'revisions_to_approve', label: 'Revisiones por aprobación', target: 2, direction: 'lower_better', redThreshold: 4, yellowThreshold: 3 },
+      { key: 'reel_delivery', label: 'Tiempo entrega reels', unit: 'h', target: 48, direction: 'lower_better', redThreshold: 96, yellowThreshold: 72 },
+      { key: 'vsl_delivery', label: 'Tiempo entrega VSL', unit: 'd', target: 5, direction: 'lower_better', redThreshold: 10, yellowThreshold: 7 },
+      { key: 'no_major_rework', label: 'Proyectos sin retrabajo', unit: '%', target: 80, direction: 'higher_better', redThreshold: 50, yellowThreshold: 70 },
+    ],
+  },
+  {
+    slug: 'closer',
+    title: 'Director Comercial / Closer',
+    fullTitle: 'Director Comercial / Closer de Ventas',
+    functions: [
+      'Liderar llamadas de cierre y ventas',
+      'Coordinar equipo de setters y confirmadores',
+      'Seguimiento a leads calificados',
+      'Reportes de métricas comerciales',
+      'Mejorar scripts de ventas y manejo de objeciones',
+    ],
+    kpis: [
+      { key: 'close_rate', label: 'Tasa de cierre', unit: '%', target: 25, direction: 'higher_better', redThreshold: 10, yellowThreshold: 18 },
+      { key: 'calls_per_setter', label: 'Llamadas/setter/día', target: 2, direction: 'higher_better', redThreshold: 0.5, yellowThreshold: 1 },
+      { key: 'confirmed_rate', label: 'Confirmadas vs agendadas', unit: '%', target: 80, direction: 'higher_better', redThreshold: 50, yellowThreshold: 70 },
+      { key: 'lead_response', label: 'Velocidad contacto lead', unit: 'h', target: 2, direction: 'lower_better', redThreshold: 8, yellowThreshold: 4 },
+      { key: 'weekly_report', label: 'Reporte semanal entregado', unit: '%', target: 100, direction: 'higher_better', redThreshold: 70, yellowThreshold: 90 },
+    ],
+  },
+  {
+    slug: 'onboarding',
+    title: 'Líder de Onboarding',
+    fullTitle: 'Líder de Onboarding / Servicio al Cliente',
+    functions: [
+      'Ejecutar onboarding de nuevos compradores del cliente',
+      'Seguimiento de satisfacción post-compra',
+      'Coordinar accesos a plataformas (Skool, Telegram, etc.)',
+      'Comunicar novedades a la comunidad',
+      'Atender soporte de primer nivel',
+    ],
+    kpis: [
+      { key: 'buyer_nps', label: 'NPS de compradores', unit: '/10', target: 8, direction: 'higher_better', redThreshold: 6, yellowThreshold: 7 },
+      { key: 'onboarding_time', label: 'Tiempo onboarding', unit: 'h', target: 24, direction: 'lower_better', redThreshold: 72, yellowThreshold: 48 },
+      { key: 'activation_rate', label: 'Activación 7 días', unit: '%', target: 85, direction: 'higher_better', redThreshold: 60, yellowThreshold: 75 },
+      { key: 'support_response', label: 'Tiempo respuesta soporte', unit: 'h', target: 4, direction: 'lower_better', redThreshold: 12, yellowThreshold: 8 },
     ],
   },
 ];

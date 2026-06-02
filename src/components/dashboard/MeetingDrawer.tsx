@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/Badge';
 import { generateMeetingAgenda, extractTasksFromNotes, type ExtractedTask } from '@/services/claudeApi';
 import { ROLE_DEFS } from '@/types/team';
 import { RopreInlineEditor } from './RopreInlineEditor';
+import { WeeklyPlanningGrid } from './WeeklyPlanningGrid';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
@@ -336,6 +337,13 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
           {meeting.type === 'ropre_strategy' && client && (
             <section>
               <RopreInlineEditor clientId={client.id} meetingId={meeting.id} accent={accent} />
+            </section>
+          )}
+
+          {/* Grid Persona × Día — solo para meeting.type === 'weekly_planning' */}
+          {meeting.type === 'weekly_planning' && client && (
+            <section>
+              <WeeklyPlanningGrid clientId={client.id} weekAnchor={meeting.scheduledAt} accent={accent} />
             </section>
           )}
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Target, ListChecks, Lightbulb, AlertOctagon, Package,
   LayoutGrid, GanttChartSquare, Plus, Link2, CheckCircle2, Zap,
@@ -37,6 +38,7 @@ const RISK_LABEL: Record<RiskLevel, string> = {
 };
 
 export function RopreModule({ client }: { client: Client }) {
+  const navigate = useNavigate();
   // Igual que TasksModule: filtrar en el selector causa loop infinito.
   const allItems = useRopreStore((s) => s.items);
   const items = useMemo(
@@ -44,6 +46,16 @@ export function RopreModule({ client }: { client: Client }) {
     [allItems, client.id],
   );
   const accent = client.primaryColor;
+
+  // Última edición desde una reunión ROPRE — para el badge del header.
+  const lastEdit = useMemo(() => {
+    const stamps = items
+      .map((i) => i.lastEditedAt)
+      .filter((s): s is string => !!s)
+      .sort()
+      .reverse();
+    return stamps[0];
+  }, [items]);
 
   const grouped = useMemo(
     () => ({
@@ -56,8 +68,34 @@ export function RopreModule({ client }: { client: Client }) {
     [items],
   );
 
+  // Empty state — guía al PM hacia una reunión ROPRE para empezar.
+  if (items.length === 0) {
+    return (
+      <div className="surface p-10 text-center space-y-4">
+        <div className="mx-auto h-12 w-12 rounded-full flex items-center justify-center" style={{ background: withAlpha(accent, 0.15) }}>
+          <Target className="h-5 w-5" style={{ color: accent }} />
+        </div>
+        <div>
+          <h3 className="heading text-lg font-bold mb-1">Sin ROPRE definido</h3>
+          <p className="text-sm text-text-secondary max-w-md mx-auto">
+            Crea una <strong>Reunión de Estrategia ROPRE & Entregables</strong> para definir Resultado, Objetivos, Premisas, Riesgos y Entregables del cliente.
+            Los cambios se guardan automáticamente acá.
+          </p>
+        </div>
+        <Button onClick={() => navigate(`/client/${client.id}/agenda?create=ropre`)}>
+          Crear reunión de Estrategia ROPRE
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {lastEdit && (
+        <div className="text-[11px] text-text-muted">
+          Última actualización: {format(parseISO(lastEdit), "d MMM yyyy 'a las' HH:mm")}
+        </div>
+      )}
       {/* R — Resultado */}
       <SectionBlock
         icon={<Target className="h-4 w-4" />}

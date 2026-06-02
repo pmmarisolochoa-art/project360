@@ -1,4 +1,5 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar as CalendarIcon, Plus, Clock, CheckCircle2, ChevronLeft, ChevronRight,
@@ -75,6 +76,26 @@ export function MeetingsModule({ client }: { client: Client }) {
   const [fType, setFType] = useState<string>('');
   const [fStatus, setFStatus] = useState<'all' | 'upcoming' | 'past' | 'completed' | 'pending'>('all');
   const [creating, setCreating] = useState(false);
+  const [defaultType, setDefaultType] = useState<MeetingType>('weekly_metrics');
+
+  // Atajo desde RopreModule empty state — abre el modal con type pre-seleccionado.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const createKey = searchParams.get('create');
+    if (createKey === 'ropre') {
+      setDefaultType('ropre_strategy');
+      setCreating(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('create');
+      setSearchParams(next, { replace: true });
+    } else if (createKey === 'weekly_planning') {
+      setDefaultType('weekly_planning');
+      setCreating(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('create');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [anchor, setAnchor] = useState(new Date());
 
   const accent = client.primaryColor;
@@ -208,6 +229,7 @@ export function MeetingsModule({ client }: { client: Client }) {
         <NewMeetingModal
           clientId={client.id}
           clientName={client.name}
+          defaultType={defaultType}
           onClose={() => setCreating(false)}
           onCreate={(m) => {
             addMeeting(m);
@@ -391,10 +413,10 @@ function WeekView({ meetings, accent, anchor, setAnchor, onOpen }: {
   );
 }
 
-function NewMeetingModal({ clientId, clientName, onClose, onCreate }: {
-  clientId: string; clientName: string; onClose: () => void; onCreate: (m: Meeting) => void;
+function NewMeetingModal({ clientId, clientName, defaultType = 'weekly_metrics', onClose, onCreate }: {
+  clientId: string; clientName: string; defaultType?: MeetingType; onClose: () => void; onCreate: (m: Meeting) => void;
 }) {
-  const [type, setType] = useState<MeetingType>('weekly_metrics');
+  const [type, setType] = useState<MeetingType>(defaultType);
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [time, setTime] = useState('10:00');
   const [duration, setDuration] = useState(45);

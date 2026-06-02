@@ -21,5 +21,9 @@ export interface RopreItem {
   currentValue?: string;
   // Vinculación con Módulo de Tareas — cuando un entregable se promociona a tarea.
   linkedTaskId?: string;
+  // Trazabilidad — qué reunión editó este item por última vez.
+  // Lo escribe el panel ROPRE del MeetingDrawer cuando type === 'ropre_strategy'.
+  lastEditedInMeetingId?: string;
+  lastEditedAt?: string;
   createdAt: string;
 }

@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { generateMeetingAgenda, extractTasksFromNotes, type ExtractedTask } from '@/services/claudeApi';
 import { ROLE_DEFS } from '@/types/team';
+import { RopreInlineEditor } from './RopreInlineEditor';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
@@ -330,6 +331,13 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               onBlur={() => updateMeeting(meeting.id, { agenda })}
             />
           </section>
+
+          {/* ROPRE inline editor — solo para meeting.type === 'ropre_strategy' */}
+          {meeting.type === 'ropre_strategy' && client && (
+            <section>
+              <RopreInlineEditor clientId={client.id} meetingId={meeting.id} accent={accent} />
+            </section>
+          )}
 
           {/* Notas con auto-save */}
           <section>

@@ -395,6 +395,9 @@ function rowToRopre(row: Record<string, unknown>): RopreItem {
     responsible: r.responsible ?? undefined,
     targetValue: r.target_value ?? undefined,
     currentValue: r.current_value ?? undefined,
+    linkedTaskId: r.linked_task_id ?? undefined,
+    lastEditedInMeetingId: r.last_edited_in_meeting_id ?? undefined,
+    lastEditedAt: r.last_edited_at ?? undefined,
     createdAt: r.created_at,
   };
 }
@@ -414,6 +417,9 @@ function ropreToRow(i: Partial<RopreItem>, partial = false): Record<string, unkn
     responsible: 'responsible',
     targetValue: 'target_value',
     currentValue: 'current_value',
+    linkedTaskId: 'linked_task_id',
+    lastEditedInMeetingId: 'last_edited_in_meeting_id',
+    lastEditedAt: 'last_edited_at',
     createdAt: 'created_at',
   };
   const row: Record<string, unknown> = {};

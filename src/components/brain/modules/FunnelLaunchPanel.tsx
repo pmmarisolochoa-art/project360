@@ -37,12 +37,33 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
 
   const selectedFunnel = funnels.find((f) => f.id === selectedFunnelId) ?? funnels[0] ?? null;
 
+  // Modal de creación se rendera SIEMPRE al final — evita que el early
+  // return del empty state nos haga perder el modal cuando aún no hay
+  // embudos.
+  const createModal = creating ? (
+    <CreateFunnelModal
+      template={creating}
+      onCancel={() => setCreating(null)}
+      onConfirm={(startDate, customName) => {
+        const funnel = activateFromTemplate(client.id, creating.key, startDate, customName);
+        if (funnel) {
+          toast.success(`Embudo activado · ${creating.phases.reduce((acc, p) => acc + p.tasks.length, 0)} tareas creadas`);
+          setSelectedFunnelId(funnel.id);
+        }
+        setCreating(null);
+      }}
+    />
+  ) : null;
+
   if (funnels.length === 0) {
     return (
-      <TemplateGallery
-        accent={client.primaryColor}
-        onSelect={(template) => setCreating(template)}
-      />
+      <>
+        <TemplateGallery
+          accent={client.primaryColor}
+          onSelect={(template) => setCreating(template)}
+        />
+        {createModal}
+      </>
     );
   }
 
@@ -118,21 +139,7 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
         </>
       ) : null}
 
-      {/* Modal de creación */}
-      {creating && (
-        <CreateFunnelModal
-          template={creating}
-          onCancel={() => setCreating(null)}
-          onConfirm={(startDate, customName) => {
-            const funnel = activateFromTemplate(client.id, creating.key, startDate, customName);
-            if (funnel) {
-              toast.success(`Embudo activado · ${creating.phases.reduce((acc, p) => acc + p.tasks.length, 0)} tareas creadas`);
-              setSelectedFunnelId(funnel.id);
-            }
-            setCreating(null);
-          }}
-        />
-      )}
+      {createModal}
     </div>
   );
 }

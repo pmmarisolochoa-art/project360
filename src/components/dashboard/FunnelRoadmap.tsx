@@ -27,7 +27,12 @@ export function FunnelRoadmap({
   simplified?: boolean;
   onOpenTask?: (taskId: string) => void;
 }) {
-  const phases = useFunnelLaunchStore((s) => s.phasesByFunnel(funnel.id));
+  // Mismo anti-pattern Zustand: filtrar en el selector dispara loop.
+  const allPhases = useFunnelLaunchStore((s) => s.phases);
+  const phases = useMemo(
+    () => allPhases.filter((p) => p.funnelId === funnel.id).sort((a, b) => a.order - b.order),
+    [allPhases, funnel.id],
+  );
   const allTasks = useClientStore((s) => s.tasks);
   const tasks = useMemo(() => allTasks.filter((t) => t.funnelId === funnel.id), [allTasks, funnel.id]);
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Rocket, Trash2, Play, Pause, Share2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -23,7 +23,11 @@ import { format } from 'date-fns';
  */
 export function FunnelLaunchPanel({ client }: { client: Client }) {
   const navigate = useNavigate();
-  const funnels = useFunnelLaunchStore((s) => s.byClient(client.id));
+  // IMPORTANTE: el selector debe devolver una referencia estable. Filtrar
+  // dentro del selector crea un array nuevo en cada render y dispara
+  // "Maximum update depth exceeded" en Zustand + StrictMode.
+  const allFunnels = useFunnelLaunchStore((s) => s.funnels);
+  const funnels = useMemo(() => allFunnels.filter((f) => f.clientId === client.id), [allFunnels, client.id]);
   const activateFromTemplate = useFunnelLaunchStore((s) => s.activateFromTemplate);
   const setStatus = useFunnelLaunchStore((s) => s.setStatus);
   const remove = useFunnelLaunchStore((s) => s.remove);

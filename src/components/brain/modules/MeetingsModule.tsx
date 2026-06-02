@@ -30,6 +30,8 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   ads_review: 'Revisión de ads',
   monthly_closing: 'Cierre mensual',
   crisis: 'Crisis',
+  weekly_planning: 'Planeación semanal',
+  ropre_strategy: 'Estrategia ROPRE & Entregables',
 };
 
 const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' | 'neutral' | 'danger'> = {
@@ -39,6 +41,21 @@ const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' |
   ads_review: 'warning',
   monthly_closing: 'neutral',
   crisis: 'danger',
+  weekly_planning: 'info',
+  ropre_strategy: 'accent',
+};
+
+// Descripciones que se muestran en el modal "Nueva reunión" al seleccionar tipo.
+// Educan al PM sobre qué automatizaciones tiene cada uno.
+export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
+  kickoff: '🚀 Primera reunión del proyecto. Define objetivos, expectativas y compromisos para los primeros 14 días.',
+  weekly_metrics: '📊 Revisión semanal de métricas y avance de tareas. Decisiones de ajuste y prioridades de la próxima semana.',
+  content_strategy: '🎬 Pipeline de piezas, aprobaciones, ángulos y calendario de las próximas 2-4 semanas.',
+  ads_review: '💰 ROAS por canal, hooks ganadores, A/B tests, decisiones de escala o pausa de campañas.',
+  monthly_closing: '📅 Resultados del mes vs proyecciones, lecciones aprendidas y plan del próximo mes.',
+  crisis: '🚨 Diagnóstico de causa raíz, plan de mitigación inmediato con responsables y deadline.',
+  weekly_planning: '📅 Coordina las tareas de la semana por día y persona. La agenda se genera con tareas pendientes y reuniones programadas.',
+  ropre_strategy: '🎯 Sesión estratégica para actualizar el ROPRE y convertir entregables en tareas. El resultado se guarda directamente en el módulo ROPRE.',
 };
 
 export function MeetingsModule({ client }: { client: Client }) {
@@ -190,6 +207,7 @@ export function MeetingsModule({ client }: { client: Client }) {
       {creating && (
         <NewMeetingModal
           clientId={client.id}
+          clientName={client.name}
           onClose={() => setCreating(false)}
           onCreate={(m) => {
             addMeeting(m);
@@ -373,15 +391,24 @@ function WeekView({ meetings, accent, anchor, setAnchor, onOpen }: {
   );
 }
 
-function NewMeetingModal({ clientId, onClose, onCreate }: {
-  clientId: string; onClose: () => void; onCreate: (m: Meeting) => void;
+function NewMeetingModal({ clientId, clientName, onClose, onCreate }: {
+  clientId: string; clientName: string; onClose: () => void; onCreate: (m: Meeting) => void;
 }) {
-  const [title, setTitle] = useState('');
   const [type, setType] = useState<MeetingType>('weekly_metrics');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [time, setTime] = useState('10:00');
   const [duration, setDuration] = useState(45);
   const [link, setLink] = useState('');
+  const [titleTouched, setTitleTouched] = useState(false);
+
+  // Título auto-generado a partir de tipo + cliente + fecha.
+  // Si el usuario lo edita manualmente (titleTouched), respetamos su valor.
+  const autoTitle = `${TYPE_LABEL[type]} — ${clientName} — ${format(parseISO(`${date}T00:00:00`), "d MMM yyyy", { locale: es })}`;
+  const [title, setTitle] = useState(autoTitle);
+  // Actualiza auto-title cuando cambian tipo/fecha y el usuario no lo ha editado a mano.
+  if (!titleTouched && title !== autoTitle) {
+    setTitle(autoTitle);
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -405,16 +432,25 @@ function NewMeetingModal({ clientId, onClose, onCreate }: {
     <Modal open onClose={onClose} title={<span className="flex items-center gap-2"><Plus className="h-4 w-4" /> Nueva reunión</span>}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <label className="block">
-          <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Título *</span>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Revisión semanal de métricas" autoFocus required />
-        </label>
-        <label className="block">
           <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Tipo</span>
           <Select
             value={type}
             onChange={(e) => setType(e.target.value as MeetingType)}
             options={Object.entries(TYPE_LABEL).map(([v, l]) => ({ value: v, label: l }))}
           />
+          <div className="mt-1.5 text-[11px] text-text-muted leading-relaxed">{TYPE_DESCRIPTION[type]}</div>
+        </label>
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Título *</span>
+          <Input
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); setTitleTouched(true); }}
+            placeholder="Ej: Revisión semanal de métricas"
+            required
+          />
+          {!titleTouched && (
+            <div className="text-[10px] text-text-muted mt-1">Auto-generado · puedes editarlo</div>
+          )}
         </label>
         <div className="grid grid-cols-3 gap-2">
           <label className="block">

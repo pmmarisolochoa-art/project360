@@ -22,6 +22,7 @@ import { genId } from '@/utils/id';
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Estrategia de contenido',
   ads_review: 'Revisión de ADS', monthly_closing: 'Cierre mensual', crisis: 'Crisis / Urgente',
+  weekly_planning: 'Planeación semanal', ropre_strategy: 'Estrategia ROPRE & Entregables',
 };
 
 export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose: () => void }) {

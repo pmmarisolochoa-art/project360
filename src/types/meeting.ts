@@ -4,7 +4,9 @@ export type MeetingType =
   | 'content_strategy'
   | 'ads_review'
   | 'monthly_closing'
-  | 'crisis';
+  | 'crisis'
+  | 'weekly_planning'
+  | 'ropre_strategy';
 
 export interface Meeting {
   id: string;

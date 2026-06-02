@@ -260,7 +260,26 @@ function meetingAgendaFallback(args: {
       'Asignación de responsables y deadline',
       'Próxima revisión',
     ],
+    ropre_strategy: [
+      'Revisión de resultados desde última sesión (10 min)',
+      'Actualización del Resultado principal (R) (10 min)',
+      'Revisión de Objetivos y métricas (O) (15 min)',
+      'Validación de Premisas estratégicas (P) (10 min)',
+      'Análisis de Riesgos actuales (R) (10 min)',
+      'Definición de Entregables del próximo período (E) (15 min)',
+      'Conversión de entregables en tareas asignadas (10 min)',
+    ],
   };
+  // weekly_planning tiene formato distinto (por días) — fallback genérico semanal.
+  if (meetingType === 'weekly_planning') {
+    return [
+      `LUNES: arranque de la semana — alinear con el equipo las prioridades. Revisar las ${pendingTasksCount} tareas pendientes.`,
+      'MARTES: ejecución de tareas de alta prioridad (P1). Bloques de trabajo enfocado.',
+      'MIÉRCOLES: punto medio — revisión de avance y desbloqueo de tareas atascadas.',
+      'JUEVES: cierre de entregables de la semana. Aprobaciones pendientes.',
+      'VIERNES: revisión de cumplimiento de la semana + planificación del siguiente lunes.',
+    ].join('\n');
+  }
   const items = sections[meetingType] ?? sections.weekly_metrics;
   return items.map((s, i) => `${i + 1}. ${s}`).join('\n');
 }

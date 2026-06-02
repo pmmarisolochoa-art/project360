@@ -169,6 +169,27 @@ async function meetingAgenda(apiKey: string, ctx: MeetingAgendaCtx): Promise<str
     ads_review: 'REVISIÓN ADS: enfoque en ROAS por canal/campaña, hooks ganadores vs perdedores, A/B tests activos, decisiones de escala/pausa, optimizaciones inmediatas (presupuesto, audiencias, creativos).',
     monthly_closing: 'CIERRE MENSUAL: enfoque en resultados vs proyecciones, cumplimiento de meta de facturación, lecciones del mes, decisiones estratégicas que necesitan validación, plan del próximo mes.',
     crisis: 'CRISIS: enfoque en diagnóstico, causa raíz, plan de mitigación inmediato, responsables y deadline, próxima revisión.',
+    weekly_planning: `PLANEACIÓN SEMANAL: este tipo requiere un FORMATO DISTINTO al estándar. Genera una agenda estructurada POR DÍAS de la semana (Lunes a Viernes), distribuyendo prioridades del equipo. Para cada día:
+- 2-3 prioridades del día, máximo 5 líneas por día
+- Menciona responsables específicos cuando aparezcan en las tareas pendientes
+- Considera distribución de carga de trabajo
+- En VIERNES incluye revisión de la semana
+Formato EXACTO:
+LUNES: [prioridades]
+MARTES: [prioridades]
+MIÉRCOLES: [prioridades]
+JUEVES: [prioridades]
+VIERNES: [prioridades + revisión semana]
+Ignora la regla de "5 puntos numerados" — usa el formato por días.`,
+    ropre_strategy: `ESTRATEGIA ROPRE & ENTREGABLES: agenda estructurada para sesión estratégica del marco ROPRE (Resultado, Objetivos, Premisas, Riesgos, Entregables). Genera EXACTAMENTE 7 puntos en este orden:
+1. Revisión de resultados desde última sesión (10 min)
+2. Actualización del Resultado principal (R) (10 min)
+3. Revisión de Objetivos y métricas (O) (15 min)
+4. Validación de Premisas estratégicas (P) (10 min)
+5. Análisis de Riesgos actuales (R) (10 min)
+6. Definición de Entregables del próximo período (E) (15 min)
+7. Conversión de entregables en tareas asignadas (10 min)
+En cada punto sé específico al cliente y su momento actual. Ignora la regla de "5 puntos" — usa exactamente 7.`,
   };
   const focus = TYPE_FOCUS[ctx.meetingType] ?? 'Enfoque adaptado al tipo de reunión.';
 

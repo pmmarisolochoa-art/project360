@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { motion } from 'framer-motion';
 import {
   X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks,
@@ -30,6 +31,8 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
   const tasksByClient = useClientStore((s) => s.tasks);
   const allMeetings = useClientStore((s) => s.meetings);
   const addTask = useClientStore((s) => s.addTask);
+  const autoGenAgenda = useUIDrawerStore((s) => s.autoGenAgenda);
+  const consumeAutoGen = useUIDrawerStore((s) => s.consumeAutoGen);
   const accent = client?.primaryColor ?? '#8B5CF6';
 
   const [videoLink, setVideoLink] = useState(meeting.videoCallLink ?? '');
@@ -54,11 +57,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
     return () => clearTimeout(t);
   }, [notes, meeting.id, updateMeeting]);
 
-  const generateAgenda = async () => {
+  const generateAgenda = useCallback(async () => {
     if (!client) return;
     setGenerating(true);
     try {
-      const pendingTasks = tasksByClient.filter((t) => t.clientId === client.id && t.status !== 'completed').length;
+      const pendingTasksList = tasksByClient.filter((t) => t.clientId === client.id && t.status !== 'completed');
       const hasAds = Object.values(client.adsConnected).some(Boolean);
 
       // ─── Contexto extendido: cerebro IA ───
@@ -82,28 +85,73 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
           notes: m.notes,
         }));
 
+      // ─── Tareas pendientes con detalle (top 10 ordenadas por urgencia) ───
+      const now = Date.now();
+      const pendingTasks = pendingTasksList
+        .map((t) => {
+          const dueInDays = Math.round((new Date(t.dueDate).getTime() - now) / (1000 * 60 * 60 * 24));
+          return {
+            title: t.title,
+            priority: t.priority,
+            assignedTo: t.assignedTo,
+            dueInDays,
+          };
+        })
+        .sort((a, b) => {
+          // Vencidas y P1 primero
+          const aOverdue = a.dueInDays < 0 ? 0 : 1;
+          const bOverdue = b.dueInDays < 0 ? 0 : 1;
+          if (aOverdue !== bOverdue) return aOverdue - bOverdue;
+          const pri: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
+          return (pri[a.priority] ?? 3) - (pri[b.priority] ?? 3);
+        })
+        .slice(0, 10);
+
+      // ─── Métricas ADS: usamos lo que ya hay cacheado en client.metrics (sin nuevo fetch) ───
+      const cm = (client.metrics ?? {}) as { roas?: number | null; invertedThisMonth?: number };
+      const adsMetrics = hasAds && (cm.roas != null || cm.invertedThisMonth != null)
+        ? {
+            roas: cm.roas ?? undefined,
+            spend7d: cm.invertedThisMonth != null ? cm.invertedThisMonth / 4 : undefined, // aproximación
+            notes: undefined,
+          }
+        : undefined;
+
       const result = await generateMeetingAgenda({
         clientName: client.name,
         industry: client.industry,
         meetingType: meeting.type,
-        pendingTasksCount: pendingTasks,
+        pendingTasksCount: pendingTasksList.length,
         hasAdsData: hasAds,
         notes: notes || undefined,
         brainSummary,
         brainOffer,
         brainPersonas,
         recentMeetings: recentMeetings.length > 0 ? recentMeetings : undefined,
+        pendingTasks: pendingTasks.length > 0 ? pendingTasks : undefined,
+        adsMetrics,
       });
       setAgenda(result);
       updateMeeting(meeting.id, { agenda: result });
-      // toast.success solo si NO cayó al fallback (el fallback ya muestra warning)
-      // Heurística: el fallback siempre devuelve EXACTAMENTE 5 líneas con prefijo "N. ".
-      // La IA real suele variar el formato — pero si dudamos, no mostramos success.
-      // Para evitar falso positivo, simplemente no mostramos toast.success acá.
     } finally {
       setGenerating(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, meeting.id, meeting.type, meeting.scheduledAt, notes, allMeetings, tasksByClient]);
+
+  // Auto-generación: si llegamos con autoGenAgenda=true Y no hay agenda ya escrita, generamos.
+  // consumeAutoGen apaga el flag para evitar re-disparos.
+  const autoGenAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!autoGenAgenda || autoGenAttemptedRef.current) return;
+    if (agenda.trim().length > 0) {
+      consumeAutoGen();
+      return;
+    }
+    autoGenAttemptedRef.current = true;
+    consumeAutoGen();
+    void generateAgenda();
+  }, [autoGenAgenda, agenda, generateAgenda, consumeAutoGen]);
 
   const runExtractTasks = async () => {
     if (!client) return;
@@ -134,9 +182,49 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
     }
   };
 
-  const markDone = () => {
+  const markDone = async () => {
+    // Si hay notas significativas, auto-extraer tareas y crearlas SIN confirmación manual.
+    // El usuario puede borrarlas después si alguna no le sirve. Trade-off: velocidad > control.
+    let extractedCount = 0;
+    if (client && notes.trim().length >= 20) {
+      try {
+        const result = await extractTasksFromNotes({
+          clientName: client.name,
+          industry: client.industry,
+          meetingType: meeting.type,
+          notes,
+          agenda,
+          availableRoles: ROLE_DEFS.map((r) => r.slug),
+        });
+        for (const t of result) {
+          const task: Task = {
+            id: genId(),
+            clientId: meeting.clientId,
+            title: t.title,
+            status: 'pending',
+            priority: t.priority ?? 'P2',
+            assignedTo: t.responsibleRole,
+            dueDate: new Date(Date.now() + t.dueInDays * 86400000).toISOString(),
+            isDelayed: false,
+            delayDays: 0,
+            moduleTag: 'meeting',
+            tag: t.tag ?? 'meeting',
+            createdAt: new Date().toISOString(),
+          };
+          addTask(task);
+          extractedCount++;
+        }
+      } catch (e) {
+        console.warn('[markDone] auto-extracción falló', e);
+      }
+    }
+
     updateMeeting(meeting.id, { completed: true });
-    toast.success('Reunión marcada como realizada');
+    if (extractedCount > 0) {
+      toast.success(`Reunión realizada · ${extractedCount} tarea${extractedCount === 1 ? '' : 's'} creada${extractedCount === 1 ? '' : 's'} automáticamente`);
+    } else {
+      toast.success('Reunión marcada como realizada');
+    }
     onClose();
   };
 

@@ -67,6 +67,19 @@ export async function generateMeetingAgenda(args: {
     summary?: string;
     notes?: string;
   }>;
+  pendingTasks?: Array<{
+    title: string;
+    priority: string;
+    assignedTo: string;
+    dueInDays: number;
+  }>;
+  adsMetrics?: {
+    roas?: number;
+    cpa?: number;
+    ctr?: number;
+    spend7d?: number;
+    notes?: string;
+  };
 }): Promise<string> {
   try {
     const { text } = await callBackend<{ text: string }>('meeting_agenda', args);

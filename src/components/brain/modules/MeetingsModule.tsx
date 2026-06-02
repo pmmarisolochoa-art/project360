@@ -193,7 +193,10 @@ export function MeetingsModule({ client }: { client: Client }) {
           onClose={() => setCreating(false)}
           onCreate={(m) => {
             addMeeting(m);
-            toast.success('Reunión creada');
+            // Abrimos el drawer con auto-gen activado — la agenda se genera sola
+            // con todo el contexto del cliente. El PM llega con todo listo.
+            openMeeting(m.id, { autoGenAgenda: true });
+            toast.success('Reunión creada · generando agenda con IA…');
             setCreating(false);
           }}
         />

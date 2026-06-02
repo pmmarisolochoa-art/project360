@@ -37,6 +37,19 @@ interface MeetingAgendaCtx {
     summary?: string;                      // si tiene summary lo usamos, si no notes
     notes?: string;
   }>;
+  pendingTasks?: Array<{                   // top 10 tareas pendientes con detalle
+    title: string;
+    priority: string;
+    assignedTo: string;
+    dueInDays: number;                     // negativo = vencida
+  }>;
+  adsMetrics?: {                           // métricas agregadas últimos 7d si ADS conectado
+    roas?: number;
+    cpa?: number;
+    ctr?: number;
+    spend7d?: number;
+    notes?: string;                        // ej "ROAS cayendo de 4.1 → 2.8 esta semana"
+  };
 }
 
 interface ThreeOptionsCtx {
@@ -148,7 +161,25 @@ async function callAnthropic(apiKey: string, system: string, user: string, maxTo
 }
 
 async function meetingAgenda(apiKey: string, ctx: MeetingAgendaCtx): Promise<string> {
-  const system = `Eres una estratega senior de marketing digital. Generas agendas de reunión claras, accionables y breves, siempre adaptadas al contexto real del cliente (cerebro estratégico, notas del pre-brief y reuniones previas). Devuelve SOLO una lista numerada de 5 puntos, sin introducción ni cierre. Cada punto debe ser específico al cliente — evita genéricos como "Revisar performance".`;
+  // Foco específico por tipo de reunión — guía a la IA hacia el formato esperado.
+  const TYPE_FOCUS: Record<string, string> = {
+    kickoff: 'KICKOFF: enfoque en objetivos del proyecto, expectativas, alcance, accesos pendientes, definición de éxito y compromisos para los primeros 14 días. Evita métricas — todavía no hay.',
+    weekly_metrics: 'REVISIÓN SEMANAL: enfoque en métricas de la semana (ROAS, CPL, CPA, CTR si hay datos), avance de las tareas pendientes (especialmente las vencidas), decisiones de ajuste, prioridades de la próxima semana.',
+    content_strategy: 'SESIÓN DE CONTENIDO: enfoque en pipeline de piezas (en producción, en revisión, próximas a publicar), aprobaciones pendientes, ángulos y formatos, calendario de las próximas 2-4 semanas.',
+    ads_review: 'REVISIÓN ADS: enfoque en ROAS por canal/campaña, hooks ganadores vs perdedores, A/B tests activos, decisiones de escala/pausa, optimizaciones inmediatas (presupuesto, audiencias, creativos).',
+    monthly_closing: 'CIERRE MENSUAL: enfoque en resultados vs proyecciones, cumplimiento de meta de facturación, lecciones del mes, decisiones estratégicas que necesitan validación, plan del próximo mes.',
+    crisis: 'CRISIS: enfoque en diagnóstico, causa raíz, plan de mitigación inmediato, responsables y deadline, próxima revisión.',
+  };
+  const focus = TYPE_FOCUS[ctx.meetingType] ?? 'Enfoque adaptado al tipo de reunión.';
+
+  const system = `Eres una estratega senior de marketing digital. Generas agendas de reunión claras, accionables y específicas al cliente — no genéricas. Usas TODO el contexto disponible (cerebro estratégico, notas del pre-brief, reuniones previas, tareas pendientes y métricas de ADS).
+
+${focus}
+
+Devuelve SOLO una lista numerada de 5 puntos, sin introducción ni cierre. Cada punto:
+- Debe ser específico al cliente — menciona nombres, métricas, tareas concretas que viste en el contexto.
+- Termina con una acción clara o pregunta a resolver.
+- Evita frases vacías como "Revisar performance" o "Discutir próximos pasos".`;
 
   // Construimos el prompt en bloques opcionales — solo añadimos lo que vino
   const parts: string[] = [
@@ -178,7 +209,31 @@ async function meetingAgenda(apiKey: string, ctx: MeetingAgendaCtx): Promise<str
     });
   }
 
-  parts.push('', 'Genera la agenda de 5 puntos para esta reunión, dándole continuidad al contexto anterior. Si hay seguimiento pendiente de reuniones previas, inclúyelo. Si las notas del pre-brief mencionan temas concretos, abórdalos primero.');
+  if (ctx.pendingTasks && ctx.pendingTasks.length > 0) {
+    parts.push('', '— TAREAS PENDIENTES DEL CLIENTE (top 10) —');
+    ctx.pendingTasks.slice(0, 10).forEach((t) => {
+      const dueLabel = t.dueInDays < 0
+        ? `VENCIDA hace ${Math.abs(t.dueInDays)}d`
+        : t.dueInDays === 0
+        ? 'vence HOY'
+        : `vence en ${t.dueInDays}d`;
+      parts.push(`- [${t.priority}] ${t.title} (${t.assignedTo}, ${dueLabel})`);
+    });
+  }
+
+  if (ctx.adsMetrics) {
+    parts.push('', '— MÉTRICAS DE ADS (últimos 7 días) —');
+    const m = ctx.adsMetrics;
+    const bits: string[] = [];
+    if (m.roas != null) bits.push(`ROAS: ${m.roas.toFixed(2)}x`);
+    if (m.cpa != null) bits.push(`CPA: $${m.cpa.toFixed(0)}`);
+    if (m.ctr != null) bits.push(`CTR: ${(m.ctr * 100).toFixed(2)}%`);
+    if (m.spend7d != null) bits.push(`Spend 7d: $${m.spend7d.toFixed(0)}`);
+    if (bits.length > 0) parts.push(bits.join(' · '));
+    if (m.notes) parts.push(`Tendencia: ${m.notes}`);
+  }
+
+  parts.push('', 'Genera la agenda de 5 puntos para esta reunión, dándole continuidad al contexto anterior. Si hay tareas VENCIDAS, prioriza abordarlas. Si hay métricas en caída, conviértelas en punto de la agenda. Si las notas del pre-brief mencionan temas concretos, abórdalos primero.');
 
   const user = parts.join('\n');
   return callAnthropic(apiKey, system, user, 700);

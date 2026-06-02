@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FunnelLaunchPanel } from './FunnelLaunchPanel';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Sparkles, Plus, ChevronDown, ChevronUp, Workflow, Trash2,
@@ -20,12 +21,35 @@ import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 
+type PlanningTab = 'research' | 'funnels' | 'diagrams';
+
 export function PlanningModule({ client }: { client: Client }) {
+  const [tab, setTab] = useState<PlanningTab>('funnels');
+
   return (
-    <div className="space-y-6">
-      <MarketResearchPanel client={client} />
-      <FunnelSystemPanel client={client} />
+    <div className="space-y-4">
+      {/* Tab nav */}
+      <div className="surface p-2 inline-flex gap-1">
+        <TabBtn active={tab === 'funnels'} onClick={() => setTab('funnels')}>🚀 Embudos de Lanzamiento</TabBtn>
+        <TabBtn active={tab === 'research'} onClick={() => setTab('research')}>🔍 Investigación de mercado</TabBtn>
+        <TabBtn active={tab === 'diagrams'} onClick={() => setTab('diagrams')}>📊 Diagramas de Funnel</TabBtn>
+      </div>
+
+      {tab === 'funnels' && <FunnelLaunchPanel client={client} />}
+      {tab === 'research' && <MarketResearchPanel client={client} />}
+      {tab === 'diagrams' && <FunnelSystemPanel client={client} />}
     </div>
+  );
+}
+
+function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-xs px-3 py-1.5 rounded-md transition ${active ? 'bg-accent-violet/15 text-accent-violet font-semibold' : 'text-text-secondary hover:bg-bg-elevated'}`}
+    >
+      {children}
+    </button>
   );
 }
 

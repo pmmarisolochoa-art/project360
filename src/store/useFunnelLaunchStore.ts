@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Funnel, FunnelPhase, FunnelTemplate, FunnelStatus } from '@/types/funnel';
 import type { Task } from '@/types/task';
 import { getTemplate } from '@/data/funnelTemplates';
@@ -27,40 +28,50 @@ interface FunnelLaunchState {
   setStatus: (id: string, status: FunnelStatus) => void;
 }
 
-export const useFunnelLaunchStore = create<FunnelLaunchState>((set, get) => ({
-  funnels: [],
-  phases: [],
+export const useFunnelLaunchStore = create<FunnelLaunchState>()(
+  persist(
+    (set, get) => ({
+      funnels: [],
+      phases: [],
 
-  byClient: (clientId) => get().funnels.filter((f) => f.clientId === clientId),
-  phasesByFunnel: (funnelId) => get().phases.filter((p) => p.funnelId === funnelId).sort((a, b) => a.order - b.order),
+      byClient: (clientId) => get().funnels.filter((f) => f.clientId === clientId),
+      phasesByFunnel: (funnelId) => get().phases.filter((p) => p.funnelId === funnelId).sort((a, b) => a.order - b.order),
 
-  activateFromTemplate: (clientId, templateKey, startDate, customName) => {
-    const template = getTemplate(templateKey);
-    if (!template) {
-      console.warn('[funnel.activate] template no existe', templateKey);
-      return null;
-    }
-    return materializeFromTemplate(set, clientId, template, startDate, customName);
-  },
+      activateFromTemplate: (clientId, templateKey, startDate, customName) => {
+        const template = getTemplate(templateKey);
+        if (!template) {
+          console.warn('[funnel.activate] template no existe', templateKey);
+          return null;
+        }
+        return materializeFromTemplate(set, clientId, template, startDate, customName);
+      },
 
-  update: (id, patch) => {
-    set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, ...patch } : f)) }));
-    void FunnelLaunchRepo.update(id, patch).catch((e) => console.warn('[funnel.update]', e));
-  },
+      update: (id, patch) => {
+        set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, ...patch } : f)) }));
+        void FunnelLaunchRepo.update(id, patch).catch((e) => console.warn('[funnel.update]', e));
+      },
 
-  setStatus: (id, status) => {
-    set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, status } : f)) }));
-    void FunnelLaunchRepo.update(id, { status }).catch((e) => console.warn('[funnel.setStatus]', e));
-  },
+      setStatus: (id, status) => {
+        set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, status } : f)) }));
+        void FunnelLaunchRepo.update(id, { status }).catch((e) => console.warn('[funnel.setStatus]', e));
+      },
 
-  remove: (id) => {
-    set((s) => ({
-      funnels: s.funnels.filter((f) => f.id !== id),
-      phases: s.phases.filter((p) => p.funnelId !== id),
-    }));
-    void FunnelLaunchRepo.remove(id).catch((e) => console.warn('[funnel.remove]', e));
-  },
-}));
+      remove: (id) => {
+        set((s) => ({
+          funnels: s.funnels.filter((f) => f.id !== id),
+          phases: s.phases.filter((p) => p.funnelId !== id),
+        }));
+        void FunnelLaunchRepo.remove(id).catch((e) => console.warn('[funnel.remove]', e));
+      },
+    }),
+    {
+      name: 'p360.funnels',
+      storage: createJSONStorage(() => localStorage),
+      // Solo persistimos los datos, no las funciones
+      partialize: (state) => ({ funnels: state.funnels, phases: state.phases }),
+    },
+  ),
+);
 
 /**
  * Materializa una plantilla: crea el funnel, las fases y las tareas

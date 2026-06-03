@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { differenceInDays, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, CheckCircle2, AlertTriangle, User, Clock } from 'lucide-react';
+import { Calendar, CheckCircle2, AlertTriangle, User, Clock, Plus, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { genId } from '@/utils/id';
+import { toast } from '@/store/useToastStore';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { Task } from '@/types/task';
 import { useClientStore } from '@/store/useClientStore';
@@ -35,6 +39,8 @@ export function FunnelRoadmap({
   );
   const allTasks = useClientStore((s) => s.tasks);
   const tasks = useMemo(() => allTasks.filter((t) => t.funnelId === funnel.id), [allTasks, funnel.id]);
+  const addTask = useClientStore((s) => s.addTask);
+  const deleteTask = useClientStore((s) => s.deleteTask);
 
   const [expandedPhase, setExpandedPhase] = useState<string | null>(phases[0]?.id ?? null);
 
@@ -112,7 +118,17 @@ export function FunnelRoadmap({
             <PhaseTasksPanel
               phase={phases.find((p) => p.id === expandedPhase)!}
               tasks={tasks.filter((t) => t.phaseId === expandedPhase)}
+              clientId={funnel.clientId}
+              funnelId={funnel.id}
+              funnelStartDate={funnel.startDate}
               onOpenTask={onOpenTask}
+              onAddTask={(task) => addTask(task)}
+              onDeleteTask={(taskId) => {
+                if (confirm('¿Eliminar esta tarea? No se puede deshacer.')) {
+                  deleteTask(taskId);
+                  toast.success('Tarea eliminada');
+                }
+              }}
             />
           </motion.div>
         </AnimatePresence>
@@ -267,19 +283,20 @@ function Timeline({
 }
 
 function PhaseTasksPanel({
-  phase, tasks, onOpenTask,
+  phase, tasks, clientId, funnelId, funnelStartDate, onOpenTask, onAddTask, onDeleteTask,
 }: {
   phase: FunnelPhase;
   tasks: Task[];
+  clientId: string;
+  funnelId: string;
+  funnelStartDate: string;
   onOpenTask?: (taskId: string) => void;
+  onAddTask?: (task: Task) => void;
+  onDeleteTask?: (taskId: string) => void;
 }) {
-  if (tasks.length === 0) {
-    return (
-      <div className="surface p-5 text-sm text-text-muted text-center">
-        Esta fase aún no tiene tareas asignadas.
-      </div>
-    );
-  }
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newAssignee, setNewAssignee] = useState('');
 
   const sorted = [...tasks].sort((a, b) => {
     const pri: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
@@ -288,23 +305,99 @@ function PhaseTasksPanel({
     return +new Date(a.dueDate) - +new Date(b.dueDate);
   });
 
+  const handleAdd = () => {
+    if (!newTitle.trim()) {
+      toast.error('Escribe el título de la tarea');
+      return;
+    }
+    // dueDate = a la mitad del rango de la fase
+    const startMs = parseISO(funnelStartDate).getTime();
+    const midDay = Math.round((phase.dayStart + phase.dayEnd) / 2);
+    const dueDate = new Date(startMs + midDay * 86400000);
+    dueDate.setHours(10, 0, 0, 0);
+    const task: Task = {
+      id: genId(),
+      clientId,
+      title: newTitle.trim(),
+      status: 'pending',
+      priority: 'P2',
+      assignedTo: newAssignee.trim() || 'Sin asignar',
+      dueDate: dueDate.toISOString(),
+      startDate: new Date(startMs + phase.dayStart * 86400000).toISOString(),
+      isDelayed: false,
+      delayDays: 0,
+      moduleTag: 'funnel',
+      tag: 'strategy',
+      funnelId,
+      phaseId: phase.id,
+      createdAt: new Date().toISOString(),
+    };
+    onAddTask?.(task);
+    toast.success('Tarea creada');
+    setNewTitle('');
+    setNewAssignee('');
+    setShowAddForm(false);
+  };
+
   return (
     <div className="surface p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="h-2 w-2 rounded-full" style={{ background: phase.color }} />
-        <h4 className="heading text-sm font-bold">{phase.name}</h4>
-        <span className="text-[11px] text-text-muted">· {tasks.length} tareas</span>
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full" style={{ background: phase.color }} />
+          <h4 className="heading text-sm font-bold">{phase.name}</h4>
+          <span className="text-[11px] text-text-muted">· {tasks.length} tareas</span>
+        </div>
+        {onAddTask && !showAddForm && (
+          <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setShowAddForm(true)}>
+            Agregar tarea
+          </Button>
+        )}
       </div>
-      <div className="space-y-1.5">
-        {sorted.map((t) => (
-          <TaskRow key={t.id} task={t} onOpen={() => onOpenTask?.(t.id)} />
-        ))}
-      </div>
+
+      {/* Form inline para agregar tarea */}
+      {showAddForm && (
+        <div className="rounded-[10px] border border-accent-violet/40 bg-accent-violet/5 p-3 mb-3 space-y-2">
+          <Input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="Título de la tarea…"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+          />
+          <Input
+            value={newAssignee}
+            onChange={(e) => setNewAssignee(e.target.value)}
+            placeholder="Responsable (opcional)"
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+          />
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => { setShowAddForm(false); setNewTitle(''); setNewAssignee(''); }}>Cancelar</Button>
+            <Button size="sm" onClick={handleAdd}>Crear tarea</Button>
+          </div>
+        </div>
+      )}
+
+      {tasks.length === 0 && !showAddForm ? (
+        <div className="text-sm text-text-muted text-center py-4 italic">
+          Esta fase aún no tiene tareas. Agrega la primera con el botón de arriba.
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {sorted.map((t) => (
+            <TaskRow
+              key={t.id}
+              task={t}
+              onOpen={() => onOpenTask?.(t.id)}
+              onDelete={onDeleteTask ? () => onDeleteTask(t.id) : undefined}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function TaskRow({ task, onOpen }: { task: Task; onOpen?: () => void }) {
+function TaskRow({ task, onOpen, onDelete }: { task: Task; onOpen?: () => void; onDelete?: () => void }) {
   const today = new Date();
   const due = parseISO(task.dueDate);
   const daysToDue = differenceInDays(due, today);
@@ -314,23 +407,32 @@ function TaskRow({ task, onOpen }: { task: Task; onOpen?: () => void }) {
   const priorityTone = task.priority === 'P1' ? 'danger' : task.priority === 'P2' ? 'warning' : 'neutral';
 
   return (
-    <button
-      onClick={onOpen}
-      className="w-full text-left rounded-md border border-border-subtle bg-bg-base/30 hover:bg-bg-elevated/40 p-2.5 transition flex items-center gap-3"
-    >
+    <div className="group w-full rounded-md border border-border-subtle bg-bg-base/30 hover:bg-bg-elevated/40 p-2.5 transition flex items-center gap-3">
       <div className={`h-4 w-4 rounded border ${task.status === 'completed' ? 'bg-status-success border-status-success' : 'border-border-default'} flex items-center justify-center shrink-0`}>
         {task.status === 'completed' && <CheckCircle2 className="h-3 w-3 text-white" />}
       </div>
       <Badge tone={priorityTone}>{task.priority}</Badge>
-      <span className={`flex-1 text-xs ${task.status === 'completed' ? 'line-through text-text-muted' : 'text-text-primary'} truncate`}>{task.title}</span>
-      <span className="text-[11px] text-text-secondary inline-flex items-center gap-1">
+      <button onClick={onOpen} className="flex-1 text-left">
+        <span className={`text-xs ${task.status === 'completed' ? 'line-through text-text-muted' : 'text-text-primary'} truncate block`}>{task.title}</span>
+      </button>
+      <span className="text-[11px] text-text-secondary inline-flex items-center gap-1 shrink-0">
         <User className="h-3 w-3" />{task.assignedTo}
       </span>
-      <span className={`text-[11px] inline-flex items-center gap-1 ${dueColor}`}>
+      <span className={`text-[11px] inline-flex items-center gap-1 shrink-0 ${dueColor}`}>
         <Clock className="h-3 w-3" />
         {overdue ? `Vencida ${task.delayDays}d` : daysToDue === 0 ? 'Hoy' : daysToDue > 0 ? `+${daysToDue}d` : ''}
       </span>
-    </button>
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          aria-label="Eliminar tarea"
+          className="text-text-muted hover:text-status-danger opacity-0 group-hover:opacity-100 transition shrink-0"
+          title="Eliminar tarea"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
 

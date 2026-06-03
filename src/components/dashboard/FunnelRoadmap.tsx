@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { genId } from '@/utils/id';
 import { toast } from '@/store/useToastStore';
-import { resolveAssignee } from '@/utils/roleResolver';
+import { resolveAssignee, resolveRoleLabel } from '@/utils/roleResolver';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { Task } from '@/types/task';
 import { useClientStore } from '@/store/useClientStore';
@@ -400,6 +400,7 @@ function PhaseTasksPanel({
 
 function TaskRow({ task, onOpen, onDelete }: { task: Task; onOpen?: () => void; onDelete?: () => void }) {
   const assigneeName = resolveAssignee(task.assignedTo, task.clientId);
+  const roleLabel = resolveRoleLabel(task.assignedTo, task.clientId);
   const today = new Date();
   const due = parseISO(task.dueDate);
   const daysToDue = differenceInDays(due, today);
@@ -418,7 +419,11 @@ function TaskRow({ task, onOpen, onDelete }: { task: Task; onOpen?: () => void; 
         <span className={`text-xs ${task.status === 'completed' ? 'line-through text-text-muted' : 'text-text-primary'} truncate block`}>{task.title}</span>
       </button>
       <span className="text-[11px] text-text-secondary inline-flex items-center gap-1 shrink-0">
-        <User className="h-3 w-3" />{assigneeName}
+        <User className="h-3 w-3" />
+        <span>{assigneeName}</span>
+        {roleLabel && roleLabel !== assigneeName && (
+          <span className="text-text-muted">· {roleLabel}</span>
+        )}
       </span>
       <span className={`text-[11px] inline-flex items-center gap-1 shrink-0 ${dueColor}`}>
         <Clock className="h-3 w-3" />

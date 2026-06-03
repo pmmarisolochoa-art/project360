@@ -40,3 +40,32 @@ export function roleSlugToLabel(slug: string): string {
 export function isRoleSlug(s: string): s is TeamRoleSlug {
   return VALID_SLUGS.has(s);
 }
+
+/**
+ * Dado un nombre humano (o slug) y el clientId, devuelve el título del
+ * rol asociado al miembro del equipo de ese cliente. Si no encuentra
+ * coincidencia, devuelve null.
+ *
+ * Útil para mostrar "Diego Ramírez · Media Buyer" en tareas.
+ */
+export function resolveRoleLabel(assignedTo: string, clientId?: string): string | null {
+  if (!assignedTo) return null;
+
+  // Si es slug, mapeo directo
+  if (VALID_SLUGS.has(assignedTo)) {
+    return roleSlugToLabel(assignedTo);
+  }
+
+  // Si es nombre, busca en el team del cliente
+  if (clientId) {
+    const assignment = useTeamStore.getState().assignments.find(
+      (a) => a.clientId === clientId && a.memberName === assignedTo,
+    );
+    if (assignment) {
+      const role = ROLE_DEFS.find((r) => r.slug === assignment.roleSlug);
+      return role?.title ?? null;
+    }
+  }
+
+  return null;
+}

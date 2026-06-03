@@ -37,13 +37,17 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
   const persistKey = `p360.activeFunnel.${client.id}`;
   const [selectedFunnelId, setSelectedFunnelIdRaw] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(persistKey);
+    const stored = localStorage.getItem(persistKey);
+    // Ignora el sentinel "__new__" si quedó persistido por error
+    return stored === '__new__' ? null : stored;
   });
   const setSelectedFunnelId = (id: string | null) => {
     setSelectedFunnelIdRaw(id);
     try {
-      if (id) localStorage.setItem(persistKey, id);
-      else localStorage.removeItem(persistKey);
+      // Solo persistimos IDs reales — NO el sentinel "__new__"
+      if (id && id !== '__new__') localStorage.setItem(persistKey, id);
+      else if (!id) localStorage.removeItem(persistKey);
+      // Si id === '__new__', no tocamos localStorage (preserva el último real)
     } catch { /* quota lleno o storage bloqueado — silencioso */ }
   };
   const [creating, setCreating] = useState<FunnelTemplate | null>(null);

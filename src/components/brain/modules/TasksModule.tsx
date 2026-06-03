@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { useClientStore } from '@/store/useClientStore';
 import { toast } from '@/store/useToastStore';
 import { ROLE_DEFS } from '@/types/team';
+import { useTeamStore } from '@/store/useTeamStore';
 import { resolveRoleLabel } from '@/utils/roleResolver';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
@@ -257,6 +258,7 @@ export function TasksModule({ client }: { client: Client }) {
           task={editing}
           accent={accent}
           allTasks={tasks}
+          clientId={client.id}
           onClose={() => setEditing(null)}
           onSave={(patch) => {
             updateTask(editing.id, patch);
@@ -273,6 +275,7 @@ export function TasksModule({ client }: { client: Client }) {
         <TaskModal
           accent={accent}
           allTasks={tasks}
+          clientId={client.id}
           onClose={() => setCreating(false)}
           onSave={(patch) => {
             addTask({
@@ -501,7 +504,7 @@ function TaskCard({
 /* ───────────────────────── Modal ───────────────────────── */
 
 function TaskModal({
-  task, accent, onClose, onSave, onDelete, allTasks,
+  task, accent, onClose, onSave, onDelete, allTasks, clientId,
 }: {
   task?: Task;
   accent: string;
@@ -509,12 +512,38 @@ function TaskModal({
   onSave: (patch: Partial<Task>) => void;
   onDelete?: () => void;
   allTasks: Task[];
+  clientId: string;
 }) {
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'pending');
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'P2');
   const [assignedTo, setAssignedTo] = useState(task?.assignedTo ?? '');
+
+  // Opciones del Responsable = team del cliente + roles
+  const teamAssignments = useTeamStore((s) => s.assignments).filter((a) => a.clientId === clientId);
+  const responsibleOptions = useMemo(() => {
+    const teamOpts = teamAssignments.map((a) => {
+      const role = ROLE_DEFS.find((r) => r.slug === a.roleSlug);
+      return { value: a.memberName, label: `👤 ${a.memberName} · ${role?.title ?? a.roleSlug}` };
+    });
+    const roleOpts = ROLE_DEFS.map((r) => ({ value: r.slug, label: `🏷️ Por rol: ${r.title}` }));
+    return [
+      { value: '', label: '— Sin asignar —' },
+      ...teamOpts,
+      ...roleOpts,
+    ];
+  }, [teamAssignments]);
+
+  // Si assignedTo viene como slug, mostrar título legible. Si viene como
+  // nombre que no está en team, igualmente sale en el select como custom.
+  const assignedToOption = useMemo(() => {
+    if (!assignedTo) return '';
+    // Existe como miembro o como rol
+    if (responsibleOptions.some((o) => o.value === assignedTo)) return assignedTo;
+    // Valor custom (nombre escrito a mano) — agrégalo dinámicamente
+    return assignedTo;
+  }, [assignedTo, responsibleOptions]);
   const [dueDate, setDueDate] = useState(
     task?.dueDate ? task.dueDate.slice(0, 16) : new Date().toISOString().slice(0, 16),
   );
@@ -616,11 +645,21 @@ function TaskModal({
             value={priority}
             onChange={(e) => setPriority(e.target.value as TaskPriority)}
           />
-          <Input
-            label="Responsable"
-            value={assignedTo}
-            onChange={(e) => setAssignedTo(e.target.value)}
-          />
+          <div>
+            <Select
+              label="Responsable"
+              value={assignedToOption}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              options={
+                assignedTo && !responsibleOptions.some((o) => o.value === assignedTo)
+                  ? [{ value: assignedTo, label: `👤 ${assignedTo} (custom)` }, ...responsibleOptions]
+                  : responsibleOptions
+              }
+            />
+            <div className="text-[10px] text-text-muted mt-1">
+              Elige un miembro del team o un rol. El nombre se muestra en la tarea.
+            </div>
+          </div>
           <Input
             label="Vencimiento"
             type="datetime-local"

@@ -4,7 +4,7 @@ import type { Funnel, FunnelPhase, FunnelTemplate, FunnelStatus } from '@/types/
 import type { Task } from '@/types/task';
 import { getTemplate } from '@/data/funnelTemplates';
 import { useClientStore } from '@/store/useClientStore';
-import { FunnelLaunchRepo } from '@/services/repositories';
+import { FunnelLaunchRepo, TasksRepo } from '@/services/repositories';
 import { genId } from '@/utils/id';
 import { resolveAssignee } from '@/utils/roleResolver';
 
@@ -118,16 +118,24 @@ function materializeFromTemplate(
     dayEnd: p.dayEnd,
   }));
 
-  // Crea tasks con dueDate calculado y enlazadas al funnel+phase.
-  const addTask = useClientStore.getState().addTask;
+  // CRÍTICO: agregar funnel + phases AL ESTADO ANTES de las tareas.
+  // Si las tareas entran al estado primero, referencias funnelId/phaseId
+  // que no existen → cualquier componente que dereferencia el funnel/fase
+  // explota → pantalla en blanco.
+  set((s) => ({
+    funnels: [funnel, ...s.funnels],
+    phases: [...s.phases, ...phases],
+  }));
+
+  // Pre-construir TODAS las tareas en memoria (no agregarlas todavía).
+  const allTasks: Task[] = [];
   for (let pIdx = 0; pIdx < template.phases.length; pIdx++) {
     const tplPhase = template.phases[pIdx];
     const phase = phases[pIdx];
     for (const tplTask of tplPhase.tasks) {
       const dueDate = new Date(startDate.getTime() + tplTask.dayEnd * 86400000);
-      // Hora default 10am
       dueDate.setHours(10, 0, 0, 0);
-      const task: Task = {
+      allTasks.push({
         id: genId(),
         clientId,
         title: tplTask.title,
@@ -136,9 +144,6 @@ function materializeFromTemplate(
           : undefined,
         status: 'pending',
         priority: tplTask.priority ?? 'P2',
-        // Resolvemos slug → nombre humano (miembro del equipo del cliente o
-        // título legible del rol como fallback). Persistimos el nombre humano
-        // para que sea legible en todos lados, no solo en el roadmap.
         assignedTo: resolveAssignee(tplTask.responsibleRole, clientId),
         dueDate: dueDate.toISOString(),
         startDate: new Date(startDate.getTime() + tplTask.dayStart * 86400000).toISOString(),
@@ -151,17 +156,29 @@ function materializeFromTemplate(
         funnelId,
         phaseId: phase.id,
         createdAt: now,
-      };
-      addTask(task);
+      });
     }
   }
 
-  set((s) => ({
-    funnels: [funnel, ...s.funnels],
-    phases: [...s.phases, ...phases],
-  }));
-
-  void FunnelLaunchRepo.create(funnel, phases).catch((e) => console.warn('[funnel.create]', e));
+  // Persistencia en Supabase con orden correcto: funnel + phases PRIMERO
+  // (await), después tareas en paralelo. Sin esto, las tareas tiran 409 FK.
+  void (async () => {
+    try {
+      await FunnelLaunchRepo.create(funnel, phases);
+    } catch (e) {
+      console.warn('[funnel.create]', e);
+      // Funnel falló: agregamos tareas SOLO al estado local para que la UI
+      // funcione, sin intentar Supabase (FK violation garantizada).
+      useClientStore.setState((s) => ({ tasks: [...allTasks, ...s.tasks] }));
+      return;
+    }
+    // Funnel OK en Supabase. Una sola actualización de estado (no 32) +
+    // fire-and-forget para cada tarea en paralelo.
+    useClientStore.setState((s) => ({ tasks: [...allTasks, ...s.tasks] }));
+    for (const t of allTasks) {
+      void TasksRepo.create(t).catch((e) => console.warn('[tasks.create]', e));
+    }
+  })();
 
   return funnel;
 }

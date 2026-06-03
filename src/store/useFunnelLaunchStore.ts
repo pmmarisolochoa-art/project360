@@ -66,9 +66,17 @@ export const useFunnelLaunchStore = create<FunnelLaunchState>()(
     }),
     {
       name: 'p360.funnels',
+      version: 1,
       storage: createJSONStorage(() => localStorage),
       // Solo persistimos los datos, no las funciones
       partialize: (state) => ({ funnels: state.funnels, phases: state.phases }),
+      // Si la rehidratación falla (datos corruptos), no crashea — empieza vacío.
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) {
+          console.warn('[funnels.persist] rehidratación falló, reset', error);
+          try { localStorage.removeItem('p360.funnels'); } catch { /* noop */ }
+        }
+      },
     },
   ),
 );

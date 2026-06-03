@@ -20,6 +20,9 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useClientStore } from '@/store/useClientStore';
+import { toast } from '@/store/useToastStore';
+import { ROLE_DEFS } from '@/types/team';
+import { resolveRoleLabel } from '@/utils/roleResolver';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { formatRelative } from '@/utils/dateHelpers';
@@ -76,18 +79,22 @@ export function TasksModule({ client }: { client: Client }) {
     }
   }, [searchParams, tasks, setSearchParams]);
 
-  const assignees = useMemo(
-    () => Array.from(new Set(tasks.map((t) => t.assignedTo).filter(Boolean))),
-    [tasks],
-  );
-
+  // Filtro de responsable: SOLO por rol. Una tarea matchea un rol si:
+  //  - su assignedTo es ese slug, o
+  //  - su assignedTo es el nombre de un miembro del equipo con ese rol
+  // El nombre se sigue mostrando dentro de la card como información.
   const filtered = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 86400000);
     const weekEnd = new Date(todayStart.getTime() + 7 * 86400000);
     return tasks.filter((t) => {
-      if (filterAssignee && t.assignedTo !== filterAssignee) return false;
+      if (filterAssignee) {
+        // filterAssignee es un slug de rol — buscamos coincidencia por slug o por nombre→rol
+        const roleLabel = resolveRoleLabel(t.assignedTo, t.clientId);
+        const targetLabel = ROLE_DEFS.find((r) => r.slug === filterAssignee)?.title;
+        if (roleLabel !== targetLabel) return false;
+      }
       if (filterPriority && t.priority !== filterPriority) return false;
       if (filterTag && t.tag !== filterTag) return false;
       if (quickFilter === 'mine' && t.assignedTo !== 'Marisol Ochoa') return false;
@@ -143,8 +150,8 @@ export function TasksModule({ client }: { client: Client }) {
         </div>
         <Select
           options={[
-            { value: '', label: 'Todos los responsables' },
-            ...assignees.map((a) => ({ value: a, label: a })),
+            { value: '', label: 'Todos los roles' },
+            ...ROLE_DEFS.map((r) => ({ value: r.slug, label: r.title })),
           ]}
           value={filterAssignee}
           onChange={(e) => setFilterAssignee(e.target.value)}
@@ -225,6 +232,7 @@ export function TasksModule({ client }: { client: Client }) {
                         allTasks={tasks}
                         onOpen={() => setEditing(task)}
                         onAdvance={() => advanceStatus(task, updateTask)}
+                        onDelete={() => deleteTask(task.id)}
                       />
                     ))
                   )}
@@ -303,17 +311,19 @@ function advanceStatus(task: Task, updateTask: (id: string, p: Partial<Task>) =>
 /* ───────────────────────── Task Card ───────────────────────── */
 
 function TaskCard({
-  task, accent, index, onOpen, onAdvance, clientId, allTasks,
+  task, accent, index, onOpen, onAdvance, onDelete, clientId, allTasks,
 }: {
   task: Task;
   accent: string;
   index: number;
   onOpen: () => void;
   onAdvance: () => void;
+  onDelete?: () => void;
   clientId: string;
   allTasks: Task[];
 }) {
   const navigate = useNavigate();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const hoursUntil = differenceInHours(parseISO(task.dueDate), new Date());
   const dueSoon = hoursUntil >= 0 && hoursUntil <= 24 && task.status !== 'completed';
   const fromRopre = task.origin?.type === 'ropre';
@@ -321,12 +331,13 @@ function TaskCard({
   const dependentsCount = allTasks.filter((t) => t.dependsOn?.includes(task.id)).length;
 
   return (
-    <motion.button
+    <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
       transition={{ duration: 0.25, delay: index * 0.03 }}
+      className="group relative w-full text-left rounded-[10px] border p-3 transition hover:brightness-[1.02] cursor-pointer"
       onClick={onOpen}
-      className="w-full text-left rounded-[10px] border p-3 transition focus-ring hover:brightness-[1.02]"
       style={{
         background: 'var(--kanban-card-bg)',
         borderColor:
@@ -338,6 +349,37 @@ function TaskCard({
         boxShadow: 'var(--kanban-card-shadow)',
       }}
     >
+      {/* Delete button — visible on hover */}
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+          className="absolute top-2 right-2 h-6 w-6 rounded-md bg-bg-base/80 text-text-muted hover:text-status-danger hover:bg-status-danger/10 opacity-0 group-hover:opacity-100 transition inline-flex items-center justify-center z-10"
+          aria-label="Eliminar tarea"
+          title="Eliminar tarea"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
+      {/* Confirm overlay inline */}
+      {confirmDelete && onDelete && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-0 rounded-[10px] bg-bg-base/95 backdrop-blur-sm flex flex-col items-center justify-center p-3 z-20 gap-2"
+        >
+          <div className="text-[11px] text-text-primary text-center font-medium">¿Eliminar "{task.title.slice(0, 40)}{task.title.length > 40 ? '…' : ''}"?</div>
+          <div className="text-[10px] text-text-muted text-center">No se puede deshacer</div>
+          <div className="flex gap-1.5 mt-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+              className="text-[11px] px-2 py-1 rounded-md border border-border-subtle text-text-secondary hover:bg-bg-elevated"
+            >Cancelar</button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); toast.success('Tarea eliminada'); }}
+              className="text-[11px] px-2 py-1 rounded-md bg-status-danger text-white hover:brightness-110"
+            >Eliminar</button>
+          </div>
+        </div>
+      )}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5">
           <Badge tone={PRIORITY_TONE[task.priority]} className="shrink-0">
@@ -452,7 +494,7 @@ function TaskCard({
           Avanzar <ArrowRight className="h-3 w-3 ml-1" />
         </div>
       )}
-    </motion.button>
+    </motion.div>
   );
 }
 

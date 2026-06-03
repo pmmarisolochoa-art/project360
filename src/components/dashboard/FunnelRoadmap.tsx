@@ -27,10 +27,12 @@ export function FunnelRoadmap({
   funnel,
   simplified = false,
   onOpenTask,
+  accent = '#8B5CF6',
 }: {
   funnel: Funnel;
   simplified?: boolean;
   onOpenTask?: (taskId: string) => void;
+  accent?: string;
 }) {
   // Mismo anti-pattern Zustand: filtrar en el selector dispara loop.
   const allPhases = useFunnelLaunchStore((s) => s.phases);
@@ -95,6 +97,7 @@ export function FunnelRoadmap({
         daysToTarget={daysToTarget}
         targetLabel={targetLabel}
         simplified={simplified}
+        accent={accent}
       />
 
       {/* Timeline horizontal */}
@@ -143,13 +146,14 @@ export function FunnelRoadmap({
 }
 
 function FunnelHeader({
-  funnel, progressPct, daysToTarget, targetLabel, simplified,
+  funnel, progressPct, daysToTarget, targetLabel, simplified, accent,
 }: {
   funnel: Funnel;
   progressPct: number;
   daysToTarget: number | null;
   targetLabel: string;
   simplified: boolean;
+  accent: string;
 }) {
   const urgent = daysToTarget !== null && daysToTarget >= 0 && daysToTarget < 7;
   return (
@@ -191,7 +195,8 @@ function FunnelHeader({
             initial={{ width: 0 }}
             animate={{ width: `${progressPct}%` }}
             transition={{ duration: 0.6 }}
-            className="h-full bg-gradient-to-r from-accent-violet to-accent-pink"
+            className="h-full"
+            style={{ background: accent }}
           />
         </div>
       </div>

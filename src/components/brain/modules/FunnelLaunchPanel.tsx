@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Rocket, Trash2, Play, Pause, Share2 } from 'lucide-react';
+import { Plus, Rocket, Trash2, Play, Pause, Share2, Archive, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Client } from '@/types/client';
 import type { FunnelTemplate } from '@/types/funnel';
@@ -32,10 +32,30 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
   const setStatus = useFunnelLaunchStore((s) => s.setStatus);
   const remove = useFunnelLaunchStore((s) => s.remove);
 
-  const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(funnels[0]?.id ?? null);
+  // Persistimos el funnel activo por cliente en localStorage para que sobreviva
+  // el refresh. Cuando configuremos active_funnel_id en Supabase migramos a eso.
+  const persistKey = `p360.activeFunnel.${client.id}`;
+  const [selectedFunnelId, setSelectedFunnelIdRaw] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(persistKey);
+  });
+  const setSelectedFunnelId = (id: string | null) => {
+    setSelectedFunnelIdRaw(id);
+    try {
+      if (id) localStorage.setItem(persistKey, id);
+      else localStorage.removeItem(persistKey);
+    } catch { /* quota lleno o storage bloqueado — silencioso */ }
+  };
   const [creating, setCreating] = useState<FunnelTemplate | null>(null);
 
-  const selectedFunnel = funnels.find((f) => f.id === selectedFunnelId) ?? funnels[0] ?? null;
+  // Separamos activos (visibles como tabs) de archivados (historial colapsable).
+  const activeFunnels = useMemo(() => funnels.filter((f) => f.status !== 'completed' && f.status !== 'cancelled'), [funnels]);
+  const archivedFunnels = useMemo(() => funnels.filter((f) => f.status === 'completed' || f.status === 'cancelled'), [funnels]);
+
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Selección efectiva: usa lo persistido, si no, primero activo.
+  const selectedFunnel = funnels.find((f) => f.id === selectedFunnelId) ?? activeFunnels[0] ?? funnels[0] ?? null;
 
   // Modal de creación se rendera SIEMPRE al final — evita que el early
   // return del empty state nos haga perder el modal cuando aún no hay
@@ -69,21 +89,54 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
 
   return (
     <div className="space-y-4">
-      {/* Tab nav embudos */}
+      {/* Tab nav embudos activos */}
       <div className="surface p-3 flex items-center gap-2 flex-wrap">
-        {funnels.map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setSelectedFunnelId(f.id)}
-            className={`text-xs px-3 py-1.5 rounded-md transition ${selectedFunnelId === f.id || (selectedFunnelId === null && f.id === funnels[0].id) ? 'bg-accent-violet/15 text-accent-violet font-semibold' : 'text-text-secondary hover:bg-bg-elevated'}`}
-          >
-            🚀 {f.name}
-          </button>
-        ))}
+        {activeFunnels.map((f) => {
+          const statusDot = f.status === 'active' ? 'bg-status-success' : f.status === 'paused' ? 'bg-status-warning' : 'bg-text-muted';
+          const isActive = selectedFunnelId === f.id || (!selectedFunnelId && f.id === activeFunnels[0]?.id);
+          return (
+            <button
+              key={f.id}
+              onClick={() => setSelectedFunnelId(f.id)}
+              className={`text-xs px-3 py-1.5 rounded-md transition inline-flex items-center gap-1.5 ${isActive ? 'bg-accent-violet/15 text-accent-violet font-semibold' : 'text-text-secondary hover:bg-bg-elevated'}`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${statusDot}`} />
+              🚀 {f.name}
+            </button>
+          );
+        })}
         <Button size="sm" variant="ghost" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setSelectedFunnelId('__new__')}>
           Nuevo embudo
         </Button>
+        {archivedFunnels.length > 0 && (
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="text-xs px-3 py-1.5 rounded-md transition inline-flex items-center gap-1 text-text-muted hover:bg-bg-elevated ml-auto"
+          >
+            <Archive className="h-3 w-3" />
+            Historial ({archivedFunnels.length})
+            <ChevronDown className={`h-3 w-3 transition ${showHistory ? 'rotate-180' : ''}`} />
+          </button>
+        )}
       </div>
+
+      {/* Historial colapsable */}
+      {showHistory && archivedFunnels.length > 0 && (
+        <div className="surface p-3 space-y-1.5">
+          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1">Embudos archivados</div>
+          {archivedFunnels.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => { setSelectedFunnelId(f.id); setShowHistory(false); }}
+              className="w-full text-left text-xs px-2 py-1.5 rounded-md hover:bg-bg-elevated flex items-center gap-2 opacity-70 hover:opacity-100"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-text-muted" />
+              📦 {f.name}
+              <Badge tone="neutral" className="ml-auto">{f.status}</Badge>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Si tab "__new__", muestra galería */}
       {selectedFunnelId === '__new__' ? (
@@ -95,6 +148,7 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
         <>
           <FunnelRoadmap
             funnel={selectedFunnel}
+            accent={client.primaryColor}
             onOpenTask={(taskId) => navigate(`/client/${client.id}/tasks?task=${taskId}`)}
           />
 
@@ -125,6 +179,14 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
               {selectedFunnel.status === 'active' && (
                 <Button size="sm" variant="secondary" leftIcon={<Pause className="h-3.5 w-3.5" />} onClick={() => { setStatus(selectedFunnel.id, 'paused'); toast.info('Embudo pausado'); }}>
                   Pausar
+                </Button>
+              )}
+              {selectedFunnel.status !== 'completed' && selectedFunnel.status !== 'cancelled' && (
+                <Button size="sm" variant="secondary" leftIcon={<Archive className="h-3.5 w-3.5" />} onClick={() => {
+                  setStatus(selectedFunnel.id, 'completed');
+                  toast.success('Embudo archivado · visible en Historial');
+                }}>
+                  Archivar
                 </Button>
               )}
               <Button size="sm" variant="danger" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => {

@@ -5,6 +5,7 @@ import { getTemplate } from '@/data/funnelTemplates';
 import { useClientStore } from '@/store/useClientStore';
 import { FunnelLaunchRepo } from '@/services/repositories';
 import { genId } from '@/utils/id';
+import { resolveAssignee } from '@/utils/roleResolver';
 
 /**
  * Store del sistema de Embudos de Lanzamiento (Funnel + Phases).
@@ -116,7 +117,10 @@ function materializeFromTemplate(
           : undefined,
         status: 'pending',
         priority: tplTask.priority ?? 'P2',
-        assignedTo: tplTask.responsibleRole,
+        // Resolvemos slug → nombre humano (miembro del equipo del cliente o
+        // título legible del rol como fallback). Persistimos el nombre humano
+        // para que sea legible en todos lados, no solo en el roadmap.
+        assignedTo: resolveAssignee(tplTask.responsibleRole, clientId),
         dueDate: dueDate.toISOString(),
         startDate: new Date(startDate.getTime() + tplTask.dayStart * 86400000).toISOString(),
         isDelayed: false,

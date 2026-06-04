@@ -62,6 +62,7 @@ export interface Funnel {
   startDate: string;             // ISO — día 1 del embudo
   eventDate?: string;            // fecha del evento principal (webinar/apertura carrito)
   endDate?: string;              // fecha de cierre
+  shareToken: string;            // token unguessable para portal cliente público
   createdAt: string;
 }
 

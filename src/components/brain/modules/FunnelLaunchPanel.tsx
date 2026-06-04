@@ -219,7 +219,8 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
                 variant="secondary"
                 leftIcon={<Share2 className="h-3.5 w-3.5" />}
                 onClick={() => {
-                  const url = `${window.location.origin}/client-portal/funnel/${selectedFunnel.id}`;
+                  const token = selectedFunnel.shareToken || selectedFunnel.id;
+                  const url = `${window.location.origin}/client-portal/funnel/${token}`;
                   void navigator.clipboard.writeText(url);
                   toast.success('Link del portal cliente copiado al portapapeles');
                 }}

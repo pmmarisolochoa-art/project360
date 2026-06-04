@@ -256,6 +256,45 @@ export const FunnelLaunchRepo = {
     const { error } = await supabase.from('funnels').delete().eq('id', id);
     if (error) throw error;
   },
+  /**
+   * Llamada pública (anon) desde el portal cliente.
+   * Usa RPC SECURITY DEFINER que devuelve { funnel, phases, tasks, client } o null.
+   */
+  async getByShareToken(token: string): Promise<{
+    funnel: Funnel;
+    phases: FunnelPhase[];
+    tasks: Array<{ id: string; title: string; status: string; priority: string; phaseId: string; funnelId: string; dueDate: string; startDate?: string }>;
+    client: { id: string; name: string; primaryColor: string };
+  } | null> {
+    if (!supabase) return null;
+    const { data, error } = await supabase.rpc('get_funnel_by_share_token', { p_token: token });
+    if (error) {
+      console.warn('[funnel.getByShareToken]', error);
+      return null;
+    }
+    if (!data) return null;
+    const d = data as Record<string, any>;
+    if (!d.funnel) return null;
+    return {
+      funnel: rowToFunnel(d.funnel),
+      phases: (d.phases ?? []).map(rowToFunnelPhase),
+      tasks: (d.tasks ?? []).map((t: Record<string, any>) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        priority: t.priority,
+        phaseId: t.phase_id,
+        funnelId: t.funnel_id,
+        dueDate: t.due_date,
+        startDate: t.start_date ?? undefined,
+      })),
+      client: {
+        id: d.client.id,
+        name: d.client.name,
+        primaryColor: d.client.primary_color,
+      },
+    };
+  },
 };
 
 function rowToFunnel(row: Record<string, unknown>): Funnel {
@@ -269,6 +308,7 @@ function rowToFunnel(row: Record<string, unknown>): Funnel {
     startDate: r.start_date,
     eventDate: r.event_date ?? undefined,
     endDate: r.end_date ?? undefined,
+    shareToken: r.share_token ?? '',
     createdAt: r.created_at,
   };
 }
@@ -283,6 +323,7 @@ function funnelToRow(f: Partial<Funnel>, partial = false): Record<string, unknow
     startDate: 'start_date',
     eventDate: 'event_date',
     endDate: 'end_date',
+    shareToken: 'share_token',
     createdAt: 'created_at',
   };
   const row: Record<string, unknown> = {};

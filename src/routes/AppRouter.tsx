@@ -19,7 +19,7 @@ export function AppRouter() {
     <Routes>
       <Route path="login" element={<LoginPage />} />
       {/* Portal cliente — público (sin Layout) para que el cliente final acceda sin login */}
-      <Route path="client-portal/funnel/:funnelId" element={<ClientPortalFunnelPage />} />
+      <Route path="client-portal/funnel/:token" element={<ClientPortalFunnelPage />} />
       <Route element={<Layout />}>
         <Route index element={<DashboardMacro />} />
         <Route path="clients" element={<ClientsPage />} />

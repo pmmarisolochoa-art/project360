@@ -111,6 +111,7 @@ function materializeFromTemplate(
     status: 'planning',
     startDate: startISO,
     endDate: endDate.toISOString(),
+    shareToken: genId(),
     createdAt: now,
   };
 

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { toast } from '@/store/useToastStore';
 import { marked } from 'marked';
 import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
 
 /**
  * Modal para importar embudos desde fuentes externas.
@@ -83,8 +84,24 @@ function CsvTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (rows:
   const handleFile = async (file: File) => {
     setError(null);
     try {
-      const text = await file.text();
-      const rows = parseCsv(text);
+      const name = file.name.toLowerCase();
+      let rows: CsvRow[];
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        // Excel binario — parseamos con SheetJS y convertimos la primera hoja
+        // a CSV con separador coma, luego usamos el parser CSV normal.
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        if (!firstSheet) {
+          setError('El archivo Excel está vacío o no se pudo leer.');
+          return;
+        }
+        const csv = XLSX.utils.sheet_to_csv(firstSheet, { FS: ',' });
+        rows = parseCsv(csv);
+      } else {
+        const text = await file.text();
+        rows = parseCsv(text);
+      }
       if (rows.length === 0) {
         setError('No se detectaron tareas válidas. Revisa el formato.');
         return;
@@ -92,7 +109,7 @@ function CsvTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (rows:
       onParsed(rows);
       toast.success(`${rows.length} tareas importadas — revisa antes de crear`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error procesando CSV');
+      setError(e instanceof Error ? e.message : 'Error procesando el archivo');
     }
   };
 
@@ -109,14 +126,15 @@ function CsvTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (rows:
           Roles válidos: strategist · media_buyer · copywriter · designer · community · funnel_builder · editor · closer · onboarding
         </div>
         <div className="text-[10px] text-text-muted">
-          Desde Excel: Archivo → Exportar → CSV (UTF-8). Desde Google Sheets: Archivo → Descargar → .csv
+          ✅ Acepta <strong>.xlsx, .xls, .csv y .tsv</strong> directamente — no necesitas convertir.
+          Auto-detecta separador (`,`, `;`, TAB).
         </div>
       </div>
 
       <label className="block">
         <input
           type="file"
-          accept=".csv,.tsv,.txt"
+          accept=".csv,.tsv,.txt,.xlsx,.xls"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
@@ -129,7 +147,7 @@ function CsvTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (rows:
           leftIcon={<Upload className="h-3.5 w-3.5" />}
           onClick={() => document.getElementById('csv-upload')?.click()}
         >
-          Subir archivo CSV
+          Subir archivo (.csv o .xlsx)
         </Button>
       </label>
 

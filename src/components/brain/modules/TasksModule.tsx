@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, Filter, Clock, AlertTriangle, Trash2, ArrowRight, MessageSquare, Link2,
-  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock,
+  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen,
 } from 'lucide-react';
 import {
   addDays, differenceInDays, differenceInHours, format, parseISO,
@@ -456,7 +456,7 @@ function TaskCard({
       </div>
 
       {/* I/O + dependencias badges */}
-      {(task.input || task.output || (task.dependsOn?.length ?? 0) > 0 || dependentsCount > 0) && (
+      {(task.input || task.output || task.driveLink || (task.dependsOn?.length ?? 0) > 0 || dependentsCount > 0) && (
         <div className="mt-2 flex items-center gap-1 flex-wrap">
           {task.input && (
             <span title={`INPUT: ${task.input}`} className="inline-flex items-center gap-0.5 rounded-full bg-bg-elevated/60 border border-border-subtle px-1.5 py-0.5 text-[9px] text-text-secondary">
@@ -467,6 +467,19 @@ function TaskCard({
             <span title={`OUTPUT: ${task.output}`} className="inline-flex items-center gap-0.5 rounded-full bg-bg-elevated/60 border border-border-subtle px-1.5 py-0.5 text-[9px] text-text-secondary">
               <FileOutput className="h-2.5 w-2.5" /> OUT
             </span>
+          )}
+          {task.driveLink && (
+            <a
+              href={task.driveLink}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`Abrir entregable: ${task.driveLink}`}
+              className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] hover:underline"
+              style={{ background: 'rgba(34,197,94,0.10)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.3)' }}
+            >
+              <FolderOpen className="h-2.5 w-2.5" /> Drive
+            </a>
           )}
           {(task.dependsOn?.length ?? 0) > 0 && (
             <span className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px]" style={{ background: 'rgba(245,158,11,0.10)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.3)' }}>
@@ -551,6 +564,7 @@ function TaskModal({
   const [tag, setTag] = useState<string>(task?.tag ?? '');
   const [input, setInput] = useState(task?.input ?? '');
   const [output, setOutput] = useState(task?.output ?? '');
+  const [driveLink, setDriveLink] = useState(task?.driveLink ?? '');
   const [dependsOn, setDependsOn] = useState<string[]>(task?.dependsOn ?? []);
   const [showDepsEditor, setShowDepsEditor] = useState((task?.dependsOn?.length ?? 0) > 0);
   const [subtasks, setSubtasks] = useState(task?.subtasks ?? []);
@@ -603,6 +617,7 @@ function TaskModal({
                 tag: (tag || undefined) as Task['tag'],
                 input: input || undefined,
                 output: output || undefined,
+                driveLink: driveLink.trim() || undefined,
                 dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
                 subtasks,
                 comments,
@@ -700,6 +715,13 @@ function TaskModal({
             value={output}
             onChange={(e) => setOutput(e.target.value)}
             placeholder="Entregable concreto, resultado medible…"
+          />
+          <Input
+            label="Link de Drive / repositorio"
+            type="url"
+            value={driveLink}
+            onChange={(e) => setDriveLink(e.target.value)}
+            placeholder="https://drive.google.com/…"
           />
         </div>
 

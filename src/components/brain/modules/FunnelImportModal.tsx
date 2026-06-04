@@ -133,7 +133,11 @@ function CsvTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (rows:
         </Button>
       </label>
 
-      {error && <div className="text-xs text-status-danger">{error}</div>}
+      {error && (
+        <div className="text-xs text-status-danger whitespace-pre-line rounded-md border border-status-danger/30 bg-status-danger/5 p-2">
+          {error}
+        </div>
+      )}
 
       <div className="flex justify-end pt-2 border-t border-border-subtle">
         <Button variant="ghost" onClick={onCancel}>Cancelar</Button>
@@ -203,7 +207,11 @@ function DocTab({ onCancel, onExtracted }: { onCancel: () => void; onExtracted: 
         </Button>
       </label>
 
-      {error && <div className="text-xs text-status-danger">{error}</div>}
+      {error && (
+        <div className="text-xs text-status-danger whitespace-pre-line rounded-md border border-status-danger/30 bg-status-danger/5 p-2">
+          {error}
+        </div>
+      )}
 
       <div className="flex justify-end pt-2 border-t border-border-subtle">
         <Button variant="ghost" onClick={onCancel}>Cancelar</Button>
@@ -241,21 +249,38 @@ function AsanaTab() {
 /* ─────────────── CSV parser ─────────────── */
 
 function parseCsv(text: string): CsvRow[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  // Quita BOM (Excel UTF-8 lo agrega) — sin esto el primer header queda con ﻿.
+  const clean = text.replace(/^﻿/, '');
+
+  // Auto-detecta separador. Excel en locales ES/FR/DE exporta con `;`,
+  // EN/US con `,`. Algunos sistemas con `\t` (TSV). Conteo en la primera línea.
+  const firstLine = clean.split(/\r?\n/)[0] ?? '';
+  const counts = { ',': (firstLine.match(/,/g) ?? []).length,
+                   ';': (firstLine.match(/;/g) ?? []).length,
+                   '\t': (firstLine.match(/\t/g) ?? []).length };
+  const sep: ',' | ';' | '\t' =
+    counts[';'] > counts[','] && counts[';'] >= counts['\t'] ? ';' :
+    counts['\t'] > counts[','] ? '\t' : ',';
+
+  const lines = clean.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];
-  const headers = splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const headers = splitCsvLine(lines[0], sep).map((h) => h.trim().toLowerCase());
 
   const required = ['fase', 'tareatitulo', 'rol', 'diainicio', 'diafin', 'prioridad'];
   const missing = required.filter((r) => !headers.includes(r));
   if (missing.length > 0) {
-    throw new Error(`Faltan columnas requeridas: ${missing.join(', ')}`);
+    throw new Error(
+      `Faltan columnas requeridas: ${missing.join(', ')}.\n` +
+      `Separador detectado: "${sep === '\t' ? 'TAB' : sep}". ` +
+      `Encabezados leídos: ${headers.join(' | ')}`,
+    );
   }
 
   const idx = (key: string) => headers.indexOf(key.toLowerCase());
 
   const rows: CsvRow[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const cells = splitCsvLine(lines[i]);
+    const cells = splitCsvLine(lines[i], sep);
     if (cells.length === 0) continue;
     const prio = (cells[idx('prioridad')] || 'P2').toUpperCase();
     rows.push({
@@ -275,7 +300,7 @@ function parseCsv(text: string): CsvRow[] {
   return rows;
 }
 
-function splitCsvLine(line: string): string[] {
+function splitCsvLine(line: string, sep: string = ','): string[] {
   const cells: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -288,7 +313,7 @@ function splitCsvLine(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (c === ',' && !inQuotes) {
+    } else if (c === sep && !inQuotes) {
       cells.push(current);
       current = '';
     } else {

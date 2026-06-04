@@ -151,6 +151,7 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
       ) : selectedFunnel ? (
         <>
           <FunnelRoadmap
+            key={selectedFunnel.id}
             funnel={selectedFunnel}
             accent={client.primaryColor}
             onOpenTask={(taskId) => navigate(`/client/${client.id}/tasks?task=${taskId}`)}

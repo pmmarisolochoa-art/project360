@@ -23,6 +23,8 @@ interface FunnelLaunchState {
   phasesByFunnel: (funnelId: string) => FunnelPhase[];
 
   activateFromTemplate: (clientId: string, templateKey: string, startDate: Date, customName?: string) => Funnel | null;
+  // Versión para plantillas armadas a mano por el PM (o importadas).
+  activateFromCustom: (clientId: string, template: FunnelTemplate, startDate: Date, customName?: string) => Funnel | null;
   update: (id: string, patch: Partial<Funnel>) => void;
   remove: (id: string) => void;
   setStatus: (id: string, status: FunnelStatus) => void;
@@ -43,6 +45,10 @@ export const useFunnelLaunchStore = create<FunnelLaunchState>()(
           console.warn('[funnel.activate] template no existe', templateKey);
           return null;
         }
+        return materializeFromTemplate(set, clientId, template, startDate, customName);
+      },
+
+      activateFromCustom: (clientId, template, startDate, customName) => {
         return materializeFromTemplate(set, clientId, template, startDate, customName);
       },
 

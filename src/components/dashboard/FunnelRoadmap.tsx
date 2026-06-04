@@ -110,33 +110,39 @@ export function FunnelRoadmap({
       />
 
       {/* Panel de tareas de la fase expandida (oculto en simplified) */}
-      {!simplified && expandedPhase && (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={expandedPhase}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <PhaseTasksPanel
-              phase={phases.find((p) => p.id === expandedPhase)!}
-              tasks={tasks.filter((t) => t.phaseId === expandedPhase)}
-              clientId={funnel.clientId}
-              funnelId={funnel.id}
-              funnelStartDate={funnel.startDate}
-              onOpenTask={onOpenTask}
-              onAddTask={(task) => addTask(task)}
-              onDeleteTask={(taskId) => {
-                if (confirm('¿Eliminar esta tarea? No se puede deshacer.')) {
-                  deleteTask(taskId);
-                  toast.success('Tarea eliminada');
-                }
-              }}
-            />
-          </motion.div>
-        </AnimatePresence>
-      )}
+      {!simplified && expandedPhase && (() => {
+        // Defensa: si el expandedPhase quedó apuntando a una fase de otro
+        // funnel (al cambiar de tab sin remontaje), simplemente no rendereamos.
+        const expanded = phases.find((p) => p.id === expandedPhase);
+        if (!expanded) return null;
+        return (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={expandedPhase}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <PhaseTasksPanel
+                phase={expanded}
+                tasks={tasks.filter((t) => t.phaseId === expandedPhase)}
+                clientId={funnel.clientId}
+                funnelId={funnel.id}
+                funnelStartDate={funnel.startDate}
+                onOpenTask={onOpenTask}
+                onAddTask={(task) => addTask(task)}
+                onDeleteTask={(taskId) => {
+                  if (confirm('¿Eliminar esta tarea? No se puede deshacer.')) {
+                    deleteTask(taskId);
+                    toast.success('Tarea eliminada');
+                  }
+                }}
+              />
+            </motion.div>
+          </AnimatePresence>
+        );
+      })()}
 
       {simplified && (
         <SimplifiedPhasesView phases={phases} healthMap={phaseHealthMap} progressPct={progressPct} />

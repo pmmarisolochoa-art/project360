@@ -3,10 +3,12 @@ import { motion } from 'framer-motion';
 import { Plus, Rocket, Trash2, Play, Pause, Share2, Archive, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Client } from '@/types/client';
-import type { FunnelTemplate } from '@/types/funnel';
+import type { FunnelTemplate, TemplatePhase, TemplateTask, FunnelTemplateKey } from '@/types/funnel';
 import { FUNNEL_TEMPLATES } from '@/data/funnelTemplates';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { FunnelRoadmap } from '@/components/dashboard/FunnelRoadmap';
+import { CustomFunnelBuilder } from './CustomFunnelBuilder';
+import { FunnelImportModal, type CsvRow } from './FunnelImportModal';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -29,6 +31,7 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
   const allFunnels = useFunnelLaunchStore((s) => s.funnels);
   const funnels = useMemo(() => allFunnels.filter((f) => f.clientId === client.id), [allFunnels, client.id]);
   const activateFromTemplate = useFunnelLaunchStore((s) => s.activateFromTemplate);
+  const activateFromCustom = useFunnelLaunchStore((s) => s.activateFromCustom);
   const setStatus = useFunnelLaunchStore((s) => s.setStatus);
   const remove = useFunnelLaunchStore((s) => s.remove);
 
@@ -51,6 +54,9 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
     } catch { /* quota lleno o storage bloqueado — silencioso */ }
   };
   const [creating, setCreating] = useState<FunnelTemplate | null>(null);
+  const [showCustomBuilder, setShowCustomBuilder] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importDraft, setImportDraft] = useState<{ template?: FunnelTemplate; rawText?: string } | null>(null);
 
   // Separamos activos (visibles como tabs) de archivados (historial colapsable).
   const activeFunnels = useMemo(() => funnels.filter((f) => f.status !== 'completed' && f.status !== 'cancelled'), [funnels]);
@@ -79,14 +85,56 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
     />
   ) : null;
 
+  // Builder de plantilla custom
+  const customBuilderModal = showCustomBuilder ? (
+    <CustomFunnelBuilder
+      initialTemplate={importDraft?.template}
+      onCancel={() => { setShowCustomBuilder(false); setImportDraft(null); }}
+      onCreate={(template, startDate, customName) => {
+        const funnel = activateFromCustom(client.id, template, startDate, customName);
+        if (funnel) {
+          const totalTasks = template.phases.reduce((acc, p) => acc + p.tasks.length, 0);
+          toast.success(`Embudo personalizado creado · ${totalTasks} tarea${totalTasks === 1 ? '' : 's'}`);
+          setSelectedFunnelId(funnel.id);
+        }
+        setShowCustomBuilder(false);
+        setImportDraft(null);
+      }}
+    />
+  ) : null;
+
+  // Modal de importación
+  const importModal = showImportModal ? (
+    <FunnelImportModal
+      onCancel={() => setShowImportModal(false)}
+      onCsvParsed={(rows) => {
+        // Convierte filas CSV a TemplatePhases agrupando por fase
+        const template = csvRowsToTemplate(rows, 'Embudo importado de CSV');
+        setShowImportModal(false);
+        setImportDraft({ template });
+        setShowCustomBuilder(true); // abre el builder con los datos
+      }}
+      onTextExtracted={(_text) => {
+        // Por ahora solo abrimos el builder vacío con un toast
+        // (la extracción IA del texto a fases vendrá después).
+        setShowImportModal(false);
+        setShowCustomBuilder(true);
+      }}
+    />
+  ) : null;
+
   if (funnels.length === 0) {
     return (
       <>
         <TemplateGallery
           accent={client.primaryColor}
           onSelect={(template) => setCreating(template)}
+          onCustom={() => setShowCustomBuilder(true)}
+          onImport={() => setShowImportModal(true)}
         />
         {createModal}
+        {customBuilderModal}
+        {importModal}
       </>
     );
   }
@@ -147,6 +195,8 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
         <TemplateGallery
           accent={client.primaryColor}
           onSelect={(template) => setCreating(template)}
+          onCustom={() => setShowCustomBuilder(true)}
+          onImport={() => setShowImportModal(true)}
         />
       ) : selectedFunnel ? (
         <>
@@ -207,13 +257,57 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
       ) : null}
 
       {createModal}
+      {customBuilderModal}
+      {importModal}
     </div>
   );
 }
 
+/**
+ * Agrupa filas CSV por nombre de fase y construye un FunnelTemplate.
+ */
+function csvRowsToTemplate(rows: CsvRow[], name: string): FunnelTemplate {
+  const phaseMap = new Map<string, TemplatePhase>();
+  for (const r of rows) {
+    if (!phaseMap.has(r.fase)) {
+      phaseMap.set(r.fase, {
+        name: r.fase,
+        color: r.faseColor ?? '#6366F1',
+        dayStart: r.faseDiaInicio ?? r.diaInicio,
+        dayEnd: r.faseDiaFin ?? r.diaFin,
+        tasks: [],
+      });
+    }
+    const phase = phaseMap.get(r.fase)!;
+    phase.tasks.push({
+      title: r.tareaTitulo,
+      responsibleRole: r.rol,
+      dayStart: r.diaInicio,
+      dayEnd: r.diaFin,
+      priority: r.prioridad,
+      input: r.input,
+      output: r.output,
+    } as TemplateTask);
+    // Si la fila trae faseDiaInicio/Fin, los respetamos. Si no, ajustamos al rango de tareas.
+    if (r.faseDiaInicio === undefined) phase.dayStart = Math.min(phase.dayStart, r.diaInicio);
+    if (r.faseDiaFin === undefined) phase.dayEnd = Math.max(phase.dayEnd, r.diaFin);
+  }
+  const phases = Array.from(phaseMap.values());
+  const maxDay = phases.reduce((acc, p) => Math.max(acc, p.dayEnd), 1);
+  return {
+    key: ('custom_csv_' + Date.now()) as FunnelTemplateKey,
+    emoji: '📥',
+    name,
+    shortDescription: 'Embudo importado',
+    fullDescription: 'Embudo construido a partir de una importación.',
+    estimatedDays: { min: maxDay, max: maxDay },
+    phases,
+  };
+}
+
 function TemplateGallery({
-  accent, onSelect,
-}: { accent: string; onSelect: (t: FunnelTemplate) => void }) {
+  accent, onSelect, onCustom, onImport,
+}: { accent: string; onSelect: (t: FunnelTemplate) => void; onCustom?: () => void; onImport?: () => void }) {
   return (
     <div className="surface p-5 space-y-4">
       <div className="flex items-center gap-2">
@@ -243,6 +337,50 @@ function TemplateGallery({
             <p className="text-xs text-text-secondary mt-2 leading-relaxed">{t.shortDescription}</p>
           </motion.button>
         ))}
+
+        {/* Plantilla personalizada — armada a mano */}
+        {onCustom && (
+          <motion.button
+            onClick={onCustom}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ scale: 1.01 }}
+            className="text-left rounded-[10px] border-2 border-dashed border-accent-violet/40 bg-accent-violet/5 hover:border-accent-violet hover:bg-accent-violet/10 p-4 transition"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🛠️</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-text-primary">Plantilla personalizada</div>
+                <div className="text-[11px] text-text-muted mt-0.5">Arma fases y tareas a mano</div>
+              </div>
+            </div>
+            <p className="text-xs text-text-secondary mt-2 leading-relaxed">
+              Constructor visual para casos únicos. Define fases con color y rango de días, tareas con responsable, prioridad, input/output.
+            </p>
+          </motion.button>
+        )}
+
+        {/* Importar desde Asana, Excel, o documento */}
+        {onImport && (
+          <motion.button
+            onClick={onImport}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ scale: 1.01 }}
+            className="text-left rounded-[10px] border-2 border-dashed border-status-info/40 bg-bg-base/30 hover:border-status-info hover:bg-status-info/5 p-4 transition"
+          >
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">📥</span>
+              <div className="flex-1">
+                <div className="text-sm font-bold text-text-primary">Importar embudo</div>
+                <div className="text-[11px] text-text-muted mt-0.5">CSV / Excel · Documento .md o .docx · Asana</div>
+              </div>
+            </div>
+            <p className="text-xs text-text-secondary mt-2 leading-relaxed">
+              Sube un proyecto existente desde otra herramienta. El sistema lo convierte en fases y tareas para que ajustes en el builder.
+            </p>
+          </motion.button>
+        )}
       </div>
     </div>
   );

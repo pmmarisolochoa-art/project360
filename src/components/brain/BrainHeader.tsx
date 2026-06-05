@@ -5,6 +5,7 @@ import type { Client, ClientStatus } from '@/types/client';
 import { Badge } from '@/components/ui/Badge';
 import { withAlpha } from '@/utils/colorGenerator';
 import { formatRelative } from '@/utils/dateHelpers';
+import { ReportsMenu } from '@/components/brain/ReportsMenu';
 
 const statusTone: Record<ClientStatus, 'success' | 'warning' | 'info' | 'neutral' | 'danger' | 'accent'> = {
   active: 'success',
@@ -66,7 +67,7 @@ export function BrainHeader({ client }: { client: Client }) {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Kpi
               icon={<TrendingUp className="h-3.5 w-3.5" />}
               label="ROAS"
@@ -87,6 +88,7 @@ export function BrainHeader({ client }: { client: Client }) {
               }
               accent={accent}
             />
+            <ReportsMenu client={client} />
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Link2, Sparkles, AlertTriangle, RefreshCw, CheckCircle2, XCircle,
-  TrendingUp, DollarSign, Eye, MousePointerClick,
+  TrendingUp, DollarSign, Eye, MousePointerClick, FlaskConical,
 } from 'lucide-react';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid,
@@ -110,6 +110,23 @@ export function MetricsModule({ client }: { client: Client }) {
 
   return (
     <div className="space-y-4">
+      {/* Banner: datos de demostración hasta tener OAuth real con Meta/Google/TikTok/GA4 */}
+      <div
+        className="rounded-[12px] border p-3 flex items-start gap-3"
+        style={{
+          borderColor: 'rgba(245,158,11,0.3)',
+          background: 'rgba(245,158,11,0.08)',
+        }}
+      >
+        <FlaskConical className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#F59E0B' }} />
+        <div className="text-[12px] leading-relaxed text-text-secondary">
+          <strong className="text-text-primary">Datos de demostración.</strong>{' '}
+          Las métricas que ves aquí son simuladas (deterministas por cliente y plataforma).
+          Cuando conectes tu cuenta real de Meta Ads, Google Ads, TikTok o GA4 mediante OAuth,
+          el módulo cambiará automáticamente a datos reales.
+        </div>
+      </div>
+
       {/* Conexiones */}
       <div className="surface p-5">
         <header className="flex items-center justify-between mb-4">

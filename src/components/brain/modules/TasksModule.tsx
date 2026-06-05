@@ -63,6 +63,8 @@ export function TasksModule({ client }: { client: Client }) {
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [view, setView] = useState<'kanban' | 'list' | 'gantt'>('kanban');
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
 
   // Auto-abrir el detalle de una tarea si la URL trae ?task=<id>.
   // Lo usa "Resolver →" del AlertsPanel para navegar directo al origen del problema.
@@ -207,11 +209,42 @@ export function TasksModule({ client }: { client: Client }) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
           {COLUMNS.map((col) => {
             const colTasks = filtered.filter((t) => t.status === col.status);
+            const isDropTarget = dragOverStatus === col.status;
             return (
               <div
                 key={col.status}
-                className="rounded-[14px] p-3 min-h-[400px] flex flex-col border border-border-subtle"
-                style={{ background: 'var(--kanban-column-bg)' }}
+                className="rounded-[14px] p-3 min-h-[400px] flex flex-col border transition-colors"
+                style={{
+                  background: 'var(--kanban-column-bg)',
+                  borderColor: isDropTarget ? accent : 'var(--border-subtle)',
+                  boxShadow: isDropTarget ? `inset 0 0 0 1px ${accent}` : undefined,
+                }}
+                onDragOver={(e) => {
+                  if (!draggedTaskId) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverStatus !== col.status) setDragOverStatus(col.status);
+                }}
+                onDragLeave={(e) => {
+                  // Solo limpia si el cursor sale del bounding box completo
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  if (dragOverStatus === col.status) setDragOverStatus(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+                  if (taskId) {
+                    const task = tasks.find((t) => t.id === taskId);
+                    if (task && task.status !== col.status) {
+                      updateTask(taskId, {
+                        status: col.status,
+                        completedAt: col.status === 'completed' ? new Date().toISOString() : undefined,
+                      });
+                    }
+                  }
+                  setDraggedTaskId(null);
+                  setDragOverStatus(null);
+                }}
               >
                 <header className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
@@ -221,7 +254,9 @@ export function TasksModule({ client }: { client: Client }) {
                 </header>
                 <div className="space-y-2 flex-1">
                   {colTasks.length === 0 ? (
-                    <div className="text-[11px] text-text-muted text-center py-6 italic">Sin tareas</div>
+                    <div className="text-[11px] text-text-muted text-center py-6 italic">
+                      {isDropTarget ? 'Soltar aquí' : 'Sin tareas'}
+                    </div>
                   ) : (
                     colTasks.map((task, idx) => (
                       <TaskCard
@@ -231,6 +266,9 @@ export function TasksModule({ client }: { client: Client }) {
                         index={idx}
                         clientId={client.id}
                         allTasks={tasks}
+                        isDragging={draggedTaskId === task.id}
+                        onDragStart={(id) => setDraggedTaskId(id)}
+                        onDragEnd={() => { setDraggedTaskId(null); setDragOverStatus(null); }}
                         onOpen={() => setEditing(task)}
                         onAdvance={() => advanceStatus(task, updateTask)}
                         onDelete={() => deleteTask(task.id)}
@@ -315,6 +353,7 @@ function advanceStatus(task: Task, updateTask: (id: string, p: Partial<Task>) =>
 
 function TaskCard({
   task, accent, index, onOpen, onAdvance, onDelete, clientId, allTasks,
+  isDragging, onDragStart, onDragEnd,
 }: {
   task: Task;
   accent: string;
@@ -324,6 +363,9 @@ function TaskCard({
   onDelete?: () => void;
   clientId: string;
   allTasks: Task[];
+  isDragging?: boolean;
+  onDragStart?: (taskId: string) => void;
+  onDragEnd?: () => void;
 }) {
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -336,11 +378,23 @@ function TaskCard({
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
+      animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
       exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
       transition={{ duration: 0.25, delay: index * 0.03 }}
-      className="group relative w-full text-left rounded-[10px] border p-3 transition hover:brightness-[1.02] cursor-pointer"
+      className="group relative w-full text-left rounded-[10px] border p-3 transition hover:brightness-[1.02] cursor-grab active:cursor-grabbing"
       onClick={onOpen}
+      draggable
+      onDragStart={(e) => {
+        // framer-motion tipa onDragStart con su propio DragEvent, pero el handler
+        // recibe el evento nativo en runtime; convertimos para usar dataTransfer.
+        const native = e as unknown as DragEvent;
+        if (native.dataTransfer) {
+          native.dataTransfer.setData('text/plain', task.id);
+          native.dataTransfer.effectAllowed = 'move';
+        }
+        onDragStart?.(task.id);
+      }}
+      onDragEnd={() => onDragEnd?.()}
       style={{
         background: 'var(--kanban-card-bg)',
         borderColor:

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import type { Client } from '@/types/client';
 import type { FunnelKind, FunnelDoc, FunnelNode } from '@/types/funnel';
-import { FUNNEL_KIND_META } from '@/types/funnel';
+import { FUNNEL_KIND_META, FUNNEL_NODE_TYPE_META } from '@/types/funnel';
 import { useFunnelStore, templateForKind } from '@/store/useFunnelStore';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -297,55 +297,64 @@ function FunnelDiagram({ funnel, accent, onNodeClick }: { funnel: FunnelDoc; acc
     <div className="space-y-2">
       {sources.length > 0 && (
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1.5">Fuentes de tráfico</div>
+          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1.5">📲 Por dónde llega la gente</div>
           <div className="flex flex-wrap gap-1.5">
-            {sources.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => onNodeClick(n)}
-                className="rounded-md border px-2.5 py-1.5 text-xs hover:brightness-125 transition"
-                style={{ background: withAlpha(accent, 0.10), borderColor: withAlpha(accent, 0.35), color: accent }}
-              >
-                {n.label}
-              </button>
-            ))}
+            {sources.map((n) => {
+              const meta = FUNNEL_NODE_TYPE_META[n.type];
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => onNodeClick(n)}
+                  className="rounded-md border px-2.5 py-1.5 text-xs hover:brightness-125 transition inline-flex items-center gap-1.5"
+                  style={{ background: withAlpha(accent, 0.10), borderColor: withAlpha(accent, 0.35), color: accent }}
+                  title={meta.label}
+                >
+                  <span className="text-sm leading-none">{meta.emoji}</span>
+                  <span>{n.label}</span>
+                </button>
+              );
+            })}
           </div>
           <div className="text-center text-text-muted text-lg">↓</div>
         </div>
       )}
 
       <div className="space-y-1.5">
-        {rest.map((n, i) => (
-          <div key={n.id} className="flex flex-col items-center">
-            <button
-              onClick={() => onNodeClick(n)}
-              className={cn(
-                'rounded-md border px-4 py-2 text-sm w-full max-w-md text-left hover:brightness-125 transition',
-                n.type === 'lead' && 'transform',
-              )}
-              style={{
-                background:
-                  n.type === 'sale' ? withAlpha('#10B981', 0.15) :
-                  n.type === 'lead' ? withAlpha(accent, 0.18) :
-                  n.type === 'split' ? 'rgba(245,158,11,0.10)' :
-                  'rgba(255,255,255,0.04)',
-                borderColor:
-                  n.type === 'sale' ? 'rgba(16,185,129,0.4)' :
-                  n.type === 'lead' ? withAlpha(accent, 0.4) :
-                  n.type === 'split' ? 'rgba(245,158,11,0.3)' :
-                  'rgba(255,255,255,0.10)',
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-text-primary">{n.label}</span>
-                {n.expectedConvRate !== undefined && (
-                  <span className="text-[10px] text-text-muted">{(n.expectedConvRate * 100).toFixed(1)}%</span>
+        {rest.map((n, i) => {
+          const meta = FUNNEL_NODE_TYPE_META[n.type];
+          return (
+            <div key={n.id} className="flex flex-col items-center">
+              <button
+                onClick={() => onNodeClick(n)}
+                className={cn(
+                  'rounded-md border px-4 py-2 text-sm w-full max-w-md text-left hover:brightness-125 transition',
+                  n.type === 'lead' && 'transform',
                 )}
-              </div>
-            </button>
-            {i < rest.length - 1 && <div className="text-text-muted text-lg my-0.5">↓</div>}
-          </div>
-        ))}
+                style={{
+                  background: withAlpha(meta.color, n.type === 'sale' ? 0.15 : 0.10),
+                  borderColor: withAlpha(meta.color, 0.4),
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl leading-none">{meta.emoji}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-medium text-text-primary leading-tight">{n.label}</span>
+                    <span className="block text-[10px] text-text-muted uppercase tracking-wider mt-0.5">{meta.label}</span>
+                  </span>
+                  {n.expectedConvRate !== undefined && (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-mono"
+                      style={{ background: withAlpha(meta.color, 0.2), color: meta.color }}
+                    >
+                      {(n.expectedConvRate * 100).toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              </button>
+              {i < rest.length - 1 && <div className="text-text-muted text-lg my-0.5">↓</div>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

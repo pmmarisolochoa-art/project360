@@ -29,6 +29,20 @@ export interface FunnelDoc {
   createdAt: string;
 }
 
+/**
+ * Meta de cada tipo de nodo del diagrama — emoji + lenguaje plano para que
+ * el cliente entienda el embudo sin jerga de marketing.
+ */
+export const FUNNEL_NODE_TYPE_META: Record<FunnelNodeType, { emoji: string; label: string; color: string }> = {
+  source: { emoji: '📲', label: 'Fuente de tráfico',      color: '#6366F1' },
+  page:   { emoji: '📄', label: 'Página',                  color: '#8B5CF6' },
+  lead:   { emoji: '🧲', label: 'Lead capturado',          color: '#06B6D4' },
+  email:  { emoji: '📧', label: 'Email',                   color: '#F59E0B' },
+  split:  { emoji: '🔀', label: 'División A/B',            color: '#F97316' },
+  cta:    { emoji: '👆', label: 'Llamado a la acción',     color: '#EC4899' },
+  sale:   { emoji: '💰', label: 'Venta',                   color: '#10B981' },
+};
+
 export const FUNNEL_KIND_META: Record<FunnelKind, { label: string; description: string }> = {
   capture:       { label: 'Captación / Lead Generation', description: 'Capturar leads desde frío hacia base.' },
   warmup:        { label: 'Calentamiento de audiencia',  description: 'Nutrir audiencia ya conocida.' },

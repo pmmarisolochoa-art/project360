@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { motion } from 'framer-motion';
 import {
-  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip,
+  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown,
 } from 'lucide-react';
+import { exportMeetingReport } from '@/services/reportsPdf';
 import { marked } from 'marked';
 import mammoth from 'mammoth';
 import { format, parseISO } from 'date-fns';
@@ -483,11 +484,31 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
           <Button variant="danger" size="sm" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={cancelMeeting}>
             Cancelar reunión
           </Button>
-          {!meeting.completed && (
-            <Button size="sm" leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />} onClick={markDone}>
-              Marcar como realizada
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {client && (
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<FileDown className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  try {
+                    exportMeetingReport({ client, meeting });
+                    toast.success('Reporte de reunión generado');
+                  } catch (e) {
+                    console.warn('[meetingPdf]', e);
+                    toast.error('No se pudo generar el reporte');
+                  }
+                }}
+              >
+                PDF
+              </Button>
+            )}
+            {!meeting.completed && (
+              <Button size="sm" leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />} onClick={markDone}>
+                Marcar como realizada
+              </Button>
+            )}
+          </div>
         </footer>
       </motion.aside>
     </>

@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Rocket, Trash2, Play, Pause, Share2, Archive, ChevronDown } from 'lucide-react';
+import { Plus, Rocket, Trash2, Play, Pause, Share2, Archive, ChevronDown, FileDown } from 'lucide-react';
+import { exportLaunchReport } from '@/services/reportsPdf';
+import { useClientStore } from '@/store/useClientStore';
 import { useNavigate } from 'react-router-dom';
 import type { Client } from '@/types/client';
 import type { FunnelTemplate, TemplatePhase, TemplateTask, FunnelTemplateKey } from '@/types/funnel';
@@ -226,6 +228,24 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
                 }}
               >
                 Compartir con cliente
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<FileDown className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  try {
+                    const launchPhases = useFunnelLaunchStore.getState().phases.filter((p) => p.funnelId === selectedFunnel.id);
+                    const launchTasks = useClientStore.getState().tasks.filter((t) => t.funnelId === selectedFunnel.id);
+                    exportLaunchReport({ client, funnel: selectedFunnel, phases: launchPhases, tasks: launchTasks });
+                    toast.success('Reporte de lanzamiento generado');
+                  } catch (e) {
+                    console.warn('[launchPdf]', e);
+                    toast.error('No se pudo generar el reporte');
+                  }
+                }}
+              >
+                PDF
               </Button>
               {selectedFunnel.status !== 'active' && (
                 <Button size="sm" variant="secondary" leftIcon={<Play className="h-3.5 w-3.5" />} onClick={() => { setStatus(selectedFunnel.id, 'active'); toast.success('Embudo activado'); }}>

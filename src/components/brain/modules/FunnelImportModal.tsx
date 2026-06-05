@@ -84,29 +84,33 @@ function CsvTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (rows:
     setError(null);
     try {
       const name = file.name.toLowerCase();
-      let rows: CsvRow[];
+      let text: string;
       if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-        // Excel binario — parseamos con SheetJS y convertimos la primera hoja
-        // a CSV con separador coma, luego usamos el parser CSV normal.
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
         const firstSheet = wb.Sheets[wb.SheetNames[0]];
-        if (!firstSheet) {
-          setError('El archivo Excel está vacío o no se pudo leer.');
-          return;
-        }
-        const csv = XLSX.utils.sheet_to_csv(firstSheet, { FS: ',' });
-        rows = parseCsv(csv);
+        if (!firstSheet) { setError('El archivo Excel está vacío o no se pudo leer.'); return; }
+        text = XLSX.utils.sheet_to_csv(firstSheet, { FS: ',' });
       } else {
-        const text = await file.text();
-        rows = parseCsv(text);
+        text = await file.text();
       }
+
+      // Auto-detección: si los headers parecen un export de Asana
+      // (task id + section/column), usamos el parser de Asana en su lugar.
+      const firstLine = text.replace(/^﻿/, '').split(/\r?\n/)[0]?.toLowerCase() ?? '';
+      const looksLikeAsana = firstLine.includes('task id') && firstLine.includes('section/column');
+
+      const rows = looksLikeAsana ? parseAsanaCsv(text) : parseCsv(text);
       if (rows.length === 0) {
         setError('No se detectaron tareas válidas. Revisa el formato.');
         return;
       }
       onParsed(rows);
-      toast.success(`${rows.length} tareas importadas — revisa antes de crear`);
+      toast.success(
+        looksLikeAsana
+          ? `${rows.length} tareas Asana importadas (formato detectado automáticamente)`
+          : `${rows.length} tareas importadas — revisa antes de crear`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error procesando el archivo');
     }

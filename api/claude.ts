@@ -440,29 +440,29 @@ async function ropreFromTranscription(apiKey: string, ctx: RopreFromTranscriptio
   "deliverables": [{"title": "...", "responsible": "rol_disponible", "dueInDays": 7}]
 }
 Reglas:
-- Máximo 4 items por categoría, mínimo 0.
+- Máximo 3 items por categoría (sé conciso).
+- Cada title máximo 80 caracteres. Cada description máximo 120 caracteres.
 - Resultados: logros concretos ya alcanzados (con números si aparecen).
-- Objetivos: metas accionables y medibles para el próximo período.
-- Primicias: insights validados o hipótesis fuertes que guían decisiones.
-- Riesgos: amenazas concretas con su riskLevel y mitigación sugerida.
-- Entregables: outputs concretos a producir (verbo + objeto) con responsible y dueInDays (1-30).
-- Si una categoría no tiene items en la transcripción, devuelve [].
-- responsible debe ser uno de los roles disponibles.
+- Objetivos: metas accionables y medibles.
+- Primicias: insights validados que guían decisiones.
+- Riesgos: amenazas concretas con riskLevel y mitigación.
+- Entregables: outputs concretos (verbo + objeto) con responsible y dueInDays (1-30).
+- Si una categoría no aparece en la transcripción, devuelve [].
 - Sin texto antes ni después del JSON.`;
 
   const user = `Cliente: ${ctx.clientName} (${ctx.industry})
 Tipo de reunión: ${ctx.meetingType}
 Roles disponibles: ${ctx.availableRoles.join(', ')}
 
-Transcripción de la reunión:
-${ctx.transcription.slice(0, 12000)}
+Transcripción:
+${ctx.transcription.slice(0, 5000)}
 
-Extrae el framework ROPRE.`;
+Extrae el ROPRE en JSON.`;
 
-  const txt = await callAnthropic(apiKey, system, user, 2400);
+  const txt = await callAnthropic(apiKey, system, user, 1400);
   try {
     const parsed = JSON.parse(extractJson(txt)) as Partial<RopreExtract>;
-    const cap = <T,>(arr: T[] | undefined): T[] => (Array.isArray(arr) ? arr.slice(0, 4) : []);
+    const cap = <T,>(arr: T[] | undefined): T[] => (Array.isArray(arr) ? arr.slice(0, 3) : []);
     const validLevel = (l?: string): 'low' | 'medium' | 'high' | undefined =>
       l === 'low' || l === 'medium' || l === 'high' ? l : undefined;
     return {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { motion } from 'framer-motion';
 import {
-  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown,
+  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain,
 } from 'lucide-react';
 import { exportMeetingReport } from '@/services/reportsPdf';
 import { marked } from 'marked';
@@ -16,7 +16,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
-import { generateMeetingAgenda, extractTasksFromNotes, type ExtractedTask } from '@/services/claudeApi';
+import { generateMeetingAgenda, extractTasksFromNotes, generateRopreFromTranscription, type ExtractedTask } from '@/services/claudeApi';
+import { useRopreStore } from '@/store/useRopreStore';
+import type { RopreItem } from '@/types/ropre';
 import { ROLE_DEFS } from '@/types/team';
 import { RopreInlineEditor } from './RopreInlineEditor';
 import { WeeklyPlanningGrid } from './WeeklyPlanningGrid';
@@ -47,6 +49,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
   const [recordingUrl, setRecordingUrl] = useState(meeting.recordingUrl ?? '');
   const [generating, setGenerating] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [generatingRopre, setGeneratingRopre] = useState(false);
   const [extractedDraft, setExtractedDraft] = useState<ExtractedTask[]>(meeting.extractedTasks ?? []);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -226,6 +229,59 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
       toast.success(`${result.length} tarea${result.length === 1 ? '' : 's'} extraída${result.length === 1 ? '' : 's'} — revisa y confirma`);
     } finally {
       setExtracting(false);
+    }
+  };
+
+  const runGenerateRopre = async () => {
+    if (!client) return;
+    const source = (meeting.transcription && meeting.transcription.trim().length > 50)
+      ? meeting.transcription
+      : `${notes}\n\n${agenda}`.trim();
+    if (source.length < 50) {
+      toast.error('Necesitas transcripción, notas o agenda con contenido para generar el ROPRE');
+      return;
+    }
+    setGeneratingRopre(true);
+    try {
+      const ropre = await generateRopreFromTranscription({
+        clientName: client.name,
+        industry: client.industry,
+        meetingType: meeting.type,
+        transcription: source,
+        availableRoles: ROLE_DEFS.map((r) => r.slug),
+      });
+      const now = new Date().toISOString();
+      const addRopre = useRopreStore.getState().add;
+      let created = 0;
+      const push = (item: RopreItem) => { addRopre(item); created++; };
+      for (const r of ropre.results) {
+        push({ id: genId(), clientId: client.id, type: 'result', title: r.title, description: r.description, createdAt: now, lastEditedInMeetingId: meeting.id, lastEditedAt: now });
+      }
+      for (const o of ropre.objectives) {
+        push({ id: genId(), clientId: client.id, type: 'objective', title: o.title, targetValue: o.targetValue, createdAt: now, lastEditedInMeetingId: meeting.id, lastEditedAt: now });
+      }
+      for (const p of ropre.premises) {
+        push({ id: genId(), clientId: client.id, type: 'premise', title: p.title, description: p.description, createdAt: now, lastEditedInMeetingId: meeting.id, lastEditedAt: now });
+      }
+      for (const rk of ropre.risks) {
+        push({ id: genId(), clientId: client.id, type: 'risk', title: rk.title, riskLevel: rk.riskLevel, mitigation: rk.mitigation, createdAt: now, lastEditedInMeetingId: meeting.id, lastEditedAt: now });
+      }
+      for (const d of ropre.deliverables) {
+        const dueDays = d.dueInDays ?? 7;
+        push({
+          id: genId(), clientId: client.id, type: 'deliverable', title: d.title,
+          responsible: d.responsible, status: 'todo',
+          dueDate: new Date(Date.now() + dueDays * 86400000).toISOString(),
+          createdAt: now, lastEditedInMeetingId: meeting.id, lastEditedAt: now,
+        });
+      }
+      if (created === 0) {
+        toast.info('No se detectaron items ROPRE en la transcripción');
+      } else {
+        toast.success(`${created} items ROPRE creados — revísalos en el módulo ROPRE del cliente`);
+      }
+    } finally {
+      setGeneratingRopre(false);
     }
   };
 
@@ -441,7 +497,13 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
                 onClick={() => toast.info('Transcripción disponible próximamente')}>Transcribir con IA</Button>
               <Button size="sm" variant="secondary" leftIcon={<ListChecks className="h-3.5 w-3.5" />}
                 loading={extracting} onClick={runExtractTasks}>Extraer tareas</Button>
+              <Button size="sm" variant="secondary" leftIcon={<Brain className="h-3.5 w-3.5" />}
+                loading={generatingRopre} onClick={runGenerateRopre}>Generar ROPRE</Button>
             </div>
+            <p className="mt-1.5 text-[10px] text-text-muted leading-relaxed">
+              <Brain className="inline h-2.5 w-2.5 mr-0.5" /> Genera Resultados · Objetivos · Primicias · Riesgos · Entregables
+              desde la transcripción o notas. Los items se crean en el módulo ROPRE del cliente.
+            </p>
           </section>
 
           {/* Tareas extraídas */}

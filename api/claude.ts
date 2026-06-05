@@ -77,12 +77,21 @@ interface ExtractTasksCtx {
   availableRoles: string[];
 }
 
+interface RopreFromTranscriptionCtx {
+  clientName: string;
+  industry: string;
+  meetingType: string;
+  transcription: string;
+  availableRoles: string[];
+}
+
 type RequestBody =
   | { feature: 'meeting_agenda'; context: MeetingAgendaCtx }
   | { feature: 'three_options'; context: ThreeOptionsCtx }
   | { feature: 'regenerate_section'; context: RegenerateCtx }
   | { feature: 'brain_from_onboarding'; context: BrainCtx }
-  | { feature: 'extract_tasks'; context: ExtractTasksCtx };
+  | { feature: 'extract_tasks'; context: ExtractTasksCtx }
+  | { feature: 'ropre_from_transcription'; context: RopreFromTranscriptionCtx };
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -116,6 +125,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ brain: await brainFromOnboarding(apiKey, body.context) });
       case 'extract_tasks':
         return json({ tasks: await extractTasks(apiKey, body.context) });
+      case 'ropre_from_transcription':
+        return json({ ropre: await ropreFromTranscription(apiKey, body.context) });
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -406,6 +417,63 @@ Extrae las tareas accionables.`;
     })).filter((t) => t.title.length > 0);
   } catch {
     throw new Error('Claude devolvió JSON inválido para extract_tasks');
+  }
+}
+
+/* ─────────────── ROPRE from transcription ─────────────── */
+
+interface RopreExtract {
+  results: Array<{ title: string; description?: string }>;
+  objectives: Array<{ title: string; targetValue?: string }>;
+  premises: Array<{ title: string; description?: string }>;
+  risks: Array<{ title: string; riskLevel?: 'low' | 'medium' | 'high'; mitigation?: string }>;
+  deliverables: Array<{ title: string; responsible?: string; dueInDays?: number }>;
+}
+
+async function ropreFromTranscription(apiKey: string, ctx: RopreFromTranscriptionCtx): Promise<RopreExtract> {
+  const system = `Eres un consultor estratégico senior. A partir de una transcripción de reunión, extraes el framework ROPRE: Resultados, Objetivos, Primicias (premisas/insights), Riesgos y Entregables. Devuelve SOLO un objeto JSON válido con esta forma exacta:
+{
+  "results": [{"title": "...", "description": "..."}],
+  "objectives": [{"title": "...", "targetValue": "..."}],
+  "premises": [{"title": "...", "description": "..."}],
+  "risks": [{"title": "...", "riskLevel": "low|medium|high", "mitigation": "..."}],
+  "deliverables": [{"title": "...", "responsible": "rol_disponible", "dueInDays": 7}]
+}
+Reglas:
+- Máximo 4 items por categoría, mínimo 0.
+- Resultados: logros concretos ya alcanzados (con números si aparecen).
+- Objetivos: metas accionables y medibles para el próximo período.
+- Primicias: insights validados o hipótesis fuertes que guían decisiones.
+- Riesgos: amenazas concretas con su riskLevel y mitigación sugerida.
+- Entregables: outputs concretos a producir (verbo + objeto) con responsible y dueInDays (1-30).
+- Si una categoría no tiene items en la transcripción, devuelve [].
+- responsible debe ser uno de los roles disponibles.
+- Sin texto antes ni después del JSON.`;
+
+  const user = `Cliente: ${ctx.clientName} (${ctx.industry})
+Tipo de reunión: ${ctx.meetingType}
+Roles disponibles: ${ctx.availableRoles.join(', ')}
+
+Transcripción de la reunión:
+${ctx.transcription.slice(0, 12000)}
+
+Extrae el framework ROPRE.`;
+
+  const txt = await callAnthropic(apiKey, system, user, 2400);
+  try {
+    const parsed = JSON.parse(extractJson(txt)) as Partial<RopreExtract>;
+    const cap = <T,>(arr: T[] | undefined): T[] => (Array.isArray(arr) ? arr.slice(0, 4) : []);
+    const validLevel = (l?: string): 'low' | 'medium' | 'high' | undefined =>
+      l === 'low' || l === 'medium' || l === 'high' ? l : undefined;
+    return {
+      results: cap(parsed.results).map((i) => ({ title: String(i.title ?? '').slice(0, 200), description: i.description ? String(i.description).slice(0, 400) : undefined })).filter((i) => i.title),
+      objectives: cap(parsed.objectives).map((i) => ({ title: String(i.title ?? '').slice(0, 200), targetValue: i.targetValue ? String(i.targetValue).slice(0, 100) : undefined })).filter((i) => i.title),
+      premises: cap(parsed.premises).map((i) => ({ title: String(i.title ?? '').slice(0, 200), description: i.description ? String(i.description).slice(0, 400) : undefined })).filter((i) => i.title),
+      risks: cap(parsed.risks).map((i) => ({ title: String(i.title ?? '').slice(0, 200), riskLevel: validLevel(i.riskLevel), mitigation: i.mitigation ? String(i.mitigation).slice(0, 400) : undefined })).filter((i) => i.title),
+      deliverables: cap(parsed.deliverables).map((i) => ({ title: String(i.title ?? '').slice(0, 200), responsible: i.responsible ? String(i.responsible).slice(0, 80) : undefined, dueInDays: i.dueInDays ? Math.max(1, Math.min(30, Number(i.dueInDays))) : 7 })).filter((i) => i.title),
+    };
+  } catch {
+    throw new Error('Claude devolvió JSON inválido para ropre_from_transcription');
   }
 }
 

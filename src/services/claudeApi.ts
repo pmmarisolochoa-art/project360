@@ -121,6 +121,34 @@ export async function extractTasksFromNotes(args: {
   }
 }
 
+/* ─────────────── ROPRE from transcription ─────────────── */
+
+export interface ExtractedRopre {
+  results: Array<{ title: string; description?: string }>;
+  objectives: Array<{ title: string; targetValue?: string }>;
+  premises: Array<{ title: string; description?: string }>;
+  risks: Array<{ title: string; riskLevel?: 'low' | 'medium' | 'high'; mitigation?: string }>;
+  deliverables: Array<{ title: string; responsible?: string; dueInDays?: number }>;
+}
+
+export async function generateRopreFromTranscription(args: {
+  clientName: string;
+  industry: string;
+  meetingType: string;
+  transcription: string;
+  availableRoles: string[];
+}): Promise<ExtractedRopre> {
+  try {
+    const { ropre } = await callBackend<{ ropre: ExtractedRopre }>('ropre_from_transcription', args);
+    return ropre;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[claudeApi] ropre_from_transcription falló', e);
+    toast.warning(`IA no disponible para ROPRE. (${msg.slice(0, 80)})`);
+    return { results: [], objectives: [], premises: [], risks: [], deliverables: [] };
+  }
+}
+
 /* ─────────────── Three Options ─────────────── */
 
 export interface AIOption {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, ChevronDown, Calendar, CalendarRange, Mic, Rocket } from 'lucide-react';
 import type { Client } from '@/types/client';
@@ -22,10 +22,15 @@ export function ReportsMenu({ client }: { client: Client }) {
   const [open, setOpen] = useState(false);
   const [sub, setSub] = useState<'meetings' | 'funnels' | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const tasks = useClientStore((s) => s.tasks.filter((t) => t.clientId === client.id));
-  const meetings = useClientStore((s) => s.meetings.filter((m) => m.clientId === client.id));
-  const funnels = useFunnelLaunchStore((s) => s.funnels.filter((f) => f.clientId === client.id));
+  // CRÍTICO: filtrar dentro del selector crea nuevo array por render →
+  // bucle infinito → pantalla en blanco. Tomamos raw + useMemo.
+  const allTasksRaw = useClientStore((s) => s.tasks);
+  const allMeetingsRaw = useClientStore((s) => s.meetings);
+  const allFunnelsRaw = useFunnelLaunchStore((s) => s.funnels);
   const allPhases = useFunnelLaunchStore((s) => s.phases);
+  const tasks = useMemo(() => allTasksRaw.filter((t) => t.clientId === client.id), [allTasksRaw, client.id]);
+  const meetings = useMemo(() => allMeetingsRaw.filter((m) => m.clientId === client.id), [allMeetingsRaw, client.id]);
+  const funnels = useMemo(() => allFunnelsRaw.filter((f) => f.clientId === client.id), [allFunnelsRaw, client.id]);
   const accent = client.primaryColor;
 
   useEffect(() => {

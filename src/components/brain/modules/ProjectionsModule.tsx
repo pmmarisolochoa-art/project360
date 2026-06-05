@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Sparkles, TrendingUp, Target as TargetIcon, GanttChartSquare, Scale, Compass,
-  DollarSign, FileText, Download, Plus, Trash2, Pencil, Save, X, Check, Link2, ChevronDown, ChevronUp,
+  DollarSign, FileText, Download, Plus, Trash2, Check, Link2, ChevronDown, ChevronUp,
   ArrowUp, ArrowDown,
 } from 'lucide-react';
 import {
@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
-import { formatCurrency, formatNumber, formatPercent } from '@/utils/metricsCalculator';
+import { formatCurrency, formatNumber } from '@/utils/metricsCalculator';
 import { cn } from '@/utils/cn';
 import { format, parseISO, addWeeks } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -518,12 +518,6 @@ function PhasesSection({ client, accent }: { client: Client; accent: string }) {
 
   const updatePhases = (next: ProjectPhase[]) => setPhases(client.id, next);
 
-  const updateTaskInPhase = (phaseId: string, taskId: string, patch: Partial<import('@/types/projection').GanttTask>) => {
-    updatePhases(phases.map((p) => p.id !== phaseId ? p : {
-      ...p,
-      tasks: p.tasks.map((t) => t.id === taskId ? { ...t, ...patch } : t),
-    }));
-  };
   const toggleSubtask = (phaseId: string, taskId: string, subId: string) => {
     updatePhases(phases.map((p) => p.id !== phaseId ? p : {
       ...p,
@@ -940,7 +934,7 @@ function OkrsSection({ client, accent }: { client: Client; accent: string }) {
         ...o,
         keyResults: [
           ...o.keyResults,
-          { id: `kr_${Math.random().toString(36).slice(2, 6)}`, description: 'Nuevo Key Result', initialValue: 0, targetValue: 100, currentValue: 0, unit: 'count' },
+          { id: `kr_${Math.random().toString(36).slice(2, 6)}`, description: 'Nuevo Key Result', initialValue: 0, targetValue: 100, currentValue: 0, unit: 'count' as const },
         ].slice(0, 5),
       },
     ));
@@ -1585,7 +1579,6 @@ function DebriefingSection({ client, accent }: { client: Client; accent: string 
         <DebriefingItem
           key={s.id}
           title={s.title}
-          accent={accent}
           sectionKey={s.id}
           client={client}
           value={debrief[s.id]}
@@ -1687,10 +1680,9 @@ function sectionHasContent(v: unknown): boolean {
 }
 
 function DebriefingItem({
-  title, accent, sectionKey, client, value, onChange,
+  title, sectionKey, client, value, onChange,
 }: {
   title: string;
-  accent: string;
   sectionKey: keyof import('@/types/projection').DebriefingSections;
   client: Client;
   value: unknown;

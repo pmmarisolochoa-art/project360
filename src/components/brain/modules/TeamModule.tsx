@@ -13,7 +13,6 @@ import { ROLE_DEFS, evaluateKpi, progressToTarget } from '@/types/team';
 import { useTeamStore } from '@/store/useTeamStore';
 import { useClientStore } from '@/store/useClientStore';
 import { toast } from '@/store/useToastStore';
-import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Textarea } from '@/components/ui/Textarea';
 import { withAlpha } from '@/utils/colorGenerator';

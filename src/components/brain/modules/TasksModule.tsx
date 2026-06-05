@@ -6,7 +6,7 @@ import {
   LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen,
 } from 'lucide-react';
 import {
-  addDays, differenceInDays, differenceInHours, format, parseISO,
+  differenceInDays, differenceInHours, format, parseISO,
   max as dateMax, min as dateMin,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -938,10 +938,10 @@ function TaskModal({
 /* ───────────────────────── Vista Lista ───────────────────────── */
 
 function TasksList({
-  tasks, accent, allTasks, onOpen,
+  tasks, allTasks, onOpen,
 }: {
   tasks: Task[];
-  accent: string;
+  accent?: string;
   allTasks: Task[];
   onOpen: (t: Task) => void;
 }) {
@@ -989,11 +989,11 @@ function TasksList({
 /* ───────────────────────── Vista Gantt ───────────────────────── */
 
 function TasksGantt({
-  tasks, accent, allTasks, onOpen,
+  tasks, accent, onOpen,
 }: {
   tasks: Task[];
   accent: string;
-  allTasks: Task[];
+  allTasks?: Task[];
   onOpen: (t: Task) => void;
 }) {
   if (tasks.length === 0) {

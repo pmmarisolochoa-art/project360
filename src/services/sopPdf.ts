@@ -11,7 +11,6 @@ const VERDICT_LABEL: Record<SopAssessment['verdict'], { label: string; color: [n
 
 export function exportSopReport(a: SopAssessment) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-  const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const v = VERDICT_LABEL[a.verdict];
 

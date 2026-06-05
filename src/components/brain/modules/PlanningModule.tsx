@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { FunnelLaunchPanel } from './FunnelLaunchPanel';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Sparkles, Plus, ChevronDown, ChevronUp, Workflow, Trash2,
-  Database, TrendingUp, Users as UsersIcon, FileText, BarChart3, Megaphone, X,
+  Database, TrendingUp, Users as UsersIcon, FileText, BarChart3, Megaphone,
 } from 'lucide-react';
 import type { Client } from '@/types/client';
 import type { FunnelKind, FunnelDoc, FunnelNode } from '@/types/funnel';

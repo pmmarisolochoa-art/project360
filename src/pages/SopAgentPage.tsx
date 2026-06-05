@@ -5,9 +5,8 @@ import { useSopStore } from '@/store/useSopStore';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
 import {
-  SOP_BLOCKS, SOP_QUESTIONS, type SopAnswer, type SopAssessment,
+  SOP_BLOCKS, SOP_QUESTIONS, type SopAssessment,
 } from '@/types/viability';
 import { exportSopReport } from '@/services/sopPdf';
 import { toast } from '@/store/useToastStore';

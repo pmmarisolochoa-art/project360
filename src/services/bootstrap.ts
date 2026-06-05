@@ -59,7 +59,7 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
         if (contentPieces.length > 0) useContentStore.setState({ pieces: contentPieces });
         if (Object.keys(projections).length > 0) useProjectionStore.setState({ states: projections });
         if (ropre.length > 0) useRopreStore.setState({ items: ropre });
-        if (teamAssignments.length > 0) useTeamStore.setState({ assignments: teamAssignments });
+        if (teamAssignments.length > 0) useTeamStore.setState({ assignments: teamAssignments as never });
         if (funnelData.funnels.length > 0) useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
         // eslint-disable-next-line no-console
         console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);

@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
-import { cn } from '@/utils/cn';
 import {
   generateThreeOptions,
   type AIOption,

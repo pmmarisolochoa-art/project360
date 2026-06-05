@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   format, parseISO, addDays, startOfWeek, endOfWeek, isToday, isSameDay,
-  isAfter, isBefore, isWithinInterval, differenceInMinutes,
+  isAfter, isBefore, isWithinInterval,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';

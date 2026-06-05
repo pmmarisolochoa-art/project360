@@ -107,9 +107,10 @@ export function OnboardingWizard() {
         >
           {isLast ? (
             <Step8Team onFinish={finish} />
-          ) : (
-            <StepComponent onNext={goNext} />
-          )}
+          ) : (() => {
+            const Comp = StepComponent as React.ComponentType<{ onNext: () => void }>;
+            return <Comp onNext={goNext} />;
+          })()}
         </motion.div>
       </AnimatePresence>
 

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
-  format, parseISO, isSameDay, isSameMonth, isToday, addMonths, subMonths,
+  format, parseISO, isSameMonth, isToday, addMonths, subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
@@ -16,7 +16,6 @@ import type {
 } from '@/types/content';
 import { CONTENT_STATUS_META, PLATFORM_META, FORMAT_LABEL } from '@/types/content';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';

@@ -33,6 +33,8 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   ads_review: 'Revisión de ads',
   monthly_closing: 'Cierre mensual',
   crisis: 'Crisis',
+  weekly_planning: 'Planeación semanal',
+  ropre_strategy: 'Estrategia ROPRE',
 };
 
 export function AgendaPage() {

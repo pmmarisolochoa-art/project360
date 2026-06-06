@@ -11,6 +11,7 @@ import {
   DollarSign,
   ShoppingBag,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import type { Client, ClientStatus, ProjectType, ClientMetricsSnapshot } from '@/types/client';
 import type { AdPlatform } from '@/types/metrics';
@@ -43,10 +44,18 @@ const projectTypeLabel: Record<ProjectType, string> = {
 export function ClientCard({ client, index = 0 }: { client: Client; index?: number }) {
   const navigate = useNavigate();
   const updateClient = useClientStore((s) => s.updateClient);
+  const deleteClient = useClientStore((s) => s.deleteClient);
   const status = statusLabel[client.status];
   const accent = client.primaryColor;
   const [hover, setHover] = useState(false);
   const [refreshingInverted, setRefreshingInverted] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteClient(client.id);
+    toast.success(`Cliente "${client.name}" eliminado`);
+  };
 
   const m = client.metrics;
   const invertedValue = m.invertedThisMonth ?? client.monthlyAdsBudget;
@@ -143,13 +152,59 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
             </p>
           </div>
 
-          <button
-            aria-label="Abrir cerebro"
-            className="shrink-0 h-9 w-9 rounded-[10px] border border-border-default bg-bg-elevated flex items-center justify-center text-text-secondary group-hover:text-text-primary transition"
-          >
-            <ArrowUpRight className="h-4 w-4" />
-          </button>
+          <div className="shrink-0 flex items-center gap-1.5">
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+              aria-label="Eliminar cliente"
+              title="Eliminar cliente"
+              className="h-8 w-8 rounded-[10px] border border-border-subtle bg-bg-elevated text-text-muted hover:text-status-danger hover:border-status-danger/50 hover:bg-status-danger/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              aria-label="Abrir cerebro"
+              className="h-9 w-9 rounded-[10px] border border-border-default bg-bg-elevated flex items-center justify-center text-text-secondary group-hover:text-text-primary transition"
+            >
+              <ArrowUpRight className="h-4 w-4" />
+            </button>
+          </div>
         </header>
+
+        {/* Overlay de confirmación de eliminación */}
+        {confirmDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 p-5 rounded-[14px]"
+            style={{ background: 'rgba(15, 15, 22, 0.92)', backdropFilter: 'blur(8px)' }}
+          >
+            <div className="text-center">
+              <AlertTriangle className="h-7 w-7 mx-auto text-status-danger mb-2" />
+              <div className="text-sm font-semibold text-text-primary">
+                ¿Eliminar "{client.name}"?
+              </div>
+              <div className="text-[11px] text-text-muted mt-1 leading-relaxed max-w-[260px]">
+                Se borran también todas sus tareas, reuniones, embudos,
+                ROPRE y contenido. <strong>No se puede deshacer.</strong>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+                className="text-xs px-3 py-1.5 rounded-md border border-border-default hover:bg-bg-elevated transition text-text-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                className="text-xs px-3 py-1.5 rounded-md bg-status-danger text-white font-medium hover:brightness-110 transition inline-flex items-center gap-1.5"
+              >
+                <Trash2 className="h-3 w-3" /> Eliminar
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* Bottleneck */}
         {client.metrics.bottleneck && (

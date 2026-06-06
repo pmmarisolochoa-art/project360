@@ -42,6 +42,14 @@ export const ClientsRepo = {
     const { error } = await supabase.from('clients').update(row).eq('id', id);
     if (error) throw error;
   },
+
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    // Las tablas hijas (tasks, meetings, funnels, ropre_items, content) tienen
+    // FK con ON DELETE CASCADE → todo lo del cliente se borra también.
+    const { error } = await supabase.from('clients').delete().eq('id', id);
+    if (error) throw error;
+  },
 };
 
 /* ─────────────── TASKS ─────────────── */

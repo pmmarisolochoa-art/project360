@@ -13,6 +13,7 @@ interface ClientState {
   setCurrentClient: (id: string | null) => void;
   addClient: (c: Client) => void;
   updateClient: (id: string, patch: Partial<Client>) => void;
+  deleteClient: (id: string) => void;
   getClient: (id: string) => Client | undefined;
   // Tasks CRUD
   addTask: (t: Task) => void;
@@ -43,6 +44,16 @@ export const useClientStore = create<ClientState>((set, get) => ({
       ),
     }));
     void ClientsRepo.update(id, patch).catch((e) => console.warn('[clients.update]', e));
+  },
+  deleteClient: (id) => {
+    // Limpia también todo lo relacionado en memoria (Supabase cascadeará por FK).
+    set((s) => ({
+      clients: s.clients.filter((c) => c.id !== id),
+      tasks: s.tasks.filter((t) => t.clientId !== id),
+      meetings: s.meetings.filter((m) => m.clientId !== id),
+      currentClientId: s.currentClientId === id ? null : s.currentClientId,
+    }));
+    void ClientsRepo.remove(id).catch((e) => console.warn('[clients.remove]', e));
   },
   getClient: (id) => get().clients.find((c) => c.id === id),
   addTask: (t) => {

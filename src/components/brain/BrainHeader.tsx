@@ -30,9 +30,12 @@ export function BrainHeader({ client }: { client: Client }) {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="relative overflow-hidden border-b border-border-subtle bg-bg-base"
+      className="relative overflow-hidden border-b border-border-subtle"
       style={{
-        background: `linear-gradient(135deg, ${withAlpha(accent, 0.10)} 0%, transparent 60%), #0A0A0F`,
+        // Banner difuminado con el color del cliente sobre el fondo base del tema.
+        // En dark mode queda oscuro, en light queda claro — el accent del cliente
+        // siempre se nota sin tapar texto.
+        background: `linear-gradient(135deg, ${withAlpha(accent, 0.18)} 0%, ${withAlpha(accent, 0.04)} 45%, var(--bg-base) 90%)`,
       }}
     >
       <div

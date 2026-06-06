@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, Filter, Clock, AlertTriangle, Trash2, ArrowRight, MessageSquare, Link2,
-  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen,
+  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen, ChevronDown,
 } from 'lucide-react';
 import {
   differenceInDays, differenceInHours, format, parseISO,
@@ -65,6 +65,32 @@ export function TasksModule({ client }: { client: Client }) {
   const [view, setView] = useState<'kanban' | 'list' | 'gantt'>('kanban');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const selectedCount = selectedIds.size;
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+  const bulkMove = (status: TaskStatus) => {
+    for (const id of selectedIds) {
+      updateTask(id, {
+        status,
+        completedAt: status === 'completed' ? new Date().toISOString() : undefined,
+      });
+    }
+    toast.success(`${selectedCount} tarea${selectedCount === 1 ? '' : 's'} movida${selectedCount === 1 ? '' : 's'}`);
+    clearSelection();
+  };
+  const bulkDelete = () => {
+    if (!confirm(`¿Eliminar ${selectedCount} tarea${selectedCount === 1 ? '' : 's'}? Esta acción no se puede deshacer.`)) return;
+    for (const id of selectedIds) deleteTask(id);
+    toast.success(`${selectedCount} tarea${selectedCount === 1 ? '' : 's'} eliminada${selectedCount === 1 ? '' : 's'}`);
+    clearSelection();
+  };
 
   // Auto-abrir el detalle de una tarea si la URL trae ?task=<id>.
   // Lo usa "Resolver →" del AlertsPanel para navegar directo al origen del problema.
@@ -267,9 +293,17 @@ export function TasksModule({ client }: { client: Client }) {
                         clientId={client.id}
                         allTasks={tasks}
                         isDragging={draggedTaskId === task.id}
+                        isSelected={selectedIds.has(task.id)}
+                        anySelected={selectedCount > 0}
+                        onToggleSelected={() => toggleSelected(task.id)}
                         onDragStart={(id) => setDraggedTaskId(id)}
                         onDragEnd={() => { setDraggedTaskId(null); setDragOverStatus(null); }}
-                        onOpen={() => setEditing(task)}
+                        onOpen={() => {
+                          // Si hay selección activa, click en la card alterna selección
+                          // (más intuitivo que abrir el modal mientras seleccionas).
+                          if (selectedCount > 0) { toggleSelected(task.id); return; }
+                          setEditing(task);
+                        }}
                         onAdvance={() => advanceStatus(task, updateTask)}
                         onDelete={() => deleteTask(task.id)}
                       />
@@ -288,6 +322,17 @@ export function TasksModule({ client }: { client: Client }) {
 
       {view === 'gantt' && (
         <TasksGantt tasks={filtered} accent={accent} allTasks={tasks} onOpen={setEditing} />
+      )}
+
+      {/* Barra flotante de acciones bulk — aparece cuando hay 1+ seleccionada */}
+      {selectedCount > 0 && (
+        <BulkActionsBar
+          count={selectedCount}
+          accent={accent}
+          onMove={bulkMove}
+          onDelete={bulkDelete}
+          onCancel={clearSelection}
+        />
       )}
 
       {/* Modal detalle / edición */}
@@ -354,6 +399,7 @@ function advanceStatus(task: Task, updateTask: (id: string, p: Partial<Task>) =>
 function TaskCard({
   task, accent, index, onOpen, onAdvance, onDelete, clientId, allTasks,
   isDragging, onDragStart, onDragEnd,
+  isSelected, anySelected, onToggleSelected,
 }: {
   task: Task;
   accent: string;
@@ -366,6 +412,9 @@ function TaskCard({
   isDragging?: boolean;
   onDragStart?: (taskId: string) => void;
   onDragEnd?: () => void;
+  isSelected?: boolean;
+  anySelected?: boolean;
+  onToggleSelected?: () => void;
 }) {
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -397,15 +446,36 @@ function TaskCard({
       onDragEnd={() => onDragEnd?.()}
       style={{
         background: 'var(--kanban-card-bg)',
-        borderColor:
-          task.isDelayed && task.status !== 'completed'
+        borderColor: isSelected
+          ? accent
+          : task.isDelayed && task.status !== 'completed'
             ? 'rgba(239,68,68,0.5)'
             : dueSoon
             ? 'rgba(245,158,11,0.5)'
             : 'var(--kanban-card-border)',
-        boxShadow: 'var(--kanban-card-shadow)',
+        boxShadow: isSelected
+          ? `0 0 0 2px ${accent}, var(--kanban-card-shadow)`
+          : 'var(--kanban-card-shadow)',
       }}
     >
+      {/* Checkbox de selección múltiple — visible en hover o cuando ya hay selección */}
+      {onToggleSelected && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelected(); }}
+          aria-label={isSelected ? 'Deseleccionar tarea' : 'Seleccionar tarea'}
+          title={isSelected ? 'Deseleccionar' : 'Seleccionar para acción masiva'}
+          className={cn(
+            'absolute top-2 left-2 h-5 w-5 rounded border flex items-center justify-center transition z-10',
+            (isSelected || anySelected) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            isSelected ? 'border-transparent text-white' : 'border-border-default bg-bg-base/80 text-transparent hover:border-accent-violet',
+          )}
+          style={isSelected ? { background: accent, borderColor: accent } : undefined}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3 w-3">
+            <path d="M3 8l3 3 7-7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
       {/* Delete button — visible on hover */}
       {onDelete && (
         <button
@@ -1107,5 +1177,75 @@ function TasksGantt({
         </div>
       </div>
     </div>
+  );
+}
+
+/* ───────────────────────── Bulk Actions Bar ───────────────────────── */
+
+function BulkActionsBar({
+  count, accent, onMove, onDelete, onCancel,
+}: {
+  count: number;
+  accent: string;
+  onMove: (status: TaskStatus) => void;
+  onDelete: () => void;
+  onCancel: () => void;
+}) {
+  const [moveOpen, setMoveOpen] = useState(false);
+  return (
+    <motion.div
+      initial={{ y: 80, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 80, opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 surface shadow-2xl border border-border-default rounded-[14px] px-3 py-2 flex items-center gap-2"
+      style={{ boxShadow: `0 24px 60px -20px ${withAlpha(accent, 0.55)}` }}
+    >
+      <div className="flex items-center gap-2 pr-2 border-r border-border-subtle">
+        <span
+          className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+          style={{ background: withAlpha(accent, 0.18), color: accent }}
+        >
+          {count} seleccionada{count === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <div className="relative">
+        <button
+          onClick={() => setMoveOpen((v) => !v)}
+          className="text-xs px-3 py-1.5 rounded-md hover:bg-bg-elevated transition inline-flex items-center gap-1.5 text-text-primary"
+        >
+          <ArrowRight className="h-3.5 w-3.5" /> Mover a
+          <ChevronDown className="h-3 w-3" />
+        </button>
+        {moveOpen && (
+          <div className="absolute bottom-full mb-2 left-0 surface rounded-[10px] border border-border-default shadow-xl py-1 min-w-[180px]">
+            {COLUMNS.map((c) => (
+              <button
+                key={c.status}
+                onClick={() => { onMove(c.status); setMoveOpen(false); }}
+                className="w-full text-left text-xs px-3 py-1.5 hover:bg-bg-elevated transition inline-flex items-center gap-2"
+              >
+                <Badge tone={c.tone}>{c.label}</Badge>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={onDelete}
+        className="text-xs px-3 py-1.5 rounded-md hover:bg-status-danger/10 transition inline-flex items-center gap-1.5 text-status-danger"
+      >
+        <Trash2 className="h-3.5 w-3.5" /> Eliminar
+      </button>
+
+      <button
+        onClick={onCancel}
+        className="text-xs px-3 py-1.5 rounded-md hover:bg-bg-elevated transition text-text-muted"
+      >
+        Cancelar
+      </button>
+    </motion.div>
   );
 }

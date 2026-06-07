@@ -59,7 +59,7 @@ interface ThreeOptionsCtx {
 }
 
 interface RegenerateCtx {
-  section: 'market' | 'offer' | 'narrative' | 'personas';
+  section: 'market' | 'offer' | 'narrative' | 'personas' | 'brand_architecture';
   current: Record<string, unknown>;
   identity?: { businessName?: string; industry?: string; founderName?: string };
 }
@@ -329,6 +329,25 @@ async function regenerateSection(apiKey: string, ctx: RegenerateCtx): Promise<Re
     offer: `Genera UNA oferta irresistible en 1-2 oraciones. Devuelve JSON con campo "irresistibleOffer".`,
     narrative: `Genera una descripción de la narrativa y tono de marca en 2-3 oraciones. Devuelve JSON con campo "executiveSummary".`,
     personas: `Genera EXACTAMENTE 3 buyer personas diferenciados. Devuelve JSON con campo "buyerPersonas" que es un array con: name, description, pains (3 strings), desires (3 strings).`,
+    brand_architecture: `Genera la arquitectura de marca completa. Devuelve JSON con campo "brandArchitecture" que es un objeto con esta forma EXACTA:
+{
+  "mission": "1 oración clara — para qué existe la marca",
+  "vision": "1 oración — hacia dónde va la marca en 3-5 años",
+  "values": ["valor 1", "valor 2", "valor 3", "valor 4"],
+  "pillars": [
+    {"name": "Nombre del pilar", "description": "Qué comunica este pilar y para quién (1-2 oraciones)"},
+    {"name": "...", "description": "..."},
+    {"name": "...", "description": "..."}
+  ],
+  "voiceTone": "2-3 oraciones describiendo el tono de voz de la marca: cómo se siente, qué evita, ejemplos de palabras clave",
+  "dos": ["acción 1", "acción 2", "acción 3", "acción 4"],
+  "donts": ["evitar 1", "evitar 2", "evitar 3", "evitar 4"]
+}
+Reglas:
+- 3-5 valores (string corto, una palabra o frase máx 4 palabras).
+- 3-5 pillars.
+- 3-5 do's y 3-5 don'ts (acciones concretas, no abstractas).
+- Sin texto antes ni después del JSON.`,
   };
   const instruction = sectionFields[ctx.section];
 

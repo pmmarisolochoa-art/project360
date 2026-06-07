@@ -51,6 +51,16 @@ export interface OnboardingData {
   team: Record<string, unknown>;
 }
 
+export interface BrandArchitecture {
+  mission: string;       // 1 oración — para qué existe la marca
+  vision: string;        // 1 oración — hacia dónde va
+  values: string[];      // 3-5 valores clave
+  pillars: Array<{ name: string; description: string }>; // 3-5 pilares de comunicación
+  voiceTone: string;     // 2-3 oraciones describiendo tono de voz
+  dos: string[];         // 3-5 cosas a hacer
+  donts: string[];       // 3-5 cosas a evitar
+}
+
 export interface AIBrainData {
   executiveSummary?: string;
   buyerPersonas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
@@ -58,6 +68,7 @@ export interface AIBrainData {
   gapAnalysis?: string;
   recommendedSystem?: ProjectType;
   initialDeliverables?: Array<{ title: string; dueInDays: number; responsibleRole: string }>;
+  brandArchitecture?: BrandArchitecture;
   generatedAt?: string;
 }
 

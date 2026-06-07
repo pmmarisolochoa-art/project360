@@ -158,7 +158,7 @@ export interface AIOption {
 }
 
 export async function generateThreeOptions(args: {
-  section: 'market' | 'offer' | 'narrative' | 'personas';
+  section: 'market' | 'offer' | 'narrative' | 'personas' | 'brand_architecture';
   client: { businessName: string; industry: string; founderName?: string };
   signal?: string;
 }): Promise<AIOption[]> {
@@ -174,7 +174,7 @@ export async function generateThreeOptions(args: {
 /* ─────────────── Regenerate Section ─────────────── */
 
 export async function regenerateBrainSection(args: {
-  section: 'market' | 'offer' | 'narrative' | 'personas';
+  section: 'market' | 'offer' | 'narrative' | 'personas' | 'brand_architecture';
   current: AIBrainData;
   identity?: { businessName?: string; industry?: string; founderName?: string };
 }): Promise<Partial<AIBrainData>> {
@@ -387,7 +387,7 @@ function extractTasksFallback(args: {
 }
 
 function threeOptionsFallback(args: {
-  section: 'market' | 'offer' | 'narrative' | 'personas';
+  section: 'market' | 'offer' | 'narrative' | 'personas' | 'brand_architecture';
   client: { businessName: string; industry: string; founderName?: string };
   signal?: string;
 }): AIOption[] {
@@ -423,7 +423,7 @@ function threeOptionsFallback(args: {
 }
 
 function regenerateFallback(args: {
-  section: 'market' | 'offer' | 'narrative' | 'personas';
+  section: 'market' | 'offer' | 'narrative' | 'personas' | 'brand_architecture';
   current: AIBrainData;
   identity?: { businessName?: string; industry?: string; founderName?: string };
 }): Partial<AIBrainData> {
@@ -450,6 +450,22 @@ function regenerateFallback(args: {
           description: `[Regenerado] ${p.description}`,
           pains: i === 0 ? ['Nuevo dolor primario detectado', ...p.pains.slice(0, 2)] : p.pains,
         })),
+      };
+    case 'brand_architecture':
+      return {
+        brandArchitecture: {
+          mission: `${name} existe para servir su industria de ${industry} con soluciones diferenciadas.`,
+          vision: `Convertir a ${name} en referente de ${industry} en los próximos 3 años.`,
+          values: ['Claridad', 'Resultados', 'Cercanía', 'Honestidad'],
+          pillars: [
+            { name: 'Autoridad', description: 'Demostrar expertise con casos y métricas concretas.' },
+            { name: 'Conexión', description: 'Hablar con el avatar como persona, no como número.' },
+            { name: 'Educación', description: 'Enseñar el "cómo" para construir confianza.' },
+          ],
+          voiceTone: 'Cercana, directa y profesional. Evita corporativismos y promesas vacías. Usa verbos en presente y frases cortas.',
+          dos: ['Hablar en primera persona', 'Citar casos reales', 'Reconocer dudas del lector'],
+          donts: ['Frases hechas', 'Tecnicismos sin explicar', 'Comparativas agresivas con competencia'],
+        },
       };
   }
 }

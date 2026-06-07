@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Target, Gem, BookOpen, Users2, Globe, Mail, Phone,
-  Sparkles, RefreshCw, Pencil, Save, X, AlertTriangle, Check,
+  Sparkles, RefreshCw, Pencil, Save, X, AlertTriangle, Check, Compass,
 } from 'lucide-react';
 import type { Client, AIBrainData } from '@/types/client';
 import { Badge } from '@/components/ui/Badge';
@@ -14,7 +14,7 @@ import { toast } from '@/store/useToastStore';
 import { regenerateBrainSection } from '@/services/claudeApi';
 import { AIOptionsFlow } from './AIOptionsFlow';
 
-type SubSection = '1A' | '1B' | '1C' | '1D' | '1E';
+type SubSection = '1A' | '1B' | '1C' | '1D' | '1E' | '1F';
 
 const subSections: Array<{ id: SubSection; label: string; icon: typeof Building2 }> = [
   { id: '1A', label: 'Ficha del Cliente', icon: Building2 },
@@ -22,6 +22,7 @@ const subSections: Array<{ id: SubSection; label: string; icon: typeof Building2
   { id: '1C', label: 'Oferta Irresistible', icon: Gem },
   { id: '1D', label: 'Narrativa de Marca', icon: BookOpen },
   { id: '1E', label: 'Buyer Personas', icon: Users2 },
+  { id: '1F', label: 'Arquitectura de Marca', icon: Compass },
 ];
 
 const INDUSTRIES = [
@@ -73,6 +74,7 @@ export function ProfileModule({ client }: { client: Client }) {
         {active === '1C' && <IrresistibleOffer client={client} accent={accent} />}
         {active === '1D' && <BrandNarrative client={client} accent={accent} />}
         {active === '1E' && <BuyerPersonas client={client} accent={accent} />}
+        {active === '1F' && <BrandArchitecture client={client} accent={accent} />}
       </motion.div>
     </div>
   );
@@ -1304,4 +1306,322 @@ function formatNum(v: unknown): string {
   const n = typeof v === 'number' ? v : Number(v);
   if (!Number.isFinite(n)) return '—';
   return n.toLocaleString();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1F — Arquitectura de Marca (misión · visión · valores · pilares · tono · do's/don'ts)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function BrandArchitecture({ client, accent }: { client: Client; accent: string }) {
+  const updateClient = useClientStore((s) => s.updateClient);
+  const arch = client.aiBrainData.brandArchitecture;
+  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(() => arch ?? {
+    mission: '', vision: '', values: [] as string[], pillars: [] as Array<{ name: string; description: string }>,
+    voiceTone: '', dos: [] as string[], donts: [] as string[],
+  });
+
+  useEffect(() => {
+    if (arch) setDraft(arch);
+  }, [arch]);
+
+  const persist = (next: NonNullable<AIBrainData['brandArchitecture']>) => {
+    updateClient(client.id, {
+      aiBrainData: { ...client.aiBrainData, brandArchitecture: next, generatedAt: new Date().toISOString() },
+    });
+  };
+
+  const regenerate = async () => {
+    setLoading(true);
+    try {
+      const patch = await regenerateBrainSection({
+        section: 'brand_architecture',
+        current: client.aiBrainData,
+        identity: {
+          businessName: client.name,
+          industry: client.industry,
+          founderName: client.onboardingData.identity?.founderName,
+        },
+      });
+      if (patch.brandArchitecture) {
+        persist(patch.brandArchitecture);
+        toast.success('Arquitectura de marca regenerada con IA');
+      } else {
+        toast.warning('No llegó arquitectura del backend');
+      }
+    } catch {
+      toast.error('No se pudo regenerar la arquitectura');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const save = () => {
+    persist({ ...draft, values: draft.values.filter(Boolean), dos: draft.dos.filter(Boolean), donts: draft.donts.filter(Boolean) });
+    setEditing(false);
+    toast.success('Arquitectura guardada');
+  };
+
+  // Empty state — primera vez
+  if (!arch && !editing) {
+    return (
+      <div className="surface p-10 text-center space-y-4">
+        <Compass className="h-10 w-10 mx-auto" style={{ color: accent }} />
+        <h3 className="heading text-lg font-bold">Arquitectura de Marca</h3>
+        <p className="text-sm text-text-secondary max-w-xl mx-auto leading-relaxed">
+          Define la columna vertebral de la marca: misión, visión, valores, pilares de comunicación,
+          tono de voz, y do's & don'ts. Esta arquitectura alimenta todos los copies, anuncios y
+          contenido del cliente.
+        </p>
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button size="sm" leftIcon={<Sparkles className="h-3.5 w-3.5" />} loading={loading} onClick={regenerate}>
+            Generar con IA
+          </Button>
+          <Button size="sm" variant="secondary" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditing(true)}>
+            Crear manualmente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const safe = arch ?? draft;
+
+  return (
+    <div className="space-y-4">
+      {/* Header con acciones */}
+      <div className="surface p-4 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="heading text-lg font-bold flex items-center gap-2">
+            <Compass className="h-4 w-4" style={{ color: accent }} /> Arquitectura de Marca
+          </h3>
+          <p className="text-xs text-text-muted mt-0.5">
+            Estos cimientos guían toda la comunicación de {client.name}.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {editing ? (
+            <>
+              <Button size="sm" variant="ghost" leftIcon={<X className="h-3.5 w-3.5" />} onClick={() => { setEditing(false); if (arch) setDraft(arch); }}>
+                Cancelar
+              </Button>
+              <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
+                Guardar
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="secondary" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditing(true)}>
+                Editar
+              </Button>
+              <Button size="sm" variant="secondary" leftIcon={<RefreshCw className="h-3.5 w-3.5" />} loading={loading} onClick={regenerate}>
+                Regenerar IA
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Misión + Visión */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <ArchField label="Misión" value={editing ? draft.mission : safe.mission} editing={editing}
+          onChange={(v) => setDraft((d) => ({ ...d, mission: v }))} placeholder="Para qué existe la marca…" />
+        <ArchField label="Visión" value={editing ? draft.vision : safe.vision} editing={editing}
+          onChange={(v) => setDraft((d) => ({ ...d, vision: v }))} placeholder="Hacia dónde va en 3-5 años…" />
+      </div>
+
+      {/* Valores (chips) */}
+      <div className="surface p-4">
+        <ArchSectionTitle text="Valores" accent={accent} />
+        {editing ? (
+          <ChipListEditor items={draft.values} onChange={(arr) => setDraft((d) => ({ ...d, values: arr }))} placeholder="Agregar valor…" />
+        ) : (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {safe.values.length === 0 ? (
+              <span className="text-xs text-text-muted italic">Sin valores definidos</span>
+            ) : safe.values.map((v, i) => (
+              <span key={i} className="rounded-full px-3 py-1 text-xs font-medium" style={{ background: withAlpha(accent, 0.15), color: accent, border: `1px solid ${withAlpha(accent, 0.3)}` }}>
+                {v}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Pilares de marca */}
+      <div className="surface p-4">
+        <ArchSectionTitle text="Pilares de comunicación" accent={accent} />
+        {editing ? (
+          <PillarsEditor pillars={draft.pillars} onChange={(arr) => setDraft((d) => ({ ...d, pillars: arr }))} accent={accent} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+            {safe.pillars.length === 0 ? (
+              <span className="text-xs text-text-muted italic col-span-full">Sin pilares definidos</span>
+            ) : safe.pillars.map((p, i) => (
+              <div key={i} className="rounded-[10px] border border-border-subtle bg-bg-base/40 p-3">
+                <div className="text-sm font-semibold text-text-primary">{p.name}</div>
+                <div className="text-[11px] text-text-secondary mt-1 leading-relaxed">{p.description}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tono de voz */}
+      <ArchField label="Tono de voz" value={editing ? draft.voiceTone : safe.voiceTone} editing={editing} multiline
+        onChange={(v) => setDraft((d) => ({ ...d, voiceTone: v }))}
+        placeholder="Cercano, directo, profesional… ejemplos de palabras clave…" />
+
+      {/* Do's & Don'ts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="surface p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Check className="h-4 w-4 text-status-success" />
+            <span className="text-sm font-semibold text-text-primary">Do's</span>
+          </div>
+          {editing ? (
+            <ChipListEditor items={draft.dos} onChange={(arr) => setDraft((d) => ({ ...d, dos: arr }))} placeholder="Agregar do…" tone="success" />
+          ) : (
+            <ul className="space-y-1.5 text-xs text-text-secondary">
+              {safe.dos.length === 0 ? <li className="italic text-text-muted">Sin items</li> : safe.dos.map((d, i) => (
+                <li key={i} className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 text-status-success shrink-0" /> {d}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="surface p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <X className="h-4 w-4 text-status-danger" />
+            <span className="text-sm font-semibold text-text-primary">Don'ts</span>
+          </div>
+          {editing ? (
+            <ChipListEditor items={draft.donts} onChange={(arr) => setDraft((d) => ({ ...d, donts: arr }))} placeholder="Agregar don't…" tone="danger" />
+          ) : (
+            <ul className="space-y-1.5 text-xs text-text-secondary">
+              {safe.donts.length === 0 ? <li className="italic text-text-muted">Sin items</li> : safe.donts.map((d, i) => (
+                <li key={i} className="flex items-start gap-1.5"><X className="h-3 w-3 mt-0.5 text-status-danger shrink-0" /> {d}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArchSectionTitle({ text, accent }: { text: string; accent: string }) {
+  return (
+    <div className="text-[10px] uppercase tracking-[0.2em] font-semibold" style={{ color: accent }}>{text}</div>
+  );
+}
+
+function ArchField({ label, value, editing, onChange, placeholder, multiline }: {
+  label: string; value: string; editing: boolean; onChange: (v: string) => void; placeholder?: string; multiline?: boolean;
+}) {
+  return (
+    <div className="surface p-4">
+      <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted font-semibold mb-2">{label}</div>
+      {editing ? (
+        multiline ? (
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            rows={3}
+            className="w-full bg-bg-base/40 border border-border-subtle rounded-md p-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-violet resize-y"
+          />
+        ) : (
+          <input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="w-full bg-bg-base/40 border border-border-subtle rounded-md p-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-violet"
+          />
+        )
+      ) : (
+        <div className="text-sm text-text-primary leading-relaxed">
+          {value || <span className="text-text-muted italic text-xs">Sin definir</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChipListEditor({ items, onChange, placeholder, tone }: {
+  items: string[]; onChange: (next: string[]) => void; placeholder?: string; tone?: 'success' | 'danger';
+}) {
+  const [pending, setPending] = useState('');
+  const add = () => {
+    const v = pending.trim();
+    if (!v) return;
+    onChange([...items, v]);
+    setPending('');
+  };
+  const toneCls = tone === 'success' ? 'bg-status-success/15 text-status-success border-status-success/30'
+    : tone === 'danger' ? 'bg-status-danger/15 text-status-danger border-status-danger/30'
+    : 'bg-bg-elevated text-text-primary border-border-subtle';
+  return (
+    <div className="space-y-2 mt-2">
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((v, i) => (
+          <span key={i} className={cn('rounded-full px-2.5 py-1 text-xs inline-flex items-center gap-1.5 border', toneCls)}>
+            {v}
+            <button onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="text-text-muted hover:text-status-danger">
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          value={pending}
+          onChange={(e) => setPending(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          placeholder={placeholder}
+          className="flex-1 bg-bg-base/40 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-violet"
+        />
+        <Button size="sm" variant="secondary" onClick={add}>+ Agregar</Button>
+      </div>
+    </div>
+  );
+}
+
+function PillarsEditor({ pillars, onChange, accent }: {
+  pillars: Array<{ name: string; description: string }>;
+  onChange: (next: Array<{ name: string; description: string }>) => void;
+  accent: string;
+}) {
+  const update = (i: number, patch: Partial<{ name: string; description: string }>) =>
+    onChange(pillars.map((p, idx) => idx === i ? { ...p, ...patch } : p));
+  return (
+    <div className="space-y-2 mt-2">
+      {pillars.map((p, i) => (
+        <div key={i} className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <input
+              value={p.name}
+              onChange={(e) => update(i, { name: e.target.value })}
+              placeholder="Nombre del pilar"
+              className="flex-1 bg-bg-base/40 border border-border-subtle rounded-md px-2 py-1 text-sm font-semibold text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-violet"
+              style={{ borderColor: withAlpha(accent, 0.3) }}
+            />
+            <button onClick={() => onChange(pillars.filter((_, idx) => idx !== i))} className="text-text-muted hover:text-status-danger p-1">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <textarea
+            value={p.description}
+            onChange={(e) => update(i, { description: e.target.value })}
+            placeholder="Qué comunica este pilar (1-2 oraciones)"
+            rows={2}
+            className="w-full bg-bg-base/40 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-secondary placeholder:text-text-muted focus:outline-none focus:border-accent-violet resize-y"
+          />
+        </div>
+      ))}
+      <Button size="sm" variant="secondary" onClick={() => onChange([...pillars, { name: '', description: '' }])}>
+        + Agregar pilar
+      </Button>
+    </div>
+  );
 }

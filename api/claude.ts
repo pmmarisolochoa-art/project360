@@ -85,13 +85,32 @@ interface RopreFromTranscriptionCtx {
   availableRoles: string[];
 }
 
+interface GenerateContentCopyCtx {
+  clientName: string;
+  industry: string;
+  platform: string;            // instagram | tiktok | youtube | linkedin | facebook
+  format: string;              // reel | post | story | video | carousel | short
+  title: string;               // idea / título del pieza
+  hasLeadMagnet: boolean;
+  // Contexto de marca (lo que la diferencia de un copy genérico)
+  irresistibleOffer?: string;
+  brandMission?: string;
+  brandVoiceTone?: string;
+  brandDos?: string[];
+  brandDonts?: string[];
+  brandValues?: string[];
+  brandPillars?: Array<{ name: string; description: string }>;
+  personas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
+}
+
 type RequestBody =
   | { feature: 'meeting_agenda'; context: MeetingAgendaCtx }
   | { feature: 'three_options'; context: ThreeOptionsCtx }
   | { feature: 'regenerate_section'; context: RegenerateCtx }
   | { feature: 'brain_from_onboarding'; context: BrainCtx }
   | { feature: 'extract_tasks'; context: ExtractTasksCtx }
-  | { feature: 'ropre_from_transcription'; context: RopreFromTranscriptionCtx };
+  | { feature: 'ropre_from_transcription'; context: RopreFromTranscriptionCtx }
+  | { feature: 'generate_content_copy'; context: GenerateContentCopyCtx };
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -127,6 +146,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ tasks: await extractTasks(apiKey, body.context) });
       case 'ropre_from_transcription':
         return json({ ropre: await ropreFromTranscription(apiKey, body.context) });
+      case 'generate_content_copy':
+        return json({ copy: await generateContentCopy(apiKey, body.context) });
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -494,6 +515,80 @@ Extrae el ROPRE en JSON.`;
   } catch {
     throw new Error('Claude devolvió JSON inválido para ropre_from_transcription');
   }
+}
+
+/* ─────────────── Content Copy generation ─────────────── */
+
+const PLATFORM_GUIDE: Record<string, string> = {
+  instagram: 'Instagram: hook impactante en línea 1 (gancho emocional + curiosidad). Body 2-4 párrafos cortos con saltos de línea + emojis estratégicos (no decorativos). Cierre con CTA claro y hashtags (5-8). Total 80-150 palabras.',
+  tiktok: 'TikTok: tono casual y directo, lenguaje hablado. Hook que cree pattern interrupt en los primeros 3 segundos. Body conversacional, 2-3 frases cortas. CTA implícito o explícito ("guarda esto", "etiqueta a alguien"). Sin hashtags excesivos.',
+  youtube: 'YouTube: si es Short, similar a TikTok. Si es Video largo, descripción optimizada para SEO con keywords, primeros 100 caracteres como hook, luego estructura clara con timestamps si aplica, CTA al final.',
+  linkedin: 'LinkedIn: tono profesional pero humano. Hook con dato concreto o pregunta provocadora. Body con storytelling B2B, lecciones aprendidas, mostrando autoridad. CTA suave (debate, opinión). Sin emojis o muy pocos. 150-220 palabras.',
+  facebook: 'Facebook: más conversacional que LinkedIn pero menos casual que TikTok. Hook con historia o pregunta. Body 100-180 palabras con estructura clara. CTA explícito al final.',
+};
+
+const FORMAT_GUIDE: Record<string, string> = {
+  reel: 'Reel de video corto (15-60s). Script breve, accionable, con beats claros.',
+  post: 'Post estático (carrusel/imagen). Texto del caption.',
+  story: 'Story efímera (24h). Texto breve, directo, con tap-through.',
+  video: 'Video largo. Estructura con intro + desarrollo + cierre.',
+  carousel: 'Carrusel multi-slide. Cada slide tiene 1 idea. Estructura: portada gancho → 4-7 slides de contenido → slide CTA final.',
+  short: 'Short vertical (15-60s). Script breve, hook fuerte.',
+};
+
+async function generateContentCopy(apiKey: string, ctx: GenerateContentCopyCtx): Promise<string> {
+  const platformHint = PLATFORM_GUIDE[ctx.platform.toLowerCase()] ?? PLATFORM_GUIDE.instagram;
+  const formatHint = FORMAT_GUIDE[ctx.format.toLowerCase()] ?? FORMAT_GUIDE.post;
+
+  const brandBlock = [
+    ctx.brandMission ? `Misión: ${ctx.brandMission}` : null,
+    ctx.brandVoiceTone ? `Tono de voz: ${ctx.brandVoiceTone}` : null,
+    ctx.brandValues && ctx.brandValues.length > 0 ? `Valores: ${ctx.brandValues.join(' · ')}` : null,
+    ctx.brandPillars && ctx.brandPillars.length > 0
+      ? `Pilares: ${ctx.brandPillars.map((p) => `${p.name} (${p.description})`).join(' / ')}`
+      : null,
+    ctx.brandDos && ctx.brandDos.length > 0 ? `DO's: ${ctx.brandDos.join(' · ')}` : null,
+    ctx.brandDonts && ctx.brandDonts.length > 0 ? `DON'Ts: ${ctx.brandDonts.join(' · ')}` : null,
+  ].filter(Boolean).join('\n');
+
+  const personaBlock = ctx.personas && ctx.personas.length > 0
+    ? ctx.personas.slice(0, 2).map((p) => `${p.name}: ${p.description}\n  Dolores: ${p.pains.join(', ')}\n  Deseos: ${p.desires.join(', ')}`).join('\n')
+    : '(sin personas definidos)';
+
+  const system = `Eres un copywriter senior de marketing digital. Escribes copies que convierten para redes sociales, adaptados al cliente, su audiencia y la plataforma. NO devuelvas JSON ni metadatos. Devuelve SOLO el texto del copy listo para copiar y pegar.
+
+Reglas:
+- Empieza con un HOOK que detenga el scroll (primera línea).
+- Usa el tono y do's/don'ts de la marca.
+- Habla a los dolores y deseos del avatar específico.
+- Si la marca tiene una oferta irresistible, ánclalo al final con CTA claro.
+- Si hasLeadMagnet es true, dirige el CTA al lead magnet en bio. Si no, al producto/servicio principal.
+- Respeta el formato y plataforma.`;
+
+  const user = `Cliente: ${ctx.clientName} (${ctx.industry})
+
+═══ MARCA ═══
+${brandBlock || '(sin arquitectura de marca definida — usa criterio)'}
+
+═══ AVATAR PRINCIPAL ═══
+${personaBlock}
+
+═══ OFERTA ═══
+${ctx.irresistibleOffer ?? '(sin oferta definida)'}
+
+═══ PIEZA A GENERAR ═══
+Plataforma: ${ctx.platform}
+Formato: ${ctx.format}
+Idea / título de la pieza: "${ctx.title}"
+Lead magnet activo: ${ctx.hasLeadMagnet ? 'sí' : 'no'}
+
+Guía de la plataforma: ${platformHint}
+Guía del formato: ${formatHint}
+
+Escribe el copy completo, listo para copiar.`;
+
+  const txt = await callAnthropic(apiKey, system, user, 1200);
+  return txt.trim();
 }
 
 function extractJson(text: string): string {

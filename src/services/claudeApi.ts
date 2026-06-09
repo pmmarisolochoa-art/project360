@@ -149,6 +149,40 @@ export async function generateRopreFromTranscription(args: {
   }
 }
 
+/* ─────────────── Content Copy IA ─────────────── */
+
+export async function generateContentCopy(args: {
+  clientName: string;
+  industry: string;
+  platform: string;
+  format: string;
+  title: string;
+  hasLeadMagnet: boolean;
+  irresistibleOffer?: string;
+  brandMission?: string;
+  brandVoiceTone?: string;
+  brandDos?: string[];
+  brandDonts?: string[];
+  brandValues?: string[];
+  brandPillars?: Array<{ name: string; description: string }>;
+  personas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
+}): Promise<string> {
+  try {
+    const { copy } = await callBackend<{ copy: string }>('generate_content_copy', args);
+    return copy;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[claudeApi] generate_content_copy falló', e);
+    toast.warning(`IA no disponible — usando heurístico. (${msg.slice(0, 80)})`);
+    return contentCopyFallback(args);
+  }
+}
+
+function contentCopyFallback(args: { title: string; platform: string; hasLeadMagnet: boolean }): string {
+  const cta = args.hasLeadMagnet ? 'Link en bio para descargar gratis ↓' : 'Comenta INFO y te paso detalles ↓';
+  return `${args.title}\n\n¿Te suena familiar? La mayoría siente lo mismo.\n\nLa diferencia entre quienes lo logran y quienes no es UNA decisión.\n\n${cta}`;
+}
+
 /* ─────────────── Three Options ─────────────── */
 
 export interface AIOption {

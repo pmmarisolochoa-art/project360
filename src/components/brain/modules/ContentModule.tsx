@@ -21,6 +21,7 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useContentStore, DATE_FIELD_LABEL, STATUS_FLOW, type DateField } from '@/store/useContentStore';
 import { toast } from '@/store/useToastStore';
+import { generateContentCopy } from '@/services/claudeApi';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { genId } from '@/utils/id';
@@ -422,13 +423,31 @@ function ContentDrawer({
   };
 
   const generateCopy = async () => {
+    if (!draft.title?.trim()) {
+      toast.error('Pon un título o idea antes de generar el copy');
+      return;
+    }
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 900));
-      setDraft({
-        ...draft,
-        copyText: `[Generado] Hook: "${draft.title}" — abrir con dolor del avatar, validar empatía, presentar el cambio, cerrar con CTA al ${draft.hasLeadMagnet ? 'lead magnet en bio' : 'producto principal'}.`,
+      const brain = client.aiBrainData ?? {};
+      const arch = brain.brandArchitecture;
+      const copy = await generateContentCopy({
+        clientName: client.name,
+        industry: client.industry,
+        platform: draft.platform,
+        format: draft.format,
+        title: draft.title,
+        hasLeadMagnet: draft.hasLeadMagnet,
+        irresistibleOffer: brain.irresistibleOffer,
+        brandMission: arch?.mission,
+        brandVoiceTone: arch?.voiceTone,
+        brandDos: arch?.dos,
+        brandDonts: arch?.donts,
+        brandValues: arch?.values,
+        brandPillars: arch?.pillars,
+        personas: brain.buyerPersonas,
       });
+      setDraft({ ...draft, copyText: copy });
       toast.success('Copy generado con IA');
     } finally {
       setLoading(false);

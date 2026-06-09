@@ -512,19 +512,41 @@ function ContentDrawer({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-text-secondary">Copy</label>
-              <button
-                onClick={generateCopy}
-                disabled={loading}
-                className="text-[11px] inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 hover:bg-bg-elevated disabled:opacity-50"
-                style={{ color: accent }}
-              >
-                <Sparkles className="h-3 w-3" /> {loading ? 'Generando…' : 'Generar con IA'}
-              </button>
+              <div className="flex items-center gap-1.5">
+                {draft.copyText && (
+                  <button
+                    onClick={() => {
+                      // Extrae el caption ready-to-publish del bloque IA.
+                      // Si no encuentra el marker, copia todo el copyText.
+                      const marker = '📋 CAPTION LISTO PARA PUBLICAR';
+                      const idx = draft.copyText.indexOf(marker);
+                      const caption = idx >= 0
+                        ? draft.copyText.slice(idx + marker.length).trim()
+                        : draft.copyText.trim();
+                      void navigator.clipboard.writeText(caption);
+                      toast.success('Caption copiado al portapapeles');
+                    }}
+                    className="text-[11px] inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 hover:bg-bg-elevated text-text-secondary"
+                    title="Copiar solo el caption final (sin notas de script)"
+                  >
+                    📋 Copiar caption
+                  </button>
+                )}
+                <button
+                  onClick={generateCopy}
+                  disabled={loading}
+                  className="text-[11px] inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 hover:bg-bg-elevated disabled:opacity-50"
+                  style={{ color: accent }}
+                >
+                  <Sparkles className="h-3 w-3" /> {loading ? 'Generando…' : 'Generar con IA'}
+                </button>
+              </div>
             </div>
             <Textarea
-              rows={4}
+              rows={8}
               value={draft.copyText}
               onChange={(e) => setDraft({ ...draft, copyText: e.target.value })}
+              placeholder="La IA generará: 🎬 SCRIPT (concepto para el equipo) + 📋 CAPTION LISTO PARA PUBLICAR"
             />
           </div>
 

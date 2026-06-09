@@ -555,15 +555,28 @@ async function generateContentCopy(apiKey: string, ctx: GenerateContentCopyCtx):
     ? ctx.personas.slice(0, 2).map((p) => `${p.name}: ${p.description}\n  Dolores: ${p.pains.join(', ')}\n  Deseos: ${p.desires.join(', ')}`).join('\n')
     : '(sin personas definidos)';
 
-  const system = `Eres un copywriter senior de marketing digital. Escribes copies que convierten para redes sociales, adaptados al cliente, su audiencia y la plataforma. NO devuelvas JSON ni metadatos. Devuelve SOLO el texto del copy listo para copiar y pegar.
+  const system = `Eres un copywriter senior de marketing digital. Escribes copies que convierten para redes sociales, adaptados al cliente, su audiencia y la plataforma.
+
+DEVUELVE EXACTAMENTE EL SIGUIENTE FORMATO (sin JSON, sin metadatos, sin markdown fences):
+
+🎬 SCRIPT / IDEA
+[Aquí 2-4 frases breves explicando el ángulo del contenido y por qué funcionará con este avatar. Es para el equipo, no para publicar.]
+
+📋 CAPTION LISTO PARA PUBLICAR
+[Aquí el caption COMPLETO y formateado para copiar y pegar directo en la plataforma. Debe incluir:
+- Hook impactante en la primera línea
+- Cuerpo con saltos de línea reales (no \\n)
+- Emojis estratégicos donde aporten (no decorativos)
+- CTA explícito al cierre
+- Hashtags al final si la plataforma los usa (Instagram 5-8, TikTok 3-5, LinkedIn 3-5, ninguno o pocos en YouTube/Facebook)]
 
 Reglas:
-- Empieza con un HOOK que detenga el scroll (primera línea).
-- Usa el tono y do's/don'ts de la marca.
-- Habla a los dolores y deseos del avatar específico.
-- Si la marca tiene una oferta irresistible, ánclalo al final con CTA claro.
-- Si hasLeadMagnet es true, dirige el CTA al lead magnet en bio. Si no, al producto/servicio principal.
-- Respeta el formato y plataforma.`;
+- El HOOK debe detener el scroll (no empezar con "Hola" o "¿Sabías que...").
+- Usa el tono de voz y respeta do's/don'ts de la marca.
+- Habla a los dolores y deseos del avatar.
+- Si hasLeadMagnet es true → CTA hacia el lead magnet en bio. Si es false → al producto/servicio principal con la oferta irresistible si está definida.
+- Respeta los hints de la plataforma y el formato.
+- Mantén AMBAS secciones (🎬 SCRIPT y 📋 CAPTION) en cada respuesta.`;
 
   const user = `Cliente: ${ctx.clientName} (${ctx.industry})
 

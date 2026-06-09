@@ -92,6 +92,7 @@ interface GenerateContentCopyCtx {
   format: string;              // reel | post | story | video | carousel | short
   title: string;               // idea / título del pieza
   hasLeadMagnet: boolean;
+  ctaType?: string;            // ej: 'lead_magnet' | 'buy_now' | 'comment_info' | ...
   // Contexto de marca (lo que la diferencia de un copy genérico)
   irresistibleOffer?: string;
   brandMission?: string;
@@ -536,9 +537,25 @@ const FORMAT_GUIDE: Record<string, string> = {
   short: 'Short vertical (15-60s). Script breve, hook fuerte.',
 };
 
-async function generateContentCopy(apiKey: string, ctx: GenerateContentCopyCtx): Promise<string> {
+const CTA_GUIDE: Record<string, string> = {
+  lead_magnet:  'CTA hacia un lead magnet gratis con link en bio. Frase tipo "Link en bio para descargar GRATIS ↓".',
+  buy_now:      'CTA directo a comprar. Mensaje de urgencia o escasez si aplica. Ej: "Disponible ahora → link en bio".',
+  comment_info: 'CTA pidiendo que comenten una palabra clave (ej. "INFO" o "QUIERO") para enviar más detalles por DM.',
+  dm_keyword:   'CTA pidiendo que envíen una palabra al DM directamente para activar una conversación 1:1.',
+  subscribe:    'CTA de suscripción/seguimiento. Para crecer audiencia, no para conversión inmediata.',
+  save:         'CTA pidiendo guardar el post para releer. Ideal en contenido educativo denso.',
+  tag_friend:   'CTA pidiendo etiquetar a alguien que necesite ver esto. Genera alcance orgánico.',
+  share:        'CTA pidiendo compartir en story / con alguien específico.',
+  click_link:   'CTA explícito a clickear el link en bio o stories.',
+  webinar:      'CTA a inscribirse al webinar/evento con fecha y promesa clara.',
+  book_call:    'CTA a agendar una llamada de diagnóstico/consultoría.',
+  no_cta:       'NO incluyas CTA — esta pieza es de valor puro, sin pedir acción.',
+};
+
+async function generateContentCopy(apiKey: string, ctx: GenerateContentCopyCtx): Promise<{ script: string; caption: string }> {
   const platformHint = PLATFORM_GUIDE[ctx.platform.toLowerCase()] ?? PLATFORM_GUIDE.instagram;
   const formatHint = FORMAT_GUIDE[ctx.format.toLowerCase()] ?? FORMAT_GUIDE.post;
+  const ctaHint = ctx.ctaType ? (CTA_GUIDE[ctx.ctaType] ?? '') : '';
 
   const brandBlock = [
     ctx.brandMission ? `Misión: ${ctx.brandMission}` : null,
@@ -555,28 +572,20 @@ async function generateContentCopy(apiKey: string, ctx: GenerateContentCopyCtx):
     ? ctx.personas.slice(0, 2).map((p) => `${p.name}: ${p.description}\n  Dolores: ${p.pains.join(', ')}\n  Deseos: ${p.desires.join(', ')}`).join('\n')
     : '(sin personas definidos)';
 
-  const system = `Eres un copywriter senior de marketing digital. Escribes copies que convierten para redes sociales, adaptados al cliente, su audiencia y la plataforma.
+  const system = `Eres un copywriter senior de marketing digital. Escribes copies que convierten para redes sociales.
 
-DEVUELVE EXACTAMENTE EL SIGUIENTE FORMATO (sin JSON, sin metadatos, sin markdown fences):
-
-🎬 SCRIPT / IDEA
-[Aquí 2-4 frases breves explicando el ángulo del contenido y por qué funcionará con este avatar. Es para el equipo, no para publicar.]
-
-📋 CAPTION LISTO PARA PUBLICAR
-[Aquí el caption COMPLETO y formateado para copiar y pegar directo en la plataforma. Debe incluir:
-- Hook impactante en la primera línea
-- Cuerpo con saltos de línea reales (no \\n)
-- Emojis estratégicos donde aporten (no decorativos)
-- CTA explícito al cierre
-- Hashtags al final si la plataforma los usa (Instagram 5-8, TikTok 3-5, LinkedIn 3-5, ninguno o pocos en YouTube/Facebook)]
+Devuelve SOLO JSON válido con esta forma EXACTA, sin texto antes ni después:
+{
+  "script": "Guion para el equipo (qué decir/grabar, beats, ángulo, transiciones). 4-8 líneas para reel/video/short, 2-4 frases para post/carrusel/story. NO se publica.",
+  "caption": "Caption COMPLETO listo para copiar y pegar en la plataforma. Hook impactante en línea 1, cuerpo con saltos de línea reales y emojis estratégicos, CTA al cierre y hashtags si la plataforma los usa (IG 5-8, TikTok 3-5, LinkedIn 3-5, YT/FB pocos)."
+}
 
 Reglas:
-- El HOOK debe detener el scroll (no empezar con "Hola" o "¿Sabías que...").
+- El hook del caption debe detener el scroll (no empezar con "Hola" ni "¿Sabías que...").
 - Usa el tono de voz y respeta do's/don'ts de la marca.
 - Habla a los dolores y deseos del avatar.
-- Si hasLeadMagnet es true → CTA hacia el lead magnet en bio. Si es false → al producto/servicio principal con la oferta irresistible si está definida.
-- Respeta los hints de la plataforma y el formato.
-- Mantén AMBAS secciones (🎬 SCRIPT y 📋 CAPTION) en cada respuesta.`;
+- El CTA debe ser EL SOLICITADO (ver guía de CTA). Si no se solicita ninguno, infiere uno apropiado o omítelo si la pieza es de valor puro.
+- Respeta hints de plataforma y formato.`;
 
   const user = `Cliente: ${ctx.clientName} (${ctx.industry})
 
@@ -594,14 +603,24 @@ Plataforma: ${ctx.platform}
 Formato: ${ctx.format}
 Idea / título de la pieza: "${ctx.title}"
 Lead magnet activo: ${ctx.hasLeadMagnet ? 'sí' : 'no'}
+${ctaHint ? `\nCTA solicitado: ${ctaHint}` : ''}
 
 Guía de la plataforma: ${platformHint}
 Guía del formato: ${formatHint}
 
-Escribe el copy completo, listo para copiar.`;
+Devuelve el JSON con script + caption.`;
 
-  const txt = await callAnthropic(apiKey, system, user, 1200);
-  return txt.trim();
+  const txt = await callAnthropic(apiKey, system, user, 1400);
+  try {
+    const parsed = JSON.parse(extractJson(txt)) as { script?: string; caption?: string };
+    return {
+      script: String(parsed.script ?? '').trim(),
+      caption: String(parsed.caption ?? '').trim(),
+    };
+  } catch {
+    // Fallback: si la IA no devolvió JSON, tratamos todo como caption.
+    return { script: '', caption: txt.trim() };
+  }
 }
 
 function extractJson(text: string): string {

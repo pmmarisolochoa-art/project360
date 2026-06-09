@@ -14,7 +14,9 @@ import type { Client } from '@/types/client';
 import type {
   ContentPiece, ContentStatus, ContentPlatform, ContentFormat,
 } from '@/types/content';
-import { CONTENT_STATUS_META, PLATFORM_META, FORMAT_LABEL } from '@/types/content';
+import { CONTENT_STATUS_META, PLATFORM_META, FORMAT_LABEL, CTA_TYPE_LABEL, type CtaType } from '@/types/content';
+import { ROLE_DEFS, type TeamRoleSlug } from '@/types/team';
+import { useTeamStore } from '@/store/useTeamStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -431,13 +433,14 @@ function ContentDrawer({
     try {
       const brain = client.aiBrainData ?? {};
       const arch = brain.brandArchitecture;
-      const copy = await generateContentCopy({
+      const result = await generateContentCopy({
         clientName: client.name,
         industry: client.industry,
         platform: draft.platform,
         format: draft.format,
         title: draft.title,
         hasLeadMagnet: draft.hasLeadMagnet,
+        ctaType: draft.ctaType,
         irresistibleOffer: brain.irresistibleOffer,
         brandMission: arch?.mission,
         brandVoiceTone: arch?.voiceTone,
@@ -447,12 +450,31 @@ function ContentDrawer({
         brandPillars: arch?.pillars,
         personas: brain.buyerPersonas,
       });
-      setDraft({ ...draft, copyText: copy });
-      toast.success('Copy generado con IA');
+      setDraft({
+        ...draft,
+        script: result.script,
+        caption: result.caption,
+        // Mantenemos copyText sincronizado por compatibilidad con código que
+        // todavía lo lea (no rompe piezas viejas).
+        copyText: result.caption || draft.copyText,
+      });
+      toast.success('Script + Caption generados con IA');
     } finally {
       setLoading(false);
     }
   };
+
+  // Equipo: para Responsable, sugerimos personas asignadas al rol seleccionado
+  // (filtradas por cliente). Si no hay asignaciones, el campo queda libre.
+  const teamAssignments = useTeamStore((s) => s.assignments);
+  const assigneesForRole = useMemo(() => {
+    if (!draft.roleSlug) return [] as string[];
+    return Array.from(new Set(
+      teamAssignments
+        .filter((a) => a.clientId === client.id && a.roleSlug === draft.roleSlug && a.memberName.trim())
+        .map((a) => a.memberName.trim()),
+    ));
+  }, [teamAssignments, draft.roleSlug, client.id]);
 
   return (
     <>
@@ -509,45 +531,112 @@ function ContentDrawer({
             />
           </div>
 
+          {/* Tipo de Call to Action */}
+          <Select
+            label="Tipo de Call to Action"
+            value={draft.ctaType ?? ''}
+            onChange={(e) => setDraft({ ...draft, ctaType: (e.target.value || undefined) as CtaType | undefined })}
+            options={[
+              { value: '', label: '— Elegir CTA —' },
+              ...Object.entries(CTA_TYPE_LABEL).map(([v, l]) => ({ value: v, label: l })),
+            ]}
+          />
+
+          {/* Botón generar IA — produce script + caption en una sola llamada */}
+          <div className="rounded-[10px] border border-dashed border-border-default bg-bg-base/30 p-3 flex items-center justify-between gap-3">
+            <div className="text-[11px] text-text-secondary leading-relaxed">
+              La IA usa el título, plataforma, formato, CTA, arquitectura de marca y avatar
+              del cliente para generar <strong>script</strong> + <strong>caption</strong>.
+            </div>
+            <button
+              onClick={generateCopy}
+              disabled={loading}
+              className="shrink-0 text-xs inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 hover:brightness-125 disabled:opacity-50 font-medium"
+              style={{ color: accent, borderColor: withAlpha(accent, 0.4), background: withAlpha(accent, 0.10) }}
+            >
+              <Sparkles className="h-3.5 w-3.5" /> {loading ? 'Generando…' : 'Generar con IA'}
+            </button>
+          </div>
+
+          {/* Guion / Script — para el equipo, no se publica */}
+          <div>
+            <label className="text-xs font-medium text-text-secondary mb-1.5 block">
+              🎬 Guion / Script
+              <span className="text-text-muted font-normal ml-1">(qué decir o grabar — para el equipo)</span>
+            </label>
+            <Textarea
+              rows={5}
+              value={draft.script ?? ''}
+              onChange={(e) => setDraft({ ...draft, script: e.target.value })}
+              placeholder="Beats del video, ángulo, transiciones, líneas clave…"
+            />
+          </div>
+
+          {/* Caption listo para publicar */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-text-secondary">Copy</label>
-              <div className="flex items-center gap-1.5">
-                {draft.copyText && (
-                  <button
-                    onClick={() => {
-                      // Extrae el caption ready-to-publish del bloque IA.
-                      // Si no encuentra el marker, copia todo el copyText.
-                      const marker = '📋 CAPTION LISTO PARA PUBLICAR';
-                      const idx = draft.copyText.indexOf(marker);
-                      const caption = idx >= 0
-                        ? draft.copyText.slice(idx + marker.length).trim()
-                        : draft.copyText.trim();
-                      void navigator.clipboard.writeText(caption);
-                      toast.success('Caption copiado al portapapeles');
-                    }}
-                    className="text-[11px] inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 hover:bg-bg-elevated text-text-secondary"
-                    title="Copiar solo el caption final (sin notas de script)"
-                  >
-                    📋 Copiar caption
-                  </button>
-                )}
+              <label className="text-xs font-medium text-text-secondary">
+                📋 Caption
+                <span className="text-text-muted font-normal ml-1">(listo para copiar y pegar)</span>
+              </label>
+              {(draft.caption ?? '').trim().length > 0 && (
                 <button
-                  onClick={generateCopy}
-                  disabled={loading}
-                  className="text-[11px] inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 hover:bg-bg-elevated disabled:opacity-50"
-                  style={{ color: accent }}
+                  onClick={() => {
+                    void navigator.clipboard.writeText((draft.caption ?? '').trim());
+                    toast.success('Caption copiado al portapapeles');
+                  }}
+                  className="text-[11px] inline-flex items-center gap-1 rounded-md border border-border-subtle px-2 py-1 hover:bg-bg-elevated text-text-secondary"
                 >
-                  <Sparkles className="h-3 w-3" /> {loading ? 'Generando…' : 'Generar con IA'}
+                  Copiar
                 </button>
-              </div>
+              )}
             </div>
             <Textarea
-              rows={8}
-              value={draft.copyText}
-              onChange={(e) => setDraft({ ...draft, copyText: e.target.value })}
-              placeholder="La IA generará: 🎬 SCRIPT (concepto para el equipo) + 📋 CAPTION LISTO PARA PUBLICAR"
+              rows={7}
+              value={draft.caption ?? ''}
+              onChange={(e) => setDraft({ ...draft, caption: e.target.value })}
+              placeholder="Hook + cuerpo + CTA + hashtags…"
             />
+          </div>
+
+          {/* Rol + Responsable */}
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Rol"
+              value={draft.roleSlug ?? ''}
+              onChange={(e) => {
+                const next = (e.target.value || undefined) as TeamRoleSlug | undefined;
+                setDraft({
+                  ...draft,
+                  roleSlug: next,
+                  // Si el rol cambia, limpiamos el responsable previo.
+                  assignedTo: next === draft.roleSlug ? draft.assignedTo : undefined,
+                });
+              }}
+              options={[
+                { value: '', label: '— Elegir rol —' },
+                ...ROLE_DEFS.map((r) => ({ value: r.slug, label: r.title })),
+              ]}
+            />
+            {assigneesForRole.length > 0 ? (
+              <Select
+                label="Responsable"
+                value={draft.assignedTo ?? ''}
+                onChange={(e) => setDraft({ ...draft, assignedTo: e.target.value || undefined })}
+                options={[
+                  { value: '', label: '— Sin asignar —' },
+                  ...assigneesForRole.map((name) => ({ value: name, label: name })),
+                ]}
+              />
+            ) : (
+              <Input
+                label="Responsable"
+                value={draft.assignedTo ?? ''}
+                onChange={(e) => setDraft({ ...draft, assignedTo: e.target.value || undefined })}
+                placeholder={draft.roleSlug ? 'Nombre de la persona' : 'Elige un rol primero'}
+                disabled={!draft.roleSlug}
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

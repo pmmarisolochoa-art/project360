@@ -1,6 +1,35 @@
 export type ContentPlatform = 'instagram' | 'tiktok' | 'youtube' | 'linkedin' | 'facebook';
 export type ContentFormat = 'reel' | 'post' | 'story' | 'video' | 'carousel' | 'short';
 
+export type CtaType =
+  | 'lead_magnet'      // descargar gratis / link en bio
+  | 'buy_now'          // comprar ya / catálogo
+  | 'comment_info'     // comenta INFO y te paso detalles
+  | 'dm_keyword'       // mándame una palabra al DM
+  | 'subscribe'        // suscríbete / sigue
+  | 'save'             // guarda este post
+  | 'tag_friend'       // etiqueta a un amigo
+  | 'share'            // comparte en tu story
+  | 'click_link'       // click al link / swipe up
+  | 'webinar'          // inscríbete al webinar
+  | 'book_call'        // agenda una llamada / consultoría
+  | 'no_cta';          // sin CTA explícito (contenido de valor puro)
+
+export const CTA_TYPE_LABEL: Record<CtaType, string> = {
+  lead_magnet:  '🎁 Lead Magnet (link en bio)',
+  buy_now:      '🛒 Comprar ahora',
+  comment_info: '💬 Comenta INFO',
+  dm_keyword:   '✉️ Mándame palabra al DM',
+  subscribe:    '🔔 Suscríbete / Sigue',
+  save:         '🔖 Guarda este post',
+  tag_friend:   '👥 Etiqueta a un amigo',
+  share:        '🔁 Comparte',
+  click_link:   '🔗 Click al link',
+  webinar:      '🎓 Inscríbete al webinar',
+  book_call:    '📞 Agenda una llamada',
+  no_cta:       '— Sin CTA (valor puro)',
+};
+
 /**
  * Estados ampliados del pipeline de producción de contenido.
  * Mantienen compatibilidad con el Kanban anterior y agregan los nuevos
@@ -25,6 +54,19 @@ export interface ContentPiece {
   title: string;
   platform: ContentPlatform;
   format: ContentFormat;
+  // Tipo de CTA — guía a la IA y al copywriter sobre el cierre del contenido.
+  ctaType?: CtaType;
+  // Guion / script del contenido — qué decir/grabar (para el equipo, no se publica).
+  script?: string;
+  // Caption listo para publicar directo en la plataforma.
+  caption?: string;
+  // Rol responsable + persona específica (independientes — el rol puede estar
+  // asignado a varias personas en useTeamStore).
+  roleSlug?: string;
+  assignedTo?: string;
+  // LEGACY: campo único previo donde vivían script + caption juntos.
+  // Lo dejamos por compatibilidad con piezas viejas. Lectura preferente:
+  // script/caption nuevos; si están vacíos, se usa copyText.
   copyText: string;
   mediaUrl?: string;
   productionNotes?: string;

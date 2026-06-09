@@ -151,6 +151,11 @@ export async function generateRopreFromTranscription(args: {
 
 /* ─────────────── Content Copy IA ─────────────── */
 
+export interface GeneratedContent {
+  script: string;
+  caption: string;
+}
+
 export async function generateContentCopy(args: {
   clientName: string;
   industry: string;
@@ -158,6 +163,7 @@ export async function generateContentCopy(args: {
   format: string;
   title: string;
   hasLeadMagnet: boolean;
+  ctaType?: string;
   irresistibleOffer?: string;
   brandMission?: string;
   brandVoiceTone?: string;
@@ -166,9 +172,9 @@ export async function generateContentCopy(args: {
   brandValues?: string[];
   brandPillars?: Array<{ name: string; description: string }>;
   personas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
-}): Promise<string> {
+}): Promise<GeneratedContent> {
   try {
-    const { copy } = await callBackend<{ copy: string }>('generate_content_copy', args);
+    const { copy } = await callBackend<{ copy: GeneratedContent }>('generate_content_copy', args);
     return copy;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -178,9 +184,12 @@ export async function generateContentCopy(args: {
   }
 }
 
-function contentCopyFallback(args: { title: string; platform: string; hasLeadMagnet: boolean }): string {
+function contentCopyFallback(args: { title: string; hasLeadMagnet: boolean }): GeneratedContent {
   const cta = args.hasLeadMagnet ? 'Link en bio para descargar gratis ↓' : 'Comenta INFO y te paso detalles ↓';
-  return `${args.title}\n\n¿Te suena familiar? La mayoría siente lo mismo.\n\nLa diferencia entre quienes lo logran y quienes no es UNA decisión.\n\n${cta}`;
+  return {
+    script: `Ángulo: el avatar siente esto y nadie lo nombra. Estructura: 1) Hook con dolor concreto. 2) Validación corta. 3) Insight contraintuitivo. 4) CTA.`,
+    caption: `${args.title}\n\n¿Te suena familiar? La mayoría siente lo mismo.\n\nLa diferencia entre quienes lo logran y quienes no es UNA decisión.\n\n${cta}`,
+  };
 }
 
 /* ─────────────── Three Options ─────────────── */

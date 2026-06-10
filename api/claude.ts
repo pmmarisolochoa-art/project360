@@ -85,6 +85,23 @@ interface RopreFromTranscriptionCtx {
   availableRoles: string[];
 }
 
+interface GenerateAdVariantsCtx {
+  clientName: string;
+  industry: string;
+  platform: string;            // meta | google | tiktok | youtube
+  objective: string;           // conversiones | trafico | leads | mensajes | reconocimiento
+  productOrOffer: string;      // qué se anuncia
+  landingUrl?: string;
+  budget?: string;
+  // Contexto de marca y avatar
+  irresistibleOffer?: string;
+  brandMission?: string;
+  brandVoiceTone?: string;
+  brandDos?: string[];
+  brandDonts?: string[];
+  personas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
+}
+
 interface GenerateContentCopyCtx {
   clientName: string;
   industry: string;
@@ -111,7 +128,8 @@ type RequestBody =
   | { feature: 'brain_from_onboarding'; context: BrainCtx }
   | { feature: 'extract_tasks'; context: ExtractTasksCtx }
   | { feature: 'ropre_from_transcription'; context: RopreFromTranscriptionCtx }
-  | { feature: 'generate_content_copy'; context: GenerateContentCopyCtx };
+  | { feature: 'generate_content_copy'; context: GenerateContentCopyCtx }
+  | { feature: 'generate_ad_variants'; context: GenerateAdVariantsCtx };
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -149,6 +167,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ ropre: await ropreFromTranscription(apiKey, body.context) });
       case 'generate_content_copy':
         return json({ copy: await generateContentCopy(apiKey, body.context) });
+      case 'generate_ad_variants':
+        return json({ variants: await generateAdVariants(apiKey, body.context) });
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -620,6 +640,113 @@ Devuelve el JSON con script + caption.`;
   } catch {
     // Fallback: si la IA no devolvió JSON, tratamos todo como caption.
     return { script: '', caption: txt.trim() };
+  }
+}
+
+/* ─────────────── Ad Variants generation ─────────────── */
+
+const AD_PLATFORM_HINT: Record<string, string> = {
+  meta: 'Meta Ads (Facebook / Instagram): primaryText hasta 125 chars idealmente (máx 1000 ok). headline máx 40 chars. description máx 30 chars. ctaButton de la lista de botones de Meta.',
+  google: 'Google Ads (Search): headline máx 30 chars cada uno. description máx 90 chars. SEO-friendly con keywords del producto. ctaButton "Más información" o "Comprar".',
+  tiktok: 'TikTok Ads: lenguaje hablado y casual. primaryText 100 chars ideales. headline corto y punchy. Tono nativo de TikTok (no parece anuncio).',
+  youtube: 'YouTube Ads: para Skip Ads / Bumper. Hook de 5 segundos. primaryText breve, gancho directo. headline impactante.',
+};
+
+const AD_ANGLES = [
+  { id: 'pain',          label: 'Dolor',           focus: 'Empezar con el dolor más doloroso del avatar (frase punzante). Validar empatía. Mostrar la salida.' },
+  { id: 'desire',        label: 'Deseo / aspiración', focus: 'Pintar la vida después de comprar. Tono inspiracional. Llevar al avatar a verse ya en el resultado.' },
+  { id: 'objection',     label: 'Objeción común',  focus: 'Atacar la objeción más fuerte (precio, tiempo, escepticismo). Desarmar con dato o garantía.' },
+  { id: 'social_proof',  label: 'Prueba social',   focus: 'Citar un caso real (número o testimonio breve). Posicionar como prueba de que sí funciona.' },
+  { id: 'curiosity',     label: 'Curiosidad',      focus: 'Abrir con dato contraintuitivo o pregunta provocadora. No revelar la respuesta hasta el CTA.' },
+];
+
+async function generateAdVariants(apiKey: string, ctx: GenerateAdVariantsCtx): Promise<Array<{
+  angle: string;
+  angleLabel: string;
+  headline: string;
+  primaryText: string;
+  description?: string;
+  ctaButton: string;
+}>> {
+  const platformHint = AD_PLATFORM_HINT[ctx.platform.toLowerCase()] ?? AD_PLATFORM_HINT.meta;
+  const brandBlock = [
+    ctx.brandMission ? `Misión: ${ctx.brandMission}` : null,
+    ctx.brandVoiceTone ? `Tono de voz: ${ctx.brandVoiceTone}` : null,
+    ctx.brandDos && ctx.brandDos.length > 0 ? `DO's: ${ctx.brandDos.join(' · ')}` : null,
+    ctx.brandDonts && ctx.brandDonts.length > 0 ? `DON'Ts: ${ctx.brandDonts.join(' · ')}` : null,
+  ].filter(Boolean).join('\n');
+
+  const personaBlock = ctx.personas && ctx.personas.length > 0
+    ? ctx.personas.slice(0, 2).map((p) => `${p.name}: ${p.description}\n  Dolores: ${p.pains.join(', ')}\n  Deseos: ${p.desires.join(', ')}`).join('\n')
+    : '(sin personas — usa criterio del producto/oferta)';
+
+  const system = `Eres un copywriter senior de paid media (Meta Ads, Google Ads, TikTok Ads). Generas anuncios que VENDEN — no contenido orgánico.
+
+Devuelve SOLO un array JSON con EXACTAMENTE 5 variantes (una por ángulo), sin texto antes ni después:
+
+[
+  {"angle": "pain", "headline": "...", "primaryText": "...", "description": "...", "ctaButton": "..."},
+  {"angle": "desire", "headline": "...", "primaryText": "...", "description": "...", "ctaButton": "..."},
+  {"angle": "objection", "headline": "...", "primaryText": "...", "description": "...", "ctaButton": "..."},
+  {"angle": "social_proof", "headline": "...", "primaryText": "...", "description": "...", "ctaButton": "..."},
+  {"angle": "curiosity", "headline": "...", "primaryText": "...", "description": "...", "ctaButton": "..."}
+]
+
+Reglas:
+- 5 variantes, cada una con un ángulo distinto (los 5 listados).
+- Respeta el límite de caracteres de la plataforma.
+- ctaButton: string corto en español del estilo "Más información" / "Comprar ahora" / "Descargar" / "Agendar" / "Suscribirme".
+- description es opcional (omítelo en TikTok/YouTube, OK en Meta/Google).
+- Cada variant debe VENDER, no educar. Trigger emocional + propuesta clara + CTA.
+- Sin emojis decorativos (1 o 0 emojis estratégicos máximo).
+- Sin clichés ("transforma tu vida", "descubre el secreto", "imagina si...").
+- Usa el tono de la marca pero adaptado a paid media (más punchy).`;
+
+  const user = `Cliente: ${ctx.clientName} (${ctx.industry})
+
+═══ MARCA ═══
+${brandBlock || '(sin arquitectura de marca definida — usa criterio)'}
+
+═══ AVATAR ═══
+${personaBlock}
+
+═══ OFERTA / PRODUCTO ═══
+${ctx.productOrOffer}
+${ctx.irresistibleOffer ? `\nOferta de la marca: ${ctx.irresistibleOffer}` : ''}
+
+═══ CAMPAÑA ═══
+Plataforma: ${ctx.platform}
+Objetivo: ${ctx.objective}
+${ctx.landingUrl ? `Landing: ${ctx.landingUrl}` : ''}
+${ctx.budget ? `Presupuesto: ${ctx.budget}` : ''}
+
+Plataforma específica: ${platformHint}
+
+Ángulos a cubrir (uno por variante):
+${AD_ANGLES.map((a) => `- ${a.id} (${a.label}): ${a.focus}`).join('\n')}
+
+Genera las 5 variantes en JSON.`;
+
+  const txt = await callAnthropic(apiKey, system, user, 1800);
+  try {
+    const parsed = JSON.parse(extractJson(txt)) as Array<{
+      angle?: string; headline?: string; primaryText?: string; description?: string; ctaButton?: string;
+    }>;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, 5).map((v, i) => {
+      const angleId = String(v.angle ?? AD_ANGLES[i]?.id ?? 'pain');
+      const meta = AD_ANGLES.find((a) => a.id === angleId) ?? AD_ANGLES[i] ?? AD_ANGLES[0];
+      return {
+        angle: angleId,
+        angleLabel: meta.label,
+        headline: String(v.headline ?? '').slice(0, 200),
+        primaryText: String(v.primaryText ?? '').slice(0, 2000),
+        description: v.description ? String(v.description).slice(0, 200) : undefined,
+        ctaButton: String(v.ctaButton ?? 'Más información').slice(0, 40),
+      };
+    }).filter((v) => v.headline && v.primaryText);
+  } catch {
+    throw new Error('Claude devolvió JSON inválido para generate_ad_variants');
   }
 }
 

@@ -192,6 +192,54 @@ function contentCopyFallback(args: { title: string; hasLeadMagnet: boolean }): G
   };
 }
 
+/* ─────────────── Ad Variants IA ─────────────── */
+
+export interface AdVariant {
+  angle: string;
+  angleLabel: string;
+  headline: string;
+  primaryText: string;
+  description?: string;
+  ctaButton: string;
+}
+
+export async function generateAdVariants(args: {
+  clientName: string;
+  industry: string;
+  platform: string;
+  objective: string;
+  productOrOffer: string;
+  landingUrl?: string;
+  budget?: string;
+  irresistibleOffer?: string;
+  brandMission?: string;
+  brandVoiceTone?: string;
+  brandDos?: string[];
+  brandDonts?: string[];
+  personas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
+}): Promise<AdVariant[]> {
+  try {
+    const { variants } = await callBackend<{ variants: AdVariant[] }>('generate_ad_variants', args);
+    return variants;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[claudeApi] generate_ad_variants falló', e);
+    toast.warning(`IA no disponible — usando ejemplo. (${msg.slice(0, 80)})`);
+    return adVariantsFallback(args);
+  }
+}
+
+function adVariantsFallback(args: { productOrOffer: string }): AdVariant[] {
+  const base = args.productOrOffer.slice(0, 60) || 'tu oferta';
+  return [
+    { angle: 'pain', angleLabel: 'Dolor', headline: `¿Cansado de no avanzar?`, primaryText: `Sabemos lo que sientes. La mayoría sigue intentando solo. Por eso creamos ${base}.`, ctaButton: 'Más información' },
+    { angle: 'desire', angleLabel: 'Deseo', headline: `Imagina llegar a la meta`, primaryText: `${base} te lleva al resultado en menos tiempo del que crees.`, ctaButton: 'Quiero saber más' },
+    { angle: 'objection', angleLabel: 'Objeción', headline: `No, no es para "más adelante"`, primaryText: `Cada semana que pasa es revenue que dejas en la mesa. ${base} arranca hoy.`, ctaButton: 'Empezar ahora' },
+    { angle: 'social_proof', angleLabel: 'Prueba social', headline: `+200 clientes ya lo aplicaron`, primaryText: `Resultados reales, números reales. Mira cómo ${base} cambió sus números.`, ctaButton: 'Ver casos' },
+    { angle: 'curiosity', angleLabel: 'Curiosidad', headline: `El error #1 que nadie te dice`, primaryText: `Si haces esto, todo lo demás falla. ${base} parte de ahí.`, ctaButton: 'Descubrir' },
+  ];
+}
+
 /* ─────────────── Three Options ─────────────── */
 
 export interface AIOption {

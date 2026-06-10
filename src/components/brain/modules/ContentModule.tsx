@@ -3,8 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutGrid, CalendarDays, Plus, X, Sparkles, Trash2, Save,
-  ChevronLeft, ChevronRight, Magnet, Upload,
+  ChevronLeft, ChevronRight, Magnet, Upload, DollarSign,
 } from 'lucide-react';
+import { AdsGeneratorModal } from './AdsGeneratorModal';
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
   format, parseISO, isSameMonth, isToday, addMonths, subMonths,
@@ -37,6 +38,7 @@ export function ContentModule({ client }: { client: Client }) {
   const [view, setView] = useState<'kanban' | 'calendar'>('calendar');
   const [editing, setEditing] = useState<ContentPiece | null>(null);
   const [creating, setCreating] = useState<{ date: Date } | null>(null);
+  const [adsOpen, setAdsOpen] = useState(false);
 
   // Atajo desde AlertsPanel "Resolver →" sobre content_pending_approval:
   // si la URL trae ?filter=in_review, cambiamos a kanban (donde la columna
@@ -64,13 +66,24 @@ export function ContentModule({ client }: { client: Client }) {
           </ToggleButton>
         </div>
 
-        <Button
-          size="sm"
-          leftIcon={<Plus className="h-4 w-4" />}
-          onClick={() => setCreating({ date: new Date() })}
-        >
-          Nueva pieza
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<DollarSign className="h-4 w-4" />}
+            onClick={() => setAdsOpen(true)}
+            title="Generar anuncios para pauta con IA"
+          >
+            Anuncios pauta
+          </Button>
+          <Button
+            size="sm"
+            leftIcon={<Plus className="h-4 w-4" />}
+            onClick={() => setCreating({ date: new Date() })}
+          >
+            Nueva pieza
+          </Button>
+        </div>
       </div>
 
       {view === 'kanban' ? (
@@ -95,6 +108,14 @@ export function ContentModule({ client }: { client: Client }) {
           />
         )}
       </AnimatePresence>
+
+      {adsOpen && (
+        <AdsGeneratorModal
+          client={client}
+          accent={client.primaryColor}
+          onClose={() => setAdsOpen(false)}
+        />
+      )}
     </div>
   );
 }

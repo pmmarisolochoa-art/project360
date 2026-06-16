@@ -18,10 +18,15 @@ import {
 } from '@/onboarding/schema';
 import { useOnboardingStore } from '@/onboarding/store';
 import { useClientStore } from '@/store/useClientStore';
+import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { generateBrainFromOnboarding } from '@/services/claudeApi';
 import { generateAccentColor } from '@/utils/colorGenerator';
 import type { Client, ProjectType } from '@/types/client';
+import type { FunnelTemplateKey } from '@/types/funnel';
+import { FUNNEL_TEMPLATES } from '@/data/funnelTemplates';
+import { FunnelTemplateSelector, FunnelCreationProgress } from './FunnelTemplateSelector';
 import { useAuthStore } from '@/store/useAuthStore';
+import { toast } from '@/store/useToastStore';
 import { genId } from '@/utils/id';
 
 export function OnboardingWizard() {
@@ -31,8 +36,18 @@ export function OnboardingWizard() {
   const reset = useOnboardingStore((s) => s.reset);
   const stored = useOnboardingStore.getState;
   const addClient = useClientStore((s) => s.addClient);
+  const updateClient = useClientStore((s) => s.updateClient);
+  const activateFromTemplate = useFunnelLaunchStore((s) => s.activateFromTemplate);
 
-  const [activating, setActivating] = useState(false);
+  // Máquina de estados del cierre del wizard:
+  //   'idle' → user editando pasos
+  //   'activating' → llamada a Claude para generar el brain
+  //   'choosing_funnel' → cliente creado, mostrando selector de embudo
+  //   'materializing' → creando funnel + fases + tareas en Supabase
+  type FinishStage = 'idle' | 'activating' | 'choosing_funnel' | 'materializing';
+  const [stage, setStage] = useState<FinishStage>('idle');
+  const [createdClient, setCreatedClient] = useState<Client | null>(null);
+  const [materializingTemplateName, setMaterializingTemplateName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const goNext = () => setStep(Math.min(currentStep + 1, stepTitles.length - 1));
@@ -57,23 +72,80 @@ export function OnboardingWizard() {
       return;
     }
 
-    setActivating(true);
+    setStage('activating');
 
     try {
       const brain = await generateBrainFromOnboarding(parsed.data);
       const client = buildClientFromOnboarding(parsed.data, brain);
       addClient(client);
-      reset();
-      // Aterrizamos directo en Planeación → tab Embudos para que el PM elija
-      // la plantilla de lanzamiento ANTES de configurar el resto del cerebro.
-      navigate(`/client/${client.id}/planning`);
+      setCreatedClient(client);
+      // En vez de navegar directo, pasamos al selector de embudo. El cliente
+      // ya está creado y persistido — si el usuario cierra ahora, lo
+      // encuentra en /clients y puede elegir embudo después.
+      setStage('choosing_funnel');
     } catch {
       setError('No pudimos activar el cerebro. Reintenta en unos segundos.');
-      setActivating(false);
+      setStage('idle');
     }
   };
 
-  if (activating) return <BrainActivating />;
+  const handleFunnelConfirm = (templateKey: FunnelTemplateKey) => {
+    if (!createdClient) return;
+    const template = FUNNEL_TEMPLATES.find((t) => t.key === templateKey);
+    if (!template) return;
+    setMaterializingTemplateName(template.name);
+    setStage('materializing');
+
+    // La materialización es síncrona en memoria + fire-and-forget a Supabase.
+    // Damos ~600ms para que el progress bar se vea y dé feedback visual.
+    try {
+      const funnel = activateFromTemplate(createdClient.id, templateKey, new Date());
+      const totalTasks = template.phases.reduce((sum, p) => sum + p.tasks.length, 0);
+      if (funnel) {
+        updateClient(createdClient.id, { activeFunnelId: funnel.id });
+      }
+      setTimeout(() => {
+        reset();
+        toast.success(`✅ ${totalTasks} tareas creadas. Tu embudo está listo.`);
+        navigate(`/client/${createdClient.id}/tasks`);
+      }, 600);
+    } catch (e) {
+      console.warn('[funnel.materialize]', e);
+      setError('No pudimos crear el embudo. El cliente ya quedó guardado — puedes elegir embudo desde Planeación.');
+      setTimeout(() => {
+        reset();
+        navigate(`/client/${createdClient.id}/planning`);
+      }, 1500);
+    }
+  };
+
+  const handleFunnelSkip = () => {
+    if (!createdClient) return;
+    reset();
+    navigate(`/client/${createdClient.id}/planning`);
+  };
+
+  if (stage === 'activating') return <BrainActivating />;
+
+  if (stage === 'choosing_funnel' && createdClient) {
+    return (
+      <FunnelTemplateSelector
+        clientName={createdClient.name}
+        accentColor={createdClient.primaryColor}
+        onConfirm={handleFunnelConfirm}
+        onSkip={handleFunnelSkip}
+      />
+    );
+  }
+
+  if (stage === 'materializing' && createdClient) {
+    return (
+      <FunnelCreationProgress
+        templateName={materializingTemplateName}
+        accentColor={createdClient.primaryColor}
+      />
+    );
+  }
 
   const StepComponent = [
     Step1Identity, Step2Business, Step3Current, Step4Audience,

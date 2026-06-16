@@ -99,6 +99,10 @@ export interface TemplateTask {
   output?: string;
   priority?: 'P1' | 'P2' | 'P3';
   recurring?: boolean;
+  // Marca tareas cuyo output es un entregable formal para el cliente
+  // (PDF, video, secuencia de emails, deck, etc.). Al materializar, estas
+  // tareas reciben tag = 'deliverable'.
+  isDeliverable?: boolean;
 }
 
 export interface TemplatePhase {

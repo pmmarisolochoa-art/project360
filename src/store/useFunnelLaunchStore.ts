@@ -157,7 +157,9 @@ function materializeFromTemplate(
         isDelayed: false,
         delayDays: 0,
         moduleTag: 'funnel',
-        tag: 'strategy',
+        // Marca como 'deliverable' si la plantilla lo flagueó; si no, hereda
+        // 'strategy' como categoría neutra (filtrable en el board).
+        tag: tplTask.isDeliverable ? 'deliverable' : 'strategy',
         input: tplTask.input,
         output: tplTask.output,
         funnelId,

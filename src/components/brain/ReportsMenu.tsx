@@ -45,16 +45,19 @@ export function ReportsMenu({ client }: { client: Client }) {
     return () => window.removeEventListener('mousedown', onClick);
   }, [open]);
 
-  const run = (fn: () => void, label: string) => {
+  const run = async (fn: () => void | Promise<void>, label: string) => {
+    setOpen(false);
+    setSub(null);
+    // Aviso al usuario solo si la operación es async (puede tomar varios
+    // segundos por la llamada a Claude). Si es síncrono jsPDF, ni se ve.
+    const isAsync = label === 'Reporte semanal';
+    if (isAsync) toast.info(`Generando ${label.toLowerCase()}… puede tardar unos segundos`);
     try {
-      fn();
+      await fn();
       toast.success(`${label} generado`);
     } catch (e) {
       console.warn('[reportsPdf]', e);
       toast.error('No se pudo generar el reporte');
-    } finally {
-      setOpen(false);
-      setSub(null);
     }
   };
 
@@ -88,8 +91,16 @@ export function ReportsMenu({ client }: { client: Client }) {
                 <MenuItem
                   icon={<Calendar className="h-3.5 w-3.5" />}
                   label="Reporte semanal"
-                  hint="Tareas y reuniones de esta semana"
-                  onClick={() => run(() => exportWeeklyReport({ client, tasks, meetings }), 'Reporte semanal')}
+                  hint="Resumen IA + tareas + foco próxima semana"
+                  onClick={() => {
+                    const activeFunnel = client.activeFunnelId
+                      ? funnels.find((f) => f.id === client.activeFunnelId) ?? null
+                      : funnels[0] ?? null;
+                    run(
+                      () => exportWeeklyReport({ client, tasks, meetings, funnel: activeFunnel }),
+                      'Reporte semanal',
+                    );
+                  }}
                 />
                 <MenuItem
                   icon={<CalendarRange className="h-3.5 w-3.5" />}

@@ -1,11 +1,13 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
 import type { Task, TaskStatus } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
+import { generateWeeklyReport } from '@/services/claudeApi';
+import { resolveRoleLabel } from '@/utils/roleResolver';
 
 /**
  * Reportes PDF para clientes — 4 tipos.
@@ -54,106 +56,313 @@ function fileName(client: Client, kind: string) {
   return `${kind}_${client.name.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
 }
 
-/* ───────────────────────── 1) REPORTE SEMANAL ───────────────────────── */
+/* ───────────────────────── 1) REPORTE SEMANAL (IA + 4 páginas) ───────────────────────── */
 
-export function exportWeeklyReport({ client, tasks, meetings }: {
+/**
+ * Reporte semanal del cliente — 4 páginas + portada con IA.
+ * - Portada con fondo accent + título + período.
+ * - P1: resumen ejecutivo (Claude haiku) + 3 indicadores semáforo.
+ * - P2: tabla de tareas completadas en los últimos 7 días.
+ * - P3: tabla de tareas pendientes/en curso con días restantes coloreados.
+ * - P4: top-3 prioridades para la próxima semana (IA) + reuniones + entregables
+ *       + bloque libre opcional "Lo que necesitamos de ti esta semana".
+ *
+ * Es async porque llama a Claude. Si Claude falla, usa fallback heurístico
+ * y el PDF se genera igual (nunca bloquea la descarga).
+ */
+export async function exportWeeklyReport({ client, tasks, meetings, funnel, needFromClient }: {
   client: Client;
   tasks: Task[];
   meetings: Meeting[];
-}) {
+  funnel?: Funnel | null;
+  needFromClient?: string;
+}): Promise<void> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
   const accent = hexToRgb(client.primaryColor);
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+  const today = new Date();
   const inWeek = (iso?: string) => !!iso && isWithinInterval(parseISO(iso), { start: weekStart, end: weekEnd });
 
-  header(doc, client, 'Reporte semanal', accent);
-  doc.setFontSize(14); doc.setTextColor(...accent);
+  const completed = tasks
+    .filter((t) => t.status === 'completed' && inWeek(t.completedAt))
+    .sort((a, b) => +new Date(b.completedAt ?? 0) - +new Date(a.completedAt ?? 0));
+  const pending = tasks
+    .filter((t) => t.status === 'pending' || t.status === 'in_progress' || t.status === 'in_review')
+    .sort((a, b) => +new Date(a.dueDate) - +new Date(b.dueDate));
+  const totalThisWeek = completed.length + pending.filter((t) => inWeek(t.dueDate)).length;
+  const compliancePct = totalThisWeek === 0 ? 100 : Math.round((completed.length / totalThisWeek) * 100);
+  const daysToNextEvent = funnel?.eventDate
+    ? differenceInDays(parseISO(funnel.eventDate), today)
+    : funnel?.endDate
+    ? differenceInDays(parseISO(funnel.endDate), today)
+    : null;
+
+  // ─── Llamada a IA (no bloqueante: si falla, fallback interno) ───
+  const ai = await generateWeeklyReport({
+    clientName: client.name,
+    weekStart: weekStart.toISOString(),
+    weekEnd: weekEnd.toISOString(),
+    tasksCompleted: completed.length,
+    tasksPending: pending.length,
+    compliancePct,
+    daysToNextEvent,
+    pendingTasksSample: pending.slice(0, 10).map((t) => ({
+      title: t.title,
+      priority: t.priority,
+      role: resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo,
+      dueInDays: differenceInDays(parseISO(t.dueDate), today),
+    })),
+  });
+
+  /* ═══ PORTADA ═══ */
+  doc.setFillColor(...accent);
+  doc.rect(0, 0, pageW, pageH, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('REPORTE DE AVANCE SEMANAL', pageW / 2, 70, { align: 'center' });
+  doc.setFontSize(28);
+  doc.text(client.name, pageW / 2, 110, { align: 'center', maxWidth: pageW - 40 });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(12);
   doc.text(
     `Semana del ${format(weekStart, "d 'de' MMM", { locale: es })} al ${format(weekEnd, "d 'de' MMM yyyy", { locale: es })}`,
-    22, 82,
+    pageW / 2, 135, { align: 'center' },
   );
+  doc.setFontSize(10);
+  doc.text('Preparado por: Marisol Ochoa  |  Project360', pageW / 2, pageH - 30, { align: 'center' });
 
-  const completed = tasks.filter((t) => t.status === 'completed' && inWeek(t.completedAt));
-  const inProgress = tasks.filter((t) => t.status === 'in_progress' || t.status === 'in_review');
-  const overdue = tasks.filter((t) => t.isDelayed && t.status !== 'completed');
-  const weekMeetings = meetings.filter((m) => inWeek(m.scheduledAt));
-
-  // KPIs
+  /* ═══ P1: RESUMEN EJECUTIVO ═══ */
   doc.addPage();
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(20, 20, 30);
-  doc.text('Resumen', 18, 22);
-  autoTable(doc, {
-    head: [['Indicador', 'Valor']],
-    body: [
-      ['Tareas completadas esta semana', String(completed.length)],
-      ['Tareas en curso', String(inProgress.length)],
-      ['Tareas vencidas', String(overdue.length)],
-      ['Reuniones esta semana', String(weekMeetings.length)],
-      ['ROAS actual', client.metrics.roas !== null ? `${client.metrics.roas.toFixed(2)}x` : '—'],
-      ['Avance del proyecto', `${client.metrics.progressPercent}%`],
-    ],
-    startY: 28,
-    styles: { fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: accent, textColor: [255, 255, 255] },
-    theme: 'grid',
+  doc.setTextColor(20, 20, 30);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('Resumen ejecutivo', 18, 22);
+
+  // Línea accent decorativa
+  doc.setDrawColor(...accent);
+  doc.setLineWidth(0.8);
+  doc.line(18, 25, 60, 25);
+
+  // Párrafo IA
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(60, 60, 75);
+  const summaryLines = doc.splitTextToSize(ai.summary, pageW - 36);
+  doc.text(summaryLines, 18, 38);
+
+  // Indicadores semáforo
+  const indicatorsY = 38 + summaryLines.length * 6 + 12;
+  const semaphore = (
+    val: number, good: number, mid: number
+  ): [number, number, number] =>
+    val >= good ? [16, 185, 129] : val >= mid ? [245, 158, 11] : [239, 68, 68];
+  const eventColor: [number, number, number] = daysToNextEvent === null
+    ? [120, 120, 140]
+    : daysToNextEvent >= 14 ? [16, 185, 129]
+    : daysToNextEvent >= 7 ? [245, 158, 11]
+    : [239, 68, 68];
+
+  const indicators: Array<{ label: string; value: string; color: [number, number, number] }> = [
+    { label: 'Tareas completadas', value: `${completed.length} de ${totalThisWeek}`, color: semaphore(compliancePct, 80, 50) },
+    { label: 'Cumplimiento a tiempo', value: `${compliancePct}%`, color: semaphore(compliancePct, 80, 50) },
+    {
+      label: 'Próximo hito',
+      value: daysToNextEvent === null ? '—' : daysToNextEvent < 0 ? `Pasó hace ${Math.abs(daysToNextEvent)}d` : `${daysToNextEvent} días`,
+      color: eventColor,
+    },
+  ];
+  const colW = (pageW - 36 - 12) / 3;
+  indicators.forEach((ind, i) => {
+    const x = 18 + i * (colW + 6);
+    doc.setFillColor(...ind.color);
+    doc.circle(x + 5, indicatorsY + 3, 2.5, 'F');
+    doc.setTextColor(80, 80, 95);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(ind.label.toUpperCase(), x + 11, indicatorsY + 2);
+    doc.setTextColor(20, 20, 30);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(ind.value, x + 11, indicatorsY + 9);
   });
 
-  // Completadas
-  // @ts-expect-error lastAutoTable
-  let y = (doc.lastAutoTable.finalY ?? 60) + 10;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(20, 20, 30);
-  doc.text(`Completadas (${completed.length})`, 18, y);
+  /* ═══ P2: COMPLETADAS ═══ */
+  doc.addPage();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(20, 20, 30);
+  doc.text('Tareas completadas esta semana', 18, 22);
+  doc.setLineWidth(0.8);
+  doc.setDrawColor(...accent);
+  doc.line(18, 25, 110, 25);
+
   autoTable(doc, {
-    head: [['Tarea', 'Prioridad', 'Cerrada']],
+    head: [['Tarea', 'Responsable', 'Entregado', 'Estado']],
     body: completed.length > 0
-      ? completed.map((t) => [t.title, t.priority, t.completedAt ? format(parseISO(t.completedAt), 'dd/MM', { locale: es }) : '—'])
-      : [['Sin tareas completadas esta semana', '—', '—']],
-    startY: y + 4,
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255] },
-    theme: 'grid',
-  });
-
-  // Vencidas
-  // @ts-expect-error lastAutoTable
-  y = (doc.lastAutoTable.finalY ?? 60) + 10;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-  doc.text(`Vencidas (${overdue.length})`, 18, y);
-  autoTable(doc, {
-    head: [['Tarea', 'Prioridad', 'Días retraso', 'Responsable']],
-    body: overdue.length > 0
-      ? overdue.map((t) => [t.title, t.priority, String(t.delayDays), t.assignedTo || '—'])
-      : [['Sin tareas vencidas', '—', '—', '—']],
-    startY: y + 4,
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255] },
-    theme: 'grid',
-  });
-
-  // Reuniones
-  // @ts-expect-error lastAutoTable
-  y = (doc.lastAutoTable.finalY ?? 60) + 10;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
-  doc.text(`Reuniones (${weekMeetings.length})`, 18, y);
-  autoTable(doc, {
-    head: [['Reunión', 'Tipo', 'Fecha', 'Duración']],
-    body: weekMeetings.length > 0
-      ? weekMeetings.map((m) => [
-          m.title,
-          m.type,
-          format(parseISO(m.scheduledAt), 'dd/MM HH:mm', { locale: es }),
-          `${m.durationMin}min`,
+      ? completed.map((t) => [
+          t.title,
+          resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo,
+          t.completedAt ? format(parseISO(t.completedAt), 'd MMM', { locale: es }) : '—',
+          'Completada',
         ])
-      : [['Sin reuniones esta semana', '—', '—', '—']],
-    startY: y + 4,
-    styles: { fontSize: 8, cellPadding: 2 },
+      : [['Sin tareas completadas esta semana', '—', '—', '—']],
+    startY: 32,
+    styles: { fontSize: 9, cellPadding: 3, valign: 'top' },
     headStyles: { fillColor: accent, textColor: [255, 255, 255] },
     theme: 'grid',
+    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 40 }, 2: { cellWidth: 22 }, 3: { cellWidth: 24 } },
   });
 
-  footer(doc);
-  doc.save(fileName(client, 'Reporte_Semanal'));
+  /* ═══ P3: PENDIENTES ═══ */
+  doc.addPage();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(20, 20, 30);
+  doc.text('Tareas en progreso y pendientes', 18, 22);
+  doc.setLineWidth(0.8);
+  doc.setDrawColor(...accent);
+  doc.line(18, 25, 115, 25);
+
+  autoTable(doc, {
+    head: [['Tarea', 'Responsable', 'Fecha límite', 'Prioridad', 'Días']],
+    body: pending.length > 0
+      ? pending.map((t) => {
+          const days = differenceInDays(parseISO(t.dueDate), today);
+          return [
+            t.title,
+            resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo,
+            format(parseISO(t.dueDate), 'd MMM', { locale: es }),
+            t.priority,
+            days < 0 ? `Vencida (${Math.abs(days)}d)` : days === 0 ? 'Hoy' : `${days}d`,
+          ];
+        })
+      : [['Sin tareas pendientes', '—', '—', '—', '—']],
+    startY: 32,
+    styles: { fontSize: 8.5, cellPadding: 2.5, valign: 'top' },
+    headStyles: { fillColor: accent, textColor: [255, 255, 255] },
+    theme: 'grid',
+    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 34 }, 2: { cellWidth: 22 }, 3: { cellWidth: 16 }, 4: { cellWidth: 26 } },
+    // Colorea la columna "Días" según urgencia.
+    didParseCell: (data) => {
+      if (data.section !== 'body' || data.column.index !== 4) return;
+      const row = pending[data.row.index];
+      if (!row) return;
+      const days = differenceInDays(parseISO(row.dueDate), today);
+      if (days < 0) {
+        data.cell.styles.textColor = [239, 68, 68];
+        data.cell.styles.fontStyle = 'bold';
+      } else if (days < 3) {
+        data.cell.styles.textColor = [245, 158, 11];
+        data.cell.styles.fontStyle = 'bold';
+      } else {
+        data.cell.styles.textColor = [16, 185, 129];
+      }
+    },
+  });
+
+  /* ═══ P4: FOCO PRÓXIMA SEMANA ═══ */
+  doc.addPage();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(20, 20, 30);
+  doc.text('Foco de la próxima semana', 18, 22);
+  doc.setLineWidth(0.8);
+  doc.setDrawColor(...accent);
+  doc.line(18, 25, 105, 25);
+
+  // 3 prioridades IA
+  let yp = 38;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(60, 60, 75);
+  doc.text('PRIORIDADES', 18, yp);
+  yp += 6;
+  ai.priorities.slice(0, 3).forEach((pri, i) => {
+    doc.setFillColor(...accent);
+    doc.circle(20, yp + 1, 1.6, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(255, 255, 255);
+    doc.text(String(i + 1), 20, yp + 1.6, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(35, 35, 50);
+    const lines = doc.splitTextToSize(pri, pageW - 40);
+    doc.text(lines, 28, yp + 2);
+    yp += Math.max(8, lines.length * 5 + 4);
+  });
+  yp += 6;
+
+  // Próximas reuniones (próximos 7 días)
+  const nextWeekEnd = new Date(today.getTime() + 7 * 86400000);
+  const upcomingMeetings = meetings
+    .filter((m) => {
+      const d = parseISO(m.scheduledAt);
+      return d >= today && d <= nextWeekEnd;
+    })
+    .sort((a, b) => +parseISO(a.scheduledAt) - +parseISO(b.scheduledAt));
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(60, 60, 75);
+  doc.text('PRÓXIMAS REUNIONES', 18, yp);
+  yp += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(50, 50, 65);
+  if (upcomingMeetings.length === 0) {
+    doc.text('Sin reuniones agendadas para la próxima semana.', 18, yp + 4);
+    yp += 10;
+  } else {
+    upcomingMeetings.slice(0, 5).forEach((m) => {
+      doc.text(`• ${format(parseISO(m.scheduledAt), "EEE d MMM, HH:mm", { locale: es })} — ${m.title}`, 18, yp + 4);
+      yp += 6;
+    });
+    yp += 4;
+  }
+
+  // Entregables que vencen próxima semana
+  const upcomingDeliverables = pending.filter((t) => {
+    const d = parseISO(t.dueDate);
+    return d >= today && d <= nextWeekEnd && t.tag === 'deliverable';
+  });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(60, 60, 75);
+  doc.text('ENTREGABLES QUE VENCEN', 18, yp);
+  yp += 5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(50, 50, 65);
+  if (upcomingDeliverables.length === 0) {
+    doc.text('Sin entregables vencidos en los próximos 7 días.', 18, yp + 4);
+    yp += 10;
+  } else {
+    upcomingDeliverables.slice(0, 6).forEach((t) => {
+      doc.text(`• ${format(parseISO(t.dueDate), 'EEE d MMM', { locale: es })} — ${t.title}`, 18, yp + 4);
+      yp += 6;
+    });
+    yp += 4;
+  }
+
+  // Bloque libre del usuario (opcional)
+  if (needFromClient && needFromClient.trim().length > 0) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...accent);
+    doc.text('LO QUE NECESITAMOS DE TI ESTA SEMANA', 18, yp);
+    yp += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(50, 50, 65);
+    const need = doc.splitTextToSize(needFromClient.trim(), pageW - 36);
+    doc.text(need, 18, yp + 4);
+  }
+
+  /* ═══ FOOTER en todas las páginas (excepto portada) ═══ */
+  const total = doc.getNumberOfPages();
+  for (let i = 2; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 160);
+    doc.text(
+      `Preparado por Project360 para ${client.name}  |  Semana del ${format(weekStart, 'd MMM', { locale: es })}  |  Confidencial`,
+      pageW / 2, pageH - 8, { align: 'center' },
+    );
+    doc.text(`${i - 1} de ${total - 1}`, pageW - 18, pageH - 8, { align: 'right' });
+  }
+
+  const safeName = client.name.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
+  doc.save(`Reporte_Semanal_${safeName}_${format(weekStart, 'yyyy-MM-dd')}.pdf`);
 }
 
 /* ───────────────────────── 2) REPORTE MENSUAL ───────────────────────── */

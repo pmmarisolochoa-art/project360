@@ -11,6 +11,8 @@
 export const config = { runtime: 'edge' };
 
 const MODEL = 'claude-sonnet-4-6';
+// Modelo más rápido y económico para resúmenes ejecutivos (reporte semanal).
+const FAST_MODEL = 'claude-haiku-4-5';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 
@@ -102,6 +104,22 @@ interface GenerateAdVariantsCtx {
   personas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
 }
 
+interface WeeklyReportCtx {
+  clientName: string;
+  weekStart: string;             // ISO date del lunes
+  weekEnd: string;               // ISO date del domingo
+  tasksCompleted: number;
+  tasksPending: number;
+  compliancePct: number;         // 0-100
+  daysToNextEvent: number | null;
+  pendingTasksSample: Array<{    // hasta 10 para alimentar el "foco próxima semana"
+    title: string;
+    priority: string;
+    role: string;
+    dueInDays: number;
+  }>;
+}
+
 interface GenerateContentCopyCtx {
   clientName: string;
   industry: string;
@@ -129,7 +147,8 @@ type RequestBody =
   | { feature: 'extract_tasks'; context: ExtractTasksCtx }
   | { feature: 'ropre_from_transcription'; context: RopreFromTranscriptionCtx }
   | { feature: 'generate_content_copy'; context: GenerateContentCopyCtx }
-  | { feature: 'generate_ad_variants'; context: GenerateAdVariantsCtx };
+  | { feature: 'generate_ad_variants'; context: GenerateAdVariantsCtx }
+  | { feature: 'weekly_report'; context: WeeklyReportCtx };
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -169,6 +188,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ copy: await generateContentCopy(apiKey, body.context) });
       case 'generate_ad_variants':
         return json({ variants: await generateAdVariants(apiKey, body.context) });
+      case 'weekly_report':
+        return json(await weeklyReport(apiKey, body.context));
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -186,7 +207,7 @@ function json(data: unknown, status = 200): Response {
   });
 }
 
-async function callAnthropic(apiKey: string, system: string, user: string, maxTokens = 1024): Promise<string> {
+async function callAnthropic(apiKey: string, system: string, user: string, maxTokens = 1024, model: string = MODEL): Promise<string> {
   const res = await fetch(ANTHROPIC_URL, {
     method: 'POST',
     headers: {
@@ -195,7 +216,7 @@ async function callAnthropic(apiKey: string, system: string, user: string, maxTo
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: user }],
@@ -747,6 +768,68 @@ Genera las 5 variantes en JSON.`;
     }).filter((v) => v.headline && v.primaryText);
   } catch {
     throw new Error('Claude devolvió JSON inválido para generate_ad_variants');
+  }
+}
+
+/* ─────────────── Weekly client report (haiku) ─────────────── */
+
+async function weeklyReport(apiKey: string, ctx: WeeklyReportCtx): Promise<{ summary: string; priorities: string[] }> {
+  const system = `Eres una PM senior que escribe reportes ejecutivos para clientes finales (founders de marcas / agencias). Tono profesional, positivo, orientado a resultados — NO marketinero, NO buzzword-heavy. Específico al cliente y al estado real del proyecto.
+
+Devuelve SOLO un JSON con esta forma EXACTA, sin texto antes ni después:
+{
+  "summary": "Un párrafo de 3-4 oraciones que resume el avance de la semana del cliente. Empieza con un hecho concreto (ej: 'Completamos X tareas esta semana...'). Menciona el cumplimiento, el ritmo y la mira en el próximo hito. Cierra con una nota de continuidad.",
+  "priorities": ["3 prioridades para la próxima semana, cada una es una frase corta y accionable que empieza con verbo en infinitivo. Específicas a las tareas pendientes que aparecen abajo. NO genéricas."]
+}
+
+Reglas:
+- "priorities" SIEMPRE tiene exactamente 3 elementos.
+- Si no hay datos suficientes, igualmente devuelve el JSON con texto neutral.
+- Sin emojis. Sin "¡!". Tono adulto y serio.`;
+
+  const daysToEventText = ctx.daysToNextEvent === null
+    ? 'sin evento principal definido'
+    : ctx.daysToNextEvent < 0
+    ? `el próximo hito pasó hace ${Math.abs(ctx.daysToNextEvent)} días`
+    : `${ctx.daysToNextEvent} días al próximo hito`;
+
+  const pendingBlock = ctx.pendingTasksSample.length === 0
+    ? '(no hay tareas pendientes registradas)'
+    : ctx.pendingTasksSample.map((t) => {
+        const due = t.dueInDays < 0
+          ? `VENCIDA hace ${Math.abs(t.dueInDays)}d`
+          : t.dueInDays === 0 ? 'vence hoy' : `vence en ${t.dueInDays}d`;
+        return `- [${t.priority}] ${t.title} (${t.role}, ${due})`;
+      }).join('\n');
+
+  const user = `Cliente: ${ctx.clientName}
+Período: ${ctx.weekStart.slice(0, 10)} → ${ctx.weekEnd.slice(0, 10)}
+
+DATOS DE LA SEMANA:
+- Tareas completadas: ${ctx.tasksCompleted}
+- Tareas pendientes: ${ctx.tasksPending}
+- Cumplimiento a tiempo: ${ctx.compliancePct}%
+- ${daysToEventText}
+
+TAREAS PENDIENTES (para inferir las 3 prioridades):
+${pendingBlock}
+
+Genera summary + priorities en JSON.`;
+
+  // Usamos haiku-4-5: más rápido y barato; calidad suficiente para resúmenes
+  // estructurados. ~$0.005 por reporte vs ~$0.04 con sonnet.
+  const txt = await callAnthropic(apiKey, system, user, 800, FAST_MODEL);
+  try {
+    const parsed = JSON.parse(extractJson(txt)) as { summary?: string; priorities?: string[] };
+    const summary = String(parsed.summary ?? '').trim();
+    const priorities = Array.isArray(parsed.priorities)
+      ? parsed.priorities.slice(0, 3).map((p) => String(p).trim()).filter(Boolean)
+      : [];
+    // Garantiza siempre 3 prioridades para que el PDF no se vea raro.
+    while (priorities.length < 3) priorities.push('Sin prioridad adicional para esta semana.');
+    return { summary, priorities };
+  } catch {
+    throw new Error('Claude devolvió JSON inválido para weekly_report');
   }
 }
 

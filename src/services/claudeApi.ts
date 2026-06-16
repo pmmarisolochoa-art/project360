@@ -278,6 +278,47 @@ export async function regenerateBrainSection(args: {
   }
 }
 
+/* ─────────────── Reporte semanal del cliente ─────────────── */
+
+export interface WeeklyReportInput {
+  clientName: string;
+  weekStart: string;
+  weekEnd: string;
+  tasksCompleted: number;
+  tasksPending: number;
+  compliancePct: number;
+  daysToNextEvent: number | null;
+  pendingTasksSample: Array<{ title: string; priority: string; role: string; dueInDays: number }>;
+}
+
+export interface WeeklyReportOutput {
+  summary: string;
+  priorities: string[];
+}
+
+/**
+ * Genera el resumen ejecutivo + las 3 prioridades del reporte semanal.
+ * Si la API falla (sin key o sin conexión), devuelve un fallback neutral
+ * para que el PDF se siga generando sin bloquear al usuario.
+ */
+export async function generateWeeklyReport(input: WeeklyReportInput): Promise<WeeklyReportOutput> {
+  try {
+    return await callBackend<WeeklyReportOutput>('weekly_report', input);
+  } catch (e) {
+    console.warn('[claudeApi] weekly_report falló, usando fallback.', e);
+    const fallbackSummary = `Esta semana avanzamos en ${input.tasksCompleted} tareas y mantenemos ${input.tasksPending} en curso con un cumplimiento del ${input.compliancePct}%. El equipo continúa enfocado en los entregables del próximo hito. La operación está estable y trabajando con foco en los próximos días.`;
+    const topPending = input.pendingTasksSample.slice(0, 3);
+    const fallbackPriorities = topPending.length === 3
+      ? topPending.map((t) => `Cerrar "${t.title}" (${t.role})`)
+      : [
+          'Completar las tareas pendientes de mayor prioridad',
+          'Mantener el ritmo de entrega de la semana',
+          'Preparar el siguiente hito del embudo',
+        ];
+    return { summary: fallbackSummary, priorities: fallbackPriorities };
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    FALLBACKS heurísticos (cuando el endpoint no existe o falla)
    ═══════════════════════════════════════════════════════════════════════════ */

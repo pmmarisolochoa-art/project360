@@ -1,4 +1,5 @@
 export type TeamRoleSlug =
+  | 'project_manager'
   | 'strategist'
   | 'media_buyer'
   | 'copywriter'
@@ -43,6 +44,23 @@ export interface RoleAssignment {
 /* ─────────────── Definición canónica de roles ─────────────── */
 
 export const ROLE_DEFS: RoleDef[] = [
+  {
+    slug: 'project_manager',
+    title: 'Project Manager',
+    fullTitle: 'Project Manager',
+    functions: [
+      'Coordinar el equipo y el calendario de entregables del cliente',
+      'Mantener actualizado el ROPRE y el roadmap de cada embudo',
+      'Detectar bloqueos y escalarlos al estratega o al cliente',
+      'Asegurar que las tareas se entreguen dentro del rango de fechas comprometido',
+      'Llevar la reunión semanal de status con el cliente',
+    ],
+    kpis: [
+      { key: 'tasks_on_time', label: 'Tareas a tiempo', unit: '%', target: 90, direction: 'higher_better', redThreshold: 70, yellowThreshold: 85 },
+      { key: 'blockers_open', label: 'Bloqueos abiertos', target: 0, direction: 'lower_better', redThreshold: 4, yellowThreshold: 2 },
+      { key: 'weekly_report', label: 'Reporte semanal entregado', unit: '%', target: 100, direction: 'higher_better', redThreshold: 70, yellowThreshold: 90 },
+    ],
+  },
   {
     slug: 'strategist',
     title: 'Estratega',

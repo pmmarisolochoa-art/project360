@@ -25,6 +25,7 @@ const HEALTH_STYLE: Record<KpiHealth, { bg: string; text: string; ring: string }
 };
 
 const ROLE_ICON: Record<TeamRoleSlug, typeof Briefcase> = {
+  project_manager: Briefcase,
   strategist: Briefcase,
   media_buyer: Megaphone,
   copywriter: Wand2,

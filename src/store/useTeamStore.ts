@@ -24,6 +24,7 @@ interface TeamState {
 }
 
 const NAMES_BY_ROLE: Record<TeamRoleSlug, string> = {
+  project_manager: 'Sin asignar',
   strategist: 'Marisol Ochoa',
   media_buyer: 'Diego Ramírez',
   copywriter: 'Camila Mora',
@@ -37,6 +38,7 @@ const NAMES_BY_ROLE: Record<TeamRoleSlug, string> = {
 
 function defaultBottleneck(role: TeamRoleSlug): string {
   return ({
+    project_manager: '',
     strategist: '',
     media_buyer: 'Esperando acceso al Business Manager del cliente.',
     copywriter: '',
@@ -83,6 +85,7 @@ function seedWeekly(role: TeamRoleSlug): number[] {
 export const useTeamStore = create<TeamState>((set, get) => ({
   assignments: [],
   weeklyCompliance: {
+    project_manager: seedWeekly('project_manager'),
     strategist: seedWeekly('strategist'),
     media_buyer: seedWeekly('media_buyer'),
     copywriter: seedWeekly('copywriter'),

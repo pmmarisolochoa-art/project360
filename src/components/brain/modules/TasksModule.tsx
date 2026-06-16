@@ -180,7 +180,16 @@ export function TasksModule({ client }: { client: Client }) {
         <Select
           options={[
             { value: '', label: 'Todos los roles' },
-            ...ROLE_DEFS.map((r) => ({ value: r.slug, label: r.title })),
+            // Orden canónico del spec — solo roles, sin nombres de personas.
+            ...(
+              [
+                'project_manager', 'strategist', 'media_buyer', 'copywriter',
+                'designer', 'community', 'funnel_builder', 'editor', 'closer', 'onboarding',
+              ] as const
+            ).map((slug) => {
+              const role = ROLE_DEFS.find((r) => r.slug === slug);
+              return { value: slug, label: role?.title ?? slug };
+            }),
           ]}
           value={filterAssignee}
           onChange={(e) => setFilterAssignee(e.target.value)}
@@ -266,6 +275,7 @@ export function TasksModule({ client }: { client: Client }) {
                         status: col.status,
                         completedAt: col.status === 'completed' ? new Date().toISOString() : undefined,
                       });
+                      toast.success(`Tarea movida a ${col.label}`);
                     }
                   }
                   setDraggedTaskId(null);

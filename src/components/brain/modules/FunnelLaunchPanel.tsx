@@ -36,24 +36,29 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
   const activateFromCustom = useFunnelLaunchStore((s) => s.activateFromCustom);
   const setStatus = useFunnelLaunchStore((s) => s.setStatus);
   const remove = useFunnelLaunchStore((s) => s.remove);
+  const updateClient = useClientStore((s) => s.updateClient);
 
-  // Persistimos el funnel activo por cliente en localStorage para que sobreviva
-  // el refresh. Cuando configuremos active_funnel_id en Supabase migramos a eso.
+  // Persistencia del funnel activo: prioridad
+  //   1. client.activeFunnelId (Supabase, sobrevive al cambio de dispositivo)
+  //   2. localStorage (fallback offline / antes de migrar)
   const persistKey = `p360.activeFunnel.${client.id}`;
   const [selectedFunnelId, setSelectedFunnelIdRaw] = useState<string | null>(() => {
+    if (client.activeFunnelId) return client.activeFunnelId;
     if (typeof window === 'undefined') return null;
     const stored = localStorage.getItem(persistKey);
-    // Ignora el sentinel "__new__" si quedó persistido por error
     return stored === '__new__' ? null : stored;
   });
   const setSelectedFunnelId = (id: string | null) => {
     setSelectedFunnelIdRaw(id);
     try {
-      // Solo persistimos IDs reales — NO el sentinel "__new__"
       if (id && id !== '__new__') localStorage.setItem(persistKey, id);
       else if (!id) localStorage.removeItem(persistKey);
-      // Si id === '__new__', no tocamos localStorage (preserva el último real)
     } catch { /* quota lleno o storage bloqueado — silencioso */ }
+    // Persiste también a Supabase como activeFunnelId del cliente.
+    // El sentinel '__new__' no se persiste (es UI-only).
+    if (id !== '__new__') {
+      updateClient(client.id, { activeFunnelId: id ?? undefined });
+    }
   };
   const [creating, setCreating] = useState<FunnelTemplate | null>(null);
   const [showCustomBuilder, setShowCustomBuilder] = useState(false);

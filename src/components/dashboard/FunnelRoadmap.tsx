@@ -161,6 +161,20 @@ function FunnelHeader({
   simplified: boolean;
   accent: string;
 }) {
+  // Color del countdown según urgencia (umbrales del spec):
+  //   <7 días  → rojo urgente
+  //   <14 días → amarillo aviso
+  //   ≥14 días → verde tranquilo
+  const countdownColor =
+    daysToTarget === null
+      ? 'var(--text-primary)'
+      : daysToTarget < 0
+      ? 'var(--text-muted)'
+      : daysToTarget < 7
+      ? '#EF4444'
+      : daysToTarget < 14
+      ? '#F59E0B'
+      : '#10B981';
   const urgent = daysToTarget !== null && daysToTarget >= 0 && daysToTarget < 7;
   return (
     <div className="surface p-5 space-y-3">
@@ -180,12 +194,14 @@ function FunnelHeader({
           </div>
         </div>
         {daysToTarget !== null && (
-          <div className={`text-right ${urgent ? 'text-status-danger' : 'text-text-primary'}`}>
+          <div className="text-right" style={{ color: countdownColor }}>
             <div className="text-[10px] uppercase tracking-wider opacity-70">{targetLabel}</div>
             <div className={`text-2xl font-bold ${urgent ? 'animate-pulse' : ''}`}>
-              {daysToTarget >= 0 ? `${daysToTarget}d` : `Hace ${Math.abs(daysToTarget)}d`}
+              {daysToTarget >= 0 ? `Faltan ${daysToTarget}d` : `Hace ${Math.abs(daysToTarget)}d`}
             </div>
-            <div className="text-[10px] opacity-70">{daysToTarget >= 0 ? 'restantes' : 'pasado'}</div>
+            <div className="text-[10px] opacity-70">
+              {daysToTarget >= 0 ? `para ${targetLabel.toLowerCase()}` : 'pasado'}
+            </div>
           </div>
         )}
       </div>

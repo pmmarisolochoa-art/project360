@@ -84,7 +84,7 @@ export function OnboardingWizard() {
       // encuentra en /clients y puede elegir embudo después.
       setStage('choosing_funnel');
     } catch {
-      setError('No pudimos activar el cerebro. Reintenta en unos segundos.');
+      setError('No pudimos activar el cerebro. Revisa tu conexión a internet e intenta de nuevo.');
       setStage('idle');
     }
   };

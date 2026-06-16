@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Layout } from '@/components/layout/Layout';
 import { DashboardMacro } from '@/pages/DashboardMacro';
 import { OnboardingPage } from '@/pages/OnboardingPage';
@@ -16,7 +17,8 @@ import { ClientPortalFunnelPage } from '@/pages/ClientPortalFunnelPage';
 
 export function AppRouter() {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <Routes>
       <Route path="login" element={<LoginPage />} />
       {/* Portal cliente — público (sin Layout) para que el cliente final acceda sin login */}
       <Route path="client-portal/funnel/:token" element={<ClientPortalFunnelPage />} />
@@ -35,6 +37,7 @@ export function AppRouter() {
         <Route path="client/:id/:module" element={<ClientBrainPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
-    </Routes>
+      </Routes>
+    </ErrorBoundary>
   );
 }

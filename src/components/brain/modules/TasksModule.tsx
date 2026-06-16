@@ -15,6 +15,7 @@ import type { Task, TaskPriority, TaskStatus } from '@/types/task';
 import { TASK_TAG_LABEL } from '@/types/task';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -44,6 +45,7 @@ const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'subtle'> = {
 };
 
 export function TasksModule({ client }: { client: Client }) {
+  const navigate = useNavigate();
   // IMPORTANTE: el selector debe devolver una referencia estable.
   // Filtrar dentro del selector crea un array nuevo en cada render y
   // dispara "Maximum update depth exceeded" en Zustand + StrictMode.
@@ -239,8 +241,37 @@ export function TasksModule({ client }: { client: Client }) {
         </div>
       </div>
 
+      {/* Empty state global — cuando el cliente NO tiene tareas, antes
+          de mostrar columnas vacías guiamos al PM a generar embudo o crear
+          una tarea manual. */}
+      {tasks.length === 0 && (
+        <EmptyState
+          emoji="📋"
+          title="No hay tareas todavía"
+          description="Crea tu primer embudo para generar tareas automáticamente, o agrega una tarea manual."
+          actions={
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => navigate(`/client/${client.id}/planning`)}
+              >
+                Elegir embudo
+              </Button>
+              <Button
+                size="sm"
+                leftIcon={<Plus className="h-4 w-4" />}
+                onClick={() => setCreating(true)}
+              >
+                Tarea manual
+              </Button>
+            </>
+          }
+        />
+      )}
+
       {/* Vista seleccionada */}
-      {view === 'kanban' && (
+      {tasks.length > 0 && view === 'kanban' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
           {COLUMNS.map((col) => {
             const colTasks = filtered.filter((t) => t.status === col.status);
@@ -326,11 +357,11 @@ export function TasksModule({ client }: { client: Client }) {
         </div>
       )}
 
-      {view === 'list' && (
+      {tasks.length > 0 && view === 'list' && (
         <TasksList tasks={filtered} accent={accent} allTasks={tasks} onOpen={setEditing} />
       )}
 
-      {view === 'gantt' && (
+      {tasks.length > 0 && view === 'gantt' && (
         <TasksGantt tasks={filtered} accent={accent} allTasks={tasks} onOpen={setEditing} />
       )}
 

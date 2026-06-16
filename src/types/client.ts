@@ -86,6 +86,9 @@ export interface Client {
   metrics: ClientMetricsSnapshot;
   adsConnected: { meta: boolean; google: boolean; tiktok: boolean; ga4: boolean };
   monthlyAdsBudget: number;
+  // Embudo activo por defecto cuando el cliente entra al cerebro.
+  // Si tiene varios, este es el que abre primero el sub-tab "Embudos".
+  activeFunnelId?: string;
   createdAt: string;
   updatedAt: string;
 }

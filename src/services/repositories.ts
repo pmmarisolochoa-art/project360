@@ -385,6 +385,7 @@ function rowToClient(row: Record<string, unknown>): Client {
     metrics: r.metrics ?? { roas: null, pendingTasksToday: 0, nextMeetingAt: null, progressPercent: 0 },
     adsConnected: r.ads_connected ?? { meta: false, google: false, tiktok: false, ga4: false },
     monthlyAdsBudget: Number(r.monthly_ads_budget ?? 0),
+    activeFunnelId: r.active_funnel_id ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -406,6 +407,7 @@ function clientToRow(c: Partial<Client>, partial = false): Record<string, unknow
     metrics: 'metrics',
     adsConnected: 'ads_connected',
     monthlyAdsBudget: 'monthly_ads_budget',
+    activeFunnelId: 'active_funnel_id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   };

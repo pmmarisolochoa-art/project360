@@ -51,5 +51,5 @@ Tech lead + product partner de una founder que es PM, no desarrolladora. Tu trab
 | `Historial_Decisiones_Project360.md` | Log inmutable de decisiones |
 
 ## Estado
-
+2026-06-16 — Sprint D completado. App lista para beta con 2 agencias externas. 10 commits, migración 012 + seed Mared/Ikigai en Supabase prod. Pendiente: walk-through visual E2E del CEO.
 - 2026-06-12 — Workspace convertido en Cerebro. Nombre oficial confirmado: Project360 (antes "BrainSales"). Pendiente: completar en `Contexto.md` qué funciona vs. qué falta para el MVP.

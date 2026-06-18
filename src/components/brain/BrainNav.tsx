@@ -1,7 +1,7 @@
 import { NavLink, useParams } from 'react-router-dom';
 import {
   User, ClipboardList, TrendingUp, BarChart2, CheckSquare,
-  Target, Calendar, Film, Users,
+  Target, Calendar, Users,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
@@ -22,7 +22,9 @@ export const BRAIN_MODULES: ModuleDef[] = [
   { slug: 'tasks',       label: 'Tareas',      fullLabel: 'Tareas & Seguimiento',   icon: CheckSquare,   index: 5 },
   { slug: 'ropre',       label: 'ROPRE',       fullLabel: 'Sistema ROPRE',          icon: Target,        index: 6 },
   { slug: 'meetings',    label: 'Agenda',      fullLabel: 'Agenda & Reuniones',     icon: Calendar,      index: 7 },
-  { slug: 'content',     label: 'Contenido',   fullLabel: 'Contenido & Redes',      icon: Film,          index: 8 },
+  // OCULTO BETA — reactivar en v2. El módulo Contenido sigue existiendo (ContentModule.tsx)
+  // y su ruta funciona por navegación directa; solo se quita del nav durante el beta.
+  // { slug: 'content',     label: 'Contenido',   fullLabel: 'Contenido & Redes',      icon: Film,          index: 8 },
   { slug: 'team',        label: 'Equipo',      fullLabel: 'Equipo & KPIs',          icon: Users,         index: 9 },
 ];
 

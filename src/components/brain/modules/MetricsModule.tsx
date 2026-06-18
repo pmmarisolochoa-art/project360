@@ -93,6 +93,10 @@ export function MetricsModule({ client }: { client: Client }) {
   const overallRoas = trend.length ? trend[trend.length - 1].metrics.roas : 0;
   const overallCtr = totals.impressions > 0 ? totals.clicks / totals.impressions : 0;
   const overallCpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
+  // Métricas derivadas de los datos disponibles (0D). Las que el modelo demo
+  // no tiene aún (resultados, compras, visitas, video) se muestran como "—".
+  const frecuencia = totals.reach > 0 ? totals.impressions / totals.reach : null;
+  const cpm = totals.impressions > 0 ? (totals.spend / totals.impressions) * 1000 : null;
 
   useEffect(() => {
     setInsights(null);
@@ -189,6 +193,56 @@ export function MetricsModule({ client }: { client: Client }) {
             <KpiCard icon={<MousePointerClick className="h-4 w-4" />} label="Clics" value={formatNumber(totals.clicks)} accent={accent} />
             <KpiCard icon={<TrendingUp className="h-4 w-4" />} label="CTR" value={formatPercent(overallCtr, 2)} accent={accent} />
             <KpiCard icon={<TrendingUp className="h-4 w-4" />} label="ROAS hoy" value={`${overallRoas.toFixed(2)}x`} accent={accent} highlight />
+          </div>
+
+          {/* Métricas conectadas — dos columnas (0D) */}
+          <div className="surface p-5">
+            <header className="mb-3">
+              <h3 className="heading text-base font-bold">Métricas de campaña</h3>
+              <p className="text-[11px] text-text-muted">
+                Período seleccionado · {connectedPlatforms.map(platformLabel).join(' · ')}.
+                Los campos en “—” se llenan al conectar tu cuenta real de Meta Ads.
+              </p>
+            </header>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
+              {/* Columna 1 — Rendimiento */}
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1.5">Rendimiento</div>
+                <MetricLine label="Presupuesto" value={client.monthlyAdsBudget ? formatCurrency(client.monthlyAdsBudget) : '—'} />
+                <MetricLine label="Importe gastado" value={formatCurrency(totals.spend)} />
+                <MetricLine label="Resultado" value="—" />
+                <MetricLine label="Costo por resultado" value="—" />
+                <MetricLine label="Impresiones" value={formatNumber(totals.impressions)} />
+                <MetricLine label="Alcance" value={formatNumber(totals.reach)} />
+                <MetricLine label="Frecuencia" value={frecuencia != null ? frecuencia.toFixed(2) : '—'} />
+                <MetricLine label="CPM" value={cpm != null ? formatCurrency(cpm) : '—'} />
+                <MetricLine label="Pagos iniciados" value="—" />
+                <MetricLine label="Costo por pago iniciado" value="—" />
+                <MetricLine label="Compras" value="—" />
+                <MetricLine label="Costo por compra" value="—" />
+              </div>
+              {/* Columna 2 — Clics */}
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1.5">Clics</div>
+                <MetricLine label="Clics en el enlace" value={formatNumber(totals.clicks)} />
+                <MetricLine label="CPC" value={formatCurrency(overallCpc)} />
+                <MetricLine label="CTR" value={formatPercent(overallCtr, 2)} />
+                <MetricLine label="Visitas a la página de destino" value="—" />
+                <MetricLine label="Costo por visita a la página de destino" value="—" />
+              </div>
+            </div>
+
+            {/* Indicadores de rendimiento (calculados) */}
+            <div className="mt-5 pt-4 border-t border-border-subtle/40">
+              <div className="text-[10px] uppercase tracking-wider text-text-muted mb-2">Indicadores de rendimiento</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                <IndicatorCard label="Hook Rate" value="—" tip="% de personas que vieron 3+ segundos de tu video (Reproducciones 3s ÷ Alcance)" />
+                <IndicatorCard label="Hold Rate" value="—" tip="% de personas que vieron el video completo (Thruplays ÷ Alcance)" />
+                <IndicatorCard label="Carga página" value="—" tip="% de clics que llegaron a la página (Visitas ÷ Clics en enlace)" />
+                <IndicatorCard label="Conv. a pago iniciado" value="—" tip="% de visitas que iniciaron pago (Pagos iniciados ÷ Visitas)" />
+                <IndicatorCard label="Conv. a compras" value="—" tip="% de visitas que completaron la compra (Compras ÷ Visitas)" />
+              </div>
+            </div>
           </div>
 
           {/* Tendencia */}
@@ -386,6 +440,24 @@ function KpiCard({
       <div className="kpi-number" style={highlight ? { color: accent } : undefined}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function MetricLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border-subtle/30 last:border-0">
+      <span className="text-[11px] text-text-secondary">{label}</span>
+      <span className="text-xs font-semibold text-text-primary tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function IndicatorCard({ label, value, tip }: { label: string; value: string; tip: string }) {
+  return (
+    <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3" title={tip}>
+      <div className="text-[10px] uppercase tracking-wider text-text-muted leading-tight">{label}</div>
+      <div className="text-[18px] font-medium text-text-primary mt-1">{value}</div>
     </div>
   );
 }

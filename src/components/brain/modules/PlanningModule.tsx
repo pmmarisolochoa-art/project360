@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FunnelLaunchPanel } from './FunnelLaunchPanel';
 import {
   Search, Sparkles, Plus, ChevronDown, ChevronUp, Workflow, Trash2,
@@ -24,19 +25,39 @@ type PlanningTab = 'research' | 'funnels' | 'diagrams';
 
 export function PlanningModule({ client }: { client: Client }) {
   const [tab, setTab] = useState<PlanningTab>('funnels');
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-4">
-      {/* Tab nav */}
+      {/* Tab nav — Investigación de mercado (movida a Perfil) y Diagramas/Sistema de
+          Embudos (movido a Programas) quedan OCULTO BETA. Ver bloque inferior. */}
       <div className="surface p-2 inline-flex gap-1">
         <TabBtn active={tab === 'funnels'} onClick={() => setTab('funnels')}>🚀 Embudos de Lanzamiento</TabBtn>
-        <TabBtn active={tab === 'research'} onClick={() => setTab('research')}>🔍 Investigación de mercado</TabBtn>
-        <TabBtn active={tab === 'diagrams'} onClick={() => setTab('diagrams')}>📊 Diagramas de Funnel</TabBtn>
+        {/* OCULTO BETA: <TabBtn active={tab === 'research'} onClick={() => setTab('research')}>🔍 Investigación de mercado</TabBtn> */}
+        {/* OCULTO BETA: <TabBtn active={tab === 'diagrams'} onClick={() => setTab('diagrams')}>📊 Diagramas de Funnel</TabBtn> */}
       </div>
 
       {tab === 'funnels' && <FunnelLaunchPanel client={client} />}
-      {tab === 'research' && <MarketResearchPanel client={client} />}
-      {tab === 'diagrams' && <FunnelSystemPanel client={client} />}
+      {/* OCULTO BETA — Investigación (→ Perfil) y Sistema de Embudos (→ Programas)
+          conservados en código para reactivar en v2; no se renderizan. */}
+      {false && <MarketResearchPanel client={client} />}
+      {false && <FunnelSystemPanel client={client} />}
+
+      {/* Sistema de Embudos / diagramas ahora viven en Programas. */}
+      <button
+        onClick={() => navigate(`/client/${client.id}/programs`)}
+        className="surface w-full flex items-center justify-between gap-3 p-3 text-left hover:bg-bg-elevated transition group"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <Workflow className="h-4 w-4 text-text-muted shrink-0" />
+          <span className="text-xs text-text-secondary truncate">
+            Los embudos detallados ahora viven en <span className="font-semibold text-text-primary">Programas</span>.
+          </span>
+        </span>
+        <span className="text-xs font-semibold text-accent-violet whitespace-nowrap group-hover:translate-x-0.5 transition-transform">
+          Ver embudos →
+        </span>
+      </button>
     </div>
   );
 }

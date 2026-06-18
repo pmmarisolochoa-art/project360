@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Sparkles, TrendingUp, Target as TargetIcon, GanttChartSquare, Scale, Compass,
+  Sparkles, TrendingUp, Target as TargetIcon, GanttChartSquare, Compass,
   DollarSign, FileText, Download, Plus, Trash2, Check, Link2, ChevronDown, ChevronUp,
   ArrowUp, ArrowDown,
 } from 'lucide-react';
@@ -34,11 +34,25 @@ const SUB_TABS: Array<{ id: SubTab; label: string; icon: typeof Compass; letter:
   { id: 'summary',     label: 'Resumen',           icon: Compass,            letter: 'A' },
   { id: 'funnel',      label: 'Funnel financiero', icon: TrendingUp,         letter: 'B' },
   { id: 'phases',      label: 'Fases & tiempos',   icon: GanttChartSquare,   letter: 'C' },
-  { id: 'market',      label: 'Vs Mercado',        icon: Scale,              letter: 'D' },
+  // OCULTO BETA — "Vs Mercado" se reactiva en v2. MarketSection sigue en el archivo.
+  // { id: 'market',      label: 'Vs Mercado',        icon: Scale,              letter: 'D' },
   { id: 'okrs',        label: 'Objetivos / OKRs',  icon: TargetIcon,         letter: 'E' },
   { id: 'investment',  label: 'Inversión',         icon: DollarSign,         letter: 'F' },
   { id: 'debriefing',  label: 'Debriefing',        icon: FileText,           letter: 'G' },
 ];
+
+/* Selector de moneda (0C.4). Base de cálculo = USD; TRM editable a futuro en Config. */
+type CurrencyCode = 'COP' | 'USD' | 'EUR';
+const CURRENCIES: Record<CurrencyCode, { symbol: string; rate: number; label: string }> = {
+  USD: { symbol: '$', rate: 1,    label: 'USD' },
+  COP: { symbol: '$', rate: 4200, label: 'COP' }, // 1 USD = 4.200 COP (default editable)
+  EUR: { symbol: '€', rate: 0.92, label: 'EUR' }, // 1 USD = 0,92 EUR (default editable)
+};
+function formatMoney(usdValue: number, code: CurrencyCode): string {
+  const { symbol, rate } = CURRENCIES[code];
+  const converted = Math.round(usdValue * rate);
+  return `${symbol}${new Intl.NumberFormat('en-US').format(converted)}`;
+}
 
 export function ProjectionsModule({ client }: { client: Client }) {
   const accent = client.primaryColor;
@@ -46,6 +60,18 @@ export function ProjectionsModule({ client }: { client: Client }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const [exporting, setExporting] = useState(false);
   const [active, setActive] = useState<SubTab>('summary');
+
+  // Moneda seleccionada — persistida por cliente en localStorage (0C.4).
+  const currencyKey = `p360.currency.${client.id}`;
+  const [currency, setCurrency] = useState<CurrencyCode>(() => {
+    if (typeof window === 'undefined') return 'USD';
+    const saved = window.localStorage.getItem(currencyKey);
+    return saved === 'COP' || saved === 'USD' || saved === 'EUR' ? saved : 'USD';
+  });
+  const changeCurrency = (c: CurrencyCode) => {
+    setCurrency(c);
+    if (typeof window !== 'undefined') window.localStorage.setItem(currencyKey, c);
+  };
 
   useEffect(() => {
     ensure(client.id, {
@@ -104,13 +130,27 @@ export function ProjectionsModule({ client }: { client: Client }) {
             );
           })}
         </div>
-        <Button
-          leftIcon={<Download className="h-4 w-4" />}
-          loading={exporting}
-          onClick={handleExport}
-        >
-          Descargar PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Selector de moneda — solo afecta los montos del Funnel financiero (0C.4) */}
+          <div className="flex items-center gap-1.5" title="TRM editable en Configuración">
+            <select
+              value={currency}
+              onChange={(e) => changeCurrency(e.target.value as CurrencyCode)}
+              className="bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary outline-none"
+            >
+              {(Object.keys(CURRENCIES) as CurrencyCode[]).map((c) => (
+                <option key={c} value={c}>{CURRENCIES[c].symbol} {CURRENCIES[c].label}</option>
+              ))}
+            </select>
+          </div>
+          <Button
+            leftIcon={<Download className="h-4 w-4" />}
+            loading={exporting}
+            onClick={handleExport}
+          >
+            Descargar PDF
+          </Button>
+        </div>
       </div>
 
       <motion.div
@@ -120,9 +160,10 @@ export function ProjectionsModule({ client }: { client: Client }) {
         transition={{ duration: 0.25 }}
       >
         {active === 'summary'    && <SummarySection client={client} accent={accent} />}
-        {active === 'funnel'     && <FunnelSection client={client} accent={accent} />}
+        {active === 'funnel'     && <FunnelSection client={client} accent={accent} currency={currency} />}
         {active === 'phases'     && <PhasesSection client={client} accent={accent} />}
-        {active === 'market'     && <MarketSection client={client} accent={accent} />}
+        {/* OCULTO BETA — MarketSection conservada para v2; no se renderiza. */}
+        {false && <MarketSection client={client} accent={accent} />}
         {active === 'okrs'       && <OkrsSection client={client} accent={accent} />}
         {active === 'investment' && <InvestmentSection client={client} accent={accent} />}
         {active === 'debriefing' && <DebriefingSection client={client} accent={accent} />}
@@ -140,6 +181,7 @@ function SummarySection({ client, accent }: { client: Client; accent: string }) 
   const currentRevenueRange = (client.onboardingData.current as { monthlyRevenue?: string } | undefined)?.monthlyRevenue ?? 'sin definir';
   const state = useProjectionStore((s) => s.states[client.id]);
   const scenarioMeta = SCENARIO_META[state.activeScenario];
+  const [showCalc, setShowCalc] = useState(false);
 
   const m3 = goals?.revenue3m ?? 0;
   const m6 = goals?.revenue6m ?? 0;
@@ -210,6 +252,29 @@ function SummarySection({ client, accent }: { client: Client; accent: string }) 
         <p className="text-[11px] mt-2" style={{ color: scenarioMeta.tone }}>
           Proyectando con escenario: <strong className="font-semibold">{scenarioMeta.label}</strong>. Cambia el escenario en la sección B · Funnel financiero.
         </p>
+
+        {/* 0C.1 — origen de los datos, colapsable y discreto */}
+        <div className="mt-4 border-t border-border-subtle/40 pt-3">
+          <button
+            onClick={() => setShowCalc((v) => !v)}
+            className="text-[11px] text-text-muted hover:text-text-secondary inline-flex items-center gap-1 transition"
+          >
+            <span>ⓘ Cómo se calculan estos datos</span>
+            {showCalc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showCalc && (
+            <div className="mt-2 text-[11px] text-text-muted leading-relaxed max-w-2xl space-y-1">
+              <p>Los datos se calculan con base en:</p>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li>Presupuesto ADS ingresado en el paso de configuración</li>
+                <li>CTR, CPL y ROAS del benchmark de tu industria</li>
+                <li>Precio de venta y tasa de conversión ingresados en el wizard</li>
+                <li>Escenario activo: <strong className="font-semibold text-text-secondary">{scenarioMeta.label}</strong></li>
+              </ul>
+              <p>Para ajustar los supuestos, edita la información del cliente.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -263,11 +328,13 @@ function midOfRange(s: string): number {
    B — FUNNEL FINANCIERO + ESCENARIOS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function FunnelSection({ client, accent }: { client: Client; accent: string }) {
+function FunnelSection({ client, accent, currency }: { client: Client; accent: string; currency: CurrencyCode }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const patch = useProjectionStore((s) => s.patchFunnel);
   const f = state.funnel;
   const outputs = useMemo(() => calculateFunnel(f), [f]);
+  // Montos en la moneda seleccionada (base de cálculo = USD).
+  const money = (usd: number) => formatMoney(usd, currency);
 
   const setActiveScenario = useProjectionStore((s) => s.setActiveScenario);
   const scenarios = useMemo(() => {
@@ -327,7 +394,7 @@ function FunnelSection({ client, accent }: { client: Client; accent: string }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-text-muted">Facturación proyectada</div>
-                  <div className="kpi-number" style={{ color: accent }}>{formatCurrency(outputs.revenue)}</div>
+                  <div className="kpi-number" style={{ color: accent }}>{money(outputs.revenue)}</div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-text-muted">ROAS</div>
@@ -335,11 +402,11 @@ function FunnelSection({ client, accent }: { client: Client; accent: string }) {
                 </div>
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-text-muted">CPL</div>
-                  <div className="text-lg font-semibold text-text-primary">{formatCurrency(outputs.cpl)}</div>
+                  <div className="text-lg font-semibold text-text-primary">{money(outputs.cpl)}</div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-text-muted">Costo por venta</div>
-                  <div className="text-lg font-semibold text-text-primary">{formatCurrency(outputs.costPerSale)}</div>
+                  <div className="text-lg font-semibold text-text-primary">{money(outputs.costPerSale)}</div>
                 </div>
               </div>
             </div>
@@ -402,8 +469,8 @@ function FunnelSection({ client, accent }: { client: Client; accent: string }) {
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <Cell2 label="Leads" value={formatNumber(s.out.leads)} />
                 <Cell2 label="Ventas" value={formatNumber(s.out.sales)} />
-                <Cell2 label="Facturación" value={formatCurrency(s.out.revenue)} accent={s.tone} />
-                <Cell2 label="ROAS" value={`${s.out.roas}x`} accent={s.tone} />
+                <Cell2 label="Facturación" value={money(s.out.revenue)} accent={s.id === 'optimistic' ? '#10B981' : s.tone} />
+                <Cell2 label="ROAS" value={`${s.out.roas}x`} accent={s.id === 'optimistic' ? '#10B981' : s.tone} />
               </div>
             </button>
           );
@@ -416,8 +483,15 @@ function FunnelSection({ client, accent }: { client: Client; accent: string }) {
 function Cell2({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="rounded-md border border-border-subtle bg-bg-base/30 p-2">
-      <div className="text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
-      <div className="text-sm font-semibold" style={accent ? { color: accent } : { color: '#F5F5FA' }}>{value}</div>
+      <div className="text-[11px] uppercase tracking-wider text-text-secondary">{label}</div>
+      {/* Valor con contraste real en light y dark: text-text-primary por defecto,
+          color de acento (o verde en Optimista) cuando se pasa accent. */}
+      <div
+        className={cn('text-[18px] font-medium', !accent && 'text-text-primary')}
+        style={accent ? { color: accent } : undefined}
+      >
+        {value}
+      </div>
     </div>
   );
 }

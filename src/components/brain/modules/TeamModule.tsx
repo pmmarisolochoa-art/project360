@@ -12,6 +12,7 @@ import type { KpiDef, KpiHealth, RoleAssignment, RoleDef, TeamRoleSlug } from '@
 import { ROLE_DEFS, evaluateKpi, progressToTarget } from '@/types/team';
 import { useTeamStore } from '@/store/useTeamStore';
 import { useClientStore } from '@/store/useClientStore';
+import { TeamMembersPanel } from './TeamMembersPanel';
 import { toast } from '@/store/useToastStore';
 import { Badge } from '@/components/ui/Badge';
 import { Textarea } from '@/components/ui/Textarea';
@@ -52,6 +53,9 @@ export function TeamModule({ client }: { client: Client }) {
 
   return (
     <div className="space-y-4">
+      {/* Sprint E · Sección 3 — personas reales con funciones y KPIs editables. */}
+      <TeamMembersPanel client={client} />
+
       <GlobalDashboard
         client={client}
         assignments={assignments}

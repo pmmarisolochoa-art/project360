@@ -6,6 +6,8 @@ import type { RopreItem } from '@/types/ropre';
 import type { ContentPiece } from '@/types/content';
 import type { ProjectionState } from '@/types/projection';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
+import type { TeamMember } from '@/types/teamMember';
+import type { TeamRoleSlug } from '@/types/team';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { useRopreStore } from '@/store/useRopreStore';
 
@@ -172,6 +174,63 @@ export const TeamRepo = {
     if (error) throw error;
   },
 };
+
+/* ─────────────── TEAM MEMBERS (personas — tabla team_members) ─────────────── */
+
+export const TeamMembersRepo = {
+  async listByClientIds(clientIds: string[]): Promise<TeamMember[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase.from('team_members').select('*').in('client_id', clientIds);
+    if (error) throw error;
+    return (data ?? []).map(rowToTeamMember);
+  },
+  async create(m: TeamMember): Promise<TeamMember> {
+    if (!usingRemote || !supabase) return m;
+    const { data, error } = await supabase.from('team_members').insert(teamMemberToRow(m)).select().single();
+    if (error) throw error;
+    return rowToTeamMember(data);
+  },
+  async update(id: string, patch: Partial<TeamMember>): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('team_members').update(teamMemberToRow(patch as TeamMember, true)).eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('team_members').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+function rowToTeamMember(row: Record<string, unknown>): TeamMember {
+  const r = row as any;
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    nombre: r.nombre,
+    rol: r.rol as TeamRoleSlug,
+    email: r.email ?? undefined,
+    avatarColor: r.avatar_color ?? '#6366F1',
+    funciones: Array.isArray(r.funciones) ? r.funciones : [],
+    kpis: r.kpis_custom && typeof r.kpis_custom === 'object'
+      ? { values: r.kpis_custom.values ?? {}, history: r.kpis_custom.history ?? {}, custom: r.kpis_custom.custom ?? [] }
+      : { values: {}, history: {}, custom: [] },
+    createdAt: r.created_at,
+  };
+}
+
+function teamMemberToRow(m: Partial<TeamMember>, partial = false): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (!partial || m.id !== undefined) row.id = m.id;
+  if (!partial || m.clientId !== undefined) row.client_id = m.clientId;
+  if (!partial || m.nombre !== undefined) row.nombre = m.nombre;
+  if (!partial || m.rol !== undefined) row.rol = m.rol;
+  if (!partial || m.email !== undefined) row.email = m.email ?? null;
+  if (!partial || m.avatarColor !== undefined) row.avatar_color = m.avatarColor;
+  if (!partial || m.funciones !== undefined) row.funciones = m.funciones ?? [];
+  if (!partial || m.kpis !== undefined) row.kpis_custom = m.kpis ?? { values: {}, history: {}, custom: [] };
+  return row;
+}
 
 /* ─────────────── CONTENT PIECES ─────────────── */
 

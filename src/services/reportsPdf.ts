@@ -6,7 +6,8 @@ import type { Client } from '@/types/client';
 import type { Task, TaskStatus } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
-import { generateWeeklyReport } from '@/services/claudeApi';
+import type { RopreItem } from '@/types/ropre';
+import { generateWeeklyReport, generateRopreWeekly } from '@/services/claudeApi';
 import { resolveRoleLabel } from '@/utils/roleResolver';
 
 /**
@@ -70,12 +71,13 @@ function fileName(client: Client, kind: string) {
  * Es async porque llama a Claude. Si Claude falla, usa fallback heurístico
  * y el PDF se genera igual (nunca bloquea la descarga).
  */
-export async function exportWeeklyReport({ client, tasks, meetings, funnel, needFromClient }: {
+export async function exportWeeklyReport({ client, tasks, meetings, funnel, needFromClient, ropreItems }: {
   client: Client;
   tasks: Task[];
   meetings: Meeting[];
   funnel?: Funnel | null;
   needFromClient?: string;
+  ropreItems?: RopreItem[];
 }): Promise<void> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const pageW = doc.internal.pageSize.getWidth();
@@ -116,6 +118,26 @@ export async function exportWeeklyReport({ client, tasks, meetings, funnel, need
       dueInDays: differenceInDays(parseISO(t.dueDate), today),
     })),
   });
+
+  // ─── Análisis ROPRE de la semana (Sección 1) ───
+  const ropre = ropreItems ?? [];
+  const byType = (t: RopreItem['type']) => ropre.filter((i) => i.type === t);
+  const overdueTasks = pending.filter((t) => t.isDelayed);
+  const ropreAi = await generateRopreWeekly({
+    clientName: client.name,
+    resultadoEsperado: byType('result')[0]?.title ?? '',
+    objetivos: byType('objective').map((i) => i.title),
+    premisas: byType('premise').map((i) => i.title),
+    riesgos: byType('risk').map((i) => i.title),
+    entregablesPendientes: byType('deliverable').filter((i) => i.status !== 'done').length,
+    tareasCompletadas: completed.map((t) => t.title),
+    tareasVencidas: overdueTasks.map((t) => t.title),
+    cumplimientoPct: compliancePct,
+  });
+  const SEMAFORO_RGB: Record<string, [number, number, number]> = {
+    verde: [16, 185, 129], amarillo: [245, 158, 11], rojo: [239, 68, 68],
+  };
+  const semRgb = SEMAFORO_RGB[ropreAi.semaforo] ?? SEMAFORO_RGB.amarillo;
 
   /* ═══ PORTADA ═══ */
   doc.setFillColor(...accent);
@@ -201,20 +223,22 @@ export async function exportWeeklyReport({ client, tasks, meetings, funnel, need
   doc.line(18, 25, 110, 25);
 
   autoTable(doc, {
-    head: [['Tarea', 'Responsable', 'Entregado', 'Estado']],
+    head: [['Tarea', 'Responsable', 'Entregado', 'Resultado']],
     body: completed.length > 0
       ? completed.map((t) => [
           t.title,
           resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo,
           t.completedAt ? format(parseISO(t.completedAt), 'd MMM', { locale: es }) : '—',
-          'Completada',
+          t.kpiNombre
+            ? (t.kpiResultado ? `${t.kpiResultado}${t.kpiMeta ? ` / meta ${t.kpiMeta}` : ''}` : 'Sin registrar')
+            : 'Completada',
         ])
       : [['Sin tareas completadas esta semana', '—', '—', '—']],
     startY: 32,
     styles: { fontSize: 9, cellPadding: 3, valign: 'top' },
     headStyles: { fillColor: accent, textColor: [255, 255, 255] },
     theme: 'grid',
-    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 40 }, 2: { cellWidth: 22 }, 3: { cellWidth: 24 } },
+    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 38 }, 2: { cellWidth: 20 }, 3: { cellWidth: 34 } },
   });
 
   /* ═══ P3: PENDIENTES ═══ */
@@ -263,6 +287,64 @@ export async function exportWeeklyReport({ client, tasks, meetings, funnel, need
       }
     },
   });
+
+  /* ═══ P3B: ROPRE DE LA SEMANA ═══ */
+  doc.addPage();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(20, 20, 30);
+  doc.text('ROPRE — Estado de la semana', 18, 22);
+  doc.setLineWidth(0.8);
+  doc.setDrawColor(...accent);
+  doc.line(18, 25, 120, 25);
+
+  // Semáforo visual + estado
+  doc.setFillColor(...semRgb);
+  doc.roundedRect(18, 31, 7, 7, 1.5, 1.5, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(...semRgb);
+  doc.text(`${ropreAi.estado_resultado} · ${ropreAi.avance_resultado}% del resultado`, 29, 36.5);
+
+  // Resumen de la semana
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 70);
+  const ropreResumen = doc.splitTextToSize(ropreAi.resumen_semana, pageW - 36);
+  doc.text(ropreResumen, 18, 48);
+
+  autoTable(doc, {
+    startY: 48 + ropreResumen.length * 5 + 4,
+    head: [['ROPRE', 'Estado']],
+    body: [
+      ['R — Resultado', `${ropreAi.estado_resultado} — ${ropreAi.avance_resultado}%`],
+      ['O — Objetivos', byType('objective').slice(0, 3).map((i) => i.title).join('; ') || 'Sin objetivos activos'],
+      ['P — Premisas', ropreAi.cambios_esta_semana || 'Sin cambios'],
+      ['R — Riesgos', ropreAi.alertas_ropre.join('; ') || 'Sin riesgos nuevos'],
+      ['E — Entregables', `${byType('deliverable').filter((i) => i.status !== 'done').length} pendientes esta semana`],
+    ],
+    styles: { fontSize: 9, cellPadding: 3, valign: 'top' },
+    headStyles: { fillColor: accent, textColor: [255, 255, 255] },
+    theme: 'grid',
+    columnStyles: { 0: { cellWidth: 42, fontStyle: 'bold' }, 1: { cellWidth: 'auto' } },
+  });
+
+  // Recomendación del PM — box con borde izquierdo del color del semáforo
+  const afterRopre = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 120;
+  const recLines = doc.splitTextToSize(ropreAi.recomendacion_pm, pageW - 48);
+  const boxH = 10 + recLines.length * 4.5;
+  const ry = afterRopre + 8;
+  doc.setFillColor(247, 247, 250);
+  doc.rect(18, ry, pageW - 36, boxH, 'F');
+  doc.setFillColor(...semRgb);
+  doc.rect(18, ry, 1.6, boxH, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(40, 40, 50);
+  doc.text('Recomendación del PM', 23, ry + 6);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 70);
+  doc.text(recLines, 23, ry + 11);
 
   /* ═══ P4: FOCO PRÓXIMA SEMANA ═══ */
   doc.addPage();

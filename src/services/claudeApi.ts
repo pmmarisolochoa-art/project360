@@ -319,6 +319,62 @@ export async function generateWeeklyReport(input: WeeklyReportInput): Promise<We
   }
 }
 
+export interface RopreWeeklyInput {
+  clientName: string;
+  resultadoEsperado: string;
+  objetivos: string[];
+  premisas: string[];
+  riesgos: string[];
+  entregablesPendientes: number;
+  tareasCompletadas: string[];
+  tareasVencidas: string[];
+  cumplimientoPct: number;
+}
+
+export interface RopreWeeklyOutput {
+  estado_resultado: 'En camino' | 'En riesgo' | 'Desviado';
+  avance_resultado: number;
+  resumen_semana: string;
+  alertas_ropre: string[];
+  cambios_esta_semana: string;
+  semaforo: 'verde' | 'amarillo' | 'rojo';
+  recomendacion_pm: string;
+}
+
+/**
+ * Análisis ROPRE de la semana para el reporte (Sprint E · Sección 1).
+ * Intenta el backend (haiku) y degrada a heurística si falla — nunca bloquea el PDF.
+ */
+export async function generateRopreWeekly(input: RopreWeeklyInput): Promise<RopreWeeklyOutput> {
+  try {
+    return await callBackend<RopreWeeklyOutput>('ropre_weekly', input);
+  } catch (e) {
+    console.warn('[claudeApi] ropre_weekly falló, usando fallback.', e);
+    const overdue = input.tareasVencidas.length;
+    const semaforo: RopreWeeklyOutput['semaforo'] =
+      input.cumplimientoPct >= 85 && overdue === 0 ? 'verde'
+        : input.cumplimientoPct >= 60 && overdue <= 2 ? 'amarillo'
+          : 'rojo';
+    const estado_resultado: RopreWeeklyOutput['estado_resultado'] =
+      semaforo === 'verde' ? 'En camino' : semaforo === 'amarillo' ? 'En riesgo' : 'Desviado';
+    const alertas = [
+      ...input.riesgos.slice(0, 2),
+      ...(overdue > 0 ? [`${overdue} tarea${overdue === 1 ? '' : 's'} vencida${overdue === 1 ? '' : 's'} esta semana`] : []),
+    ];
+    return {
+      estado_resultado,
+      avance_resultado: Math.max(0, Math.min(100, Math.round(input.cumplimientoPct))),
+      resumen_semana: `Se completaron ${input.tareasCompletadas.length} tareas con un cumplimiento del ${input.cumplimientoPct}%. ${overdue > 0 ? `Hay ${overdue} tarea(s) vencida(s) que requieren atención.` : 'El equipo mantiene el ritmo previsto.'}`,
+      alertas_ropre: alertas.length ? alertas : ['Sin riesgos nuevos'],
+      cambios_esta_semana: overdue > 0 ? 'Aumentó el riesgo por tareas vencidas.' : 'Sin cambios relevantes respecto a la semana anterior.',
+      semaforo,
+      recomendacion_pm: overdue > 0
+        ? 'Priorizar el desbloqueo de las tareas vencidas antes de iniciar nuevo trabajo.'
+        : 'Mantener el foco en los entregables del próximo hito y sostener el ritmo.',
+    };
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    FALLBACKS heurísticos (cuando el endpoint no existe o falla)
    ═══════════════════════════════════════════════════════════════════════════ */

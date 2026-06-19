@@ -4,6 +4,7 @@ import { FileText, ChevronDown, Calendar, CalendarRange, Mic, Rocket } from 'luc
 import type { Client } from '@/types/client';
 import { useClientStore } from '@/store/useClientStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
+import { useRopreStore } from '@/store/useRopreStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
 import {
@@ -28,6 +29,8 @@ export function ReportsMenu({ client }: { client: Client }) {
   const allMeetingsRaw = useClientStore((s) => s.meetings);
   const allFunnelsRaw = useFunnelLaunchStore((s) => s.funnels);
   const allPhases = useFunnelLaunchStore((s) => s.phases);
+  const allRopreRaw = useRopreStore((s) => s.items);
+  const ropreItems = useMemo(() => allRopreRaw.filter((i) => i.clientId === client.id), [allRopreRaw, client.id]);
   const tasks = useMemo(() => allTasksRaw.filter((t) => t.clientId === client.id), [allTasksRaw, client.id]);
   const meetings = useMemo(() => allMeetingsRaw.filter((m) => m.clientId === client.id), [allMeetingsRaw, client.id]);
   const funnels = useMemo(() => allFunnelsRaw.filter((f) => f.clientId === client.id), [allFunnelsRaw, client.id]);
@@ -97,7 +100,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                       ? funnels.find((f) => f.id === client.activeFunnelId) ?? null
                       : funnels[0] ?? null;
                     run(
-                      () => exportWeeklyReport({ client, tasks, meetings, funnel: activeFunnel }),
+                      () => exportWeeklyReport({ client, tasks, meetings, funnel: activeFunnel, ropreItems }),
                       'Reporte semanal',
                     );
                   }}

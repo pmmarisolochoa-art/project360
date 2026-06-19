@@ -120,6 +120,18 @@ interface WeeklyReportCtx {
   }>;
 }
 
+interface RopreWeeklyCtx {
+  clientName: string;
+  resultadoEsperado: string;
+  objetivos: string[];
+  premisas: string[];
+  riesgos: string[];
+  entregablesPendientes: number;
+  tareasCompletadas: string[];
+  tareasVencidas: string[];
+  cumplimientoPct: number;
+}
+
 interface GenerateContentCopyCtx {
   clientName: string;
   industry: string;
@@ -148,7 +160,8 @@ type RequestBody =
   | { feature: 'ropre_from_transcription'; context: RopreFromTranscriptionCtx }
   | { feature: 'generate_content_copy'; context: GenerateContentCopyCtx }
   | { feature: 'generate_ad_variants'; context: GenerateAdVariantsCtx }
-  | { feature: 'weekly_report'; context: WeeklyReportCtx };
+  | { feature: 'weekly_report'; context: WeeklyReportCtx }
+  | { feature: 'ropre_weekly'; context: RopreWeeklyCtx };
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -190,6 +203,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ variants: await generateAdVariants(apiKey, body.context) });
       case 'weekly_report':
         return json(await weeklyReport(apiKey, body.context));
+      case 'ropre_weekly':
+        return json(await ropreWeekly(apiKey, body.context));
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -831,6 +846,49 @@ Genera summary + priorities en JSON.`;
   } catch {
     throw new Error('Claude devolvió JSON inválido para weekly_report');
   }
+}
+
+async function ropreWeekly(apiKey: string, ctx: RopreWeeklyCtx): Promise<{
+  estado_resultado: string; avance_resultado: number; resumen_semana: string;
+  alertas_ropre: string[]; cambios_esta_semana: string; semaforo: string; recomendacion_pm: string;
+}> {
+  const system = `Eres una PM senior que analiza el estado ROPRE (Resultado, Objetivos, Premisas, Riesgos, Entregables) de un proyecto al cierre de la semana. Tono profesional, directo, orientado a acción.
+
+Devuelve SOLO un JSON con esta forma EXACTA:
+{
+  "estado_resultado": "En camino | En riesgo | Desviado",
+  "avance_resultado": <número 0-100>,
+  "resumen_semana": "2 oraciones sobre qué avanzó",
+  "alertas_ropre": ["alertas si existen, vacío si no"],
+  "cambios_esta_semana": "qué cambió respecto a la semana anterior",
+  "semaforo": "verde | amarillo | rojo",
+  "recomendacion_pm": "una acción concreta para la próxima semana"
+}
+Sin texto antes ni después. Sin emojis.`;
+
+  const user = `Cliente: ${ctx.clientName}
+Resultado esperado: ${ctx.resultadoEsperado || '(sin definir)'}
+Objetivos: ${ctx.objetivos.join('; ') || '(ninguno)'}
+Premisas: ${ctx.premisas.join('; ') || '(ninguna)'}
+Riesgos activos: ${ctx.riesgos.join('; ') || '(ninguno)'}
+Entregables pendientes: ${ctx.entregablesPendientes}
+Tareas completadas esta semana: ${ctx.tareasCompletadas.join('; ') || '(ninguna)'}
+Tareas vencidas: ${ctx.tareasVencidas.join('; ') || '(ninguna)'}
+Cumplimiento del equipo: ${ctx.cumplimientoPct}%
+
+Genera el análisis ROPRE en JSON.`;
+
+  const txt = await callAnthropic(apiKey, system, user, 700, FAST_MODEL);
+  const parsed = JSON.parse(extractJson(txt)) as Record<string, unknown>;
+  return {
+    estado_resultado: String(parsed.estado_resultado ?? 'En camino'),
+    avance_resultado: Number(parsed.avance_resultado ?? 0),
+    resumen_semana: String(parsed.resumen_semana ?? ''),
+    alertas_ropre: Array.isArray(parsed.alertas_ropre) ? parsed.alertas_ropre.map(String) : [],
+    cambios_esta_semana: String(parsed.cambios_esta_semana ?? ''),
+    semaforo: String(parsed.semaforo ?? 'amarillo'),
+    recomendacion_pm: String(parsed.recomendacion_pm ?? ''),
+  };
 }
 
 function extractJson(text: string): string {

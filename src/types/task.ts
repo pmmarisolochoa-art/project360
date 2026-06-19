@@ -36,6 +36,11 @@ export interface Task {
   // Embudo: si la tarea pertenece a un Funnel (sistema de lanzamiento), enlace + fase.
   funnelId?: string;
   phaseId?: string;
+  // KPI de resultado (Sprint E · Sección 5) — qué resultado debe generar la tarea.
+  kpiNombre?: string;     // ej "500 leads captados"
+  kpiMeta?: string;       // ej "500"
+  kpiResultado?: string;  // resultado real, se llena al completar
+  kpiTipo?: string;       // 'manual' | 'auto'
   createdAt: string;
 }
 

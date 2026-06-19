@@ -46,6 +46,22 @@ const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'subtle'> = {
   P3: 'subtle',
 };
 
+/**
+ * Evalúa el resultado de una tarea contra su meta (Sección 5):
+ * resultado >= meta → logrado 🟢; < meta → parcial 🟡; sin registro → ⚪.
+ */
+function kpiResult(meta: string | undefined, resultado: string | undefined): { label: string; emoji: string; color: string } {
+  if (!resultado || !resultado.trim()) return { label: 'Sin resultado registrado', emoji: '⚪', color: '#9CA3AF' };
+  const m = Number(String(meta ?? '').replace(/[^\d.-]/g, ''));
+  const r = Number(String(resultado).replace(/[^\d.-]/g, ''));
+  if (Number.isFinite(m) && Number.isFinite(r) && String(meta ?? '').trim() !== '') {
+    return r >= m
+      ? { label: 'Objetivo logrado', emoji: '🟢', color: '#10B981' }
+      : { label: 'Objetivo parcial', emoji: '🟡', color: '#F59E0B' };
+  }
+  return { label: 'Resultado registrado', emoji: '🟢', color: '#10B981' };
+}
+
 export function TasksModule({ client }: { client: Client }) {
   const navigate = useNavigate();
   // IMPORTANTE: el selector debe devolver una referencia estable.
@@ -338,6 +354,11 @@ export function TasksModule({ client }: { client: Client }) {
                         completedAt: col.status === 'completed' ? new Date().toISOString() : undefined,
                       });
                       toast.success(`Tarea movida a ${col.label}`);
+                      // Si se completa una tarea con KPI sin resultado registrado,
+                      // abrimos el detalle para capturar el resultado real (5B).
+                      if (col.status === 'completed' && task.kpiNombre && !task.kpiResultado) {
+                        setEditing({ ...task, status: col.status });
+                      }
                     }
                   }
                   setDraggedTaskId(null);
@@ -615,6 +636,20 @@ function TaskCard({
         {task.title}
       </div>
 
+      {/* KPI de resultado (5C): meta visible siempre; resultado en COMPLETADO. */}
+      {task.kpiNombre && (
+        task.status === 'completed' && task.kpiResultado ? (
+          <div className="mb-2 text-[10px] flex items-center gap-1" style={{ color: kpiResult(task.kpiMeta, task.kpiResultado).color }}>
+            {kpiResult(task.kpiMeta, task.kpiResultado).emoji} {task.kpiResultado}
+            {task.kpiMeta && <span className="text-text-muted">— meta: {task.kpiMeta}</span>}
+          </div>
+        ) : (
+          <div className="mb-2 text-[10px] text-text-muted truncate">
+            🎯 Meta: {task.kpiNombre}{task.kpiMeta ? ` → ${task.kpiMeta}` : ''}
+          </div>
+        )
+      )}
+
       <div className="flex items-center justify-between gap-2 text-[11px]">
         <span
           className="flex items-center gap-1"
@@ -761,6 +796,10 @@ function TaskModal({
   const [input, setInput] = useState(task?.input ?? '');
   const [output, setOutput] = useState(task?.output ?? '');
   const [driveLink, setDriveLink] = useState(task?.driveLink ?? '');
+  // KPI de resultado de la tarea (Sección 5).
+  const [kpiNombre, setKpiNombre] = useState(task?.kpiNombre ?? '');
+  const [kpiMeta, setKpiMeta] = useState(task?.kpiMeta ?? '');
+  const [kpiResultado, setKpiResultado] = useState(task?.kpiResultado ?? '');
   const [dependsOn, setDependsOn] = useState<string[]>(task?.dependsOn ?? []);
   const [showDepsEditor, setShowDepsEditor] = useState((task?.dependsOn?.length ?? 0) > 0);
   const [subtasks, setSubtasks] = useState(task?.subtasks ?? []);
@@ -814,6 +853,9 @@ function TaskModal({
                 input: input || undefined,
                 output: output || undefined,
                 driveLink: driveLink.trim() || undefined,
+                kpiNombre: kpiNombre.trim() || undefined,
+                kpiMeta: kpiMeta.trim() || undefined,
+                kpiResultado: kpiResultado.trim() || undefined,
                 dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
                 subtasks,
                 comments,
@@ -919,6 +961,43 @@ function TaskModal({
             onChange={(e) => setDriveLink(e.target.value)}
             placeholder="https://drive.google.com/…"
           />
+        </div>
+
+        {/* Resultado esperado — KPI de la tarea (Sección 5). */}
+        <div className="grid grid-cols-1 gap-3 rounded-[10px] border p-3" style={{ borderColor: withAlpha(accent, 0.3), background: withAlpha(accent, 0.05) }}>
+          <div className="text-[11px] uppercase tracking-wider text-text-muted">🎯 Resultado esperado</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="KPI de esta tarea"
+              value={kpiNombre}
+              onChange={(e) => setKpiNombre(e.target.value)}
+              placeholder="Ej. 500 leads captados"
+            />
+            <Input
+              label="Meta"
+              value={kpiMeta}
+              onChange={(e) => setKpiMeta(e.target.value)}
+              placeholder="Ej. 500"
+            />
+          </div>
+          {kpiNombre.trim() && (
+            <div>
+              <Input
+                label="Resultado real (se llena al completar)"
+                value={kpiResultado}
+                onChange={(e) => setKpiResultado(e.target.value)}
+                placeholder="Ej. 480"
+              />
+              {kpiResultado.trim() && (
+                <div className="mt-1.5 text-xs flex items-center gap-1.5">
+                  {kpiResult(kpiMeta, kpiResultado).emoji}
+                  <span style={{ color: kpiResult(kpiMeta, kpiResultado).color }}>
+                    {kpiResult(kpiMeta, kpiResultado).label}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-3">

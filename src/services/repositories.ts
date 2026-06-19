@@ -568,6 +568,10 @@ function rowToTask(row: Record<string, unknown>): Task {
     driveLink: r.drive_link ?? undefined,
     funnelId: r.funnel_id ?? undefined,
     phaseId: r.phase_id ?? undefined,
+    kpiNombre: r.kpi_nombre ?? undefined,
+    kpiMeta: r.kpi_meta ?? undefined,
+    kpiResultado: r.kpi_resultado ?? undefined,
+    kpiTipo: r.kpi_tipo ?? undefined,
     createdAt: r.created_at,
   };
 }
@@ -598,6 +602,10 @@ function taskToRow(t: Partial<Task>, partial = false): Record<string, unknown> {
     driveLink: 'drive_link',
     funnelId: 'funnel_id',
     phaseId: 'phase_id',
+    kpiNombre: 'kpi_nombre',
+    kpiMeta: 'kpi_meta',
+    kpiResultado: 'kpi_resultado',
+    kpiTipo: 'kpi_tipo',
     createdAt: 'created_at',
   };
   const row: Record<string, unknown> = {};

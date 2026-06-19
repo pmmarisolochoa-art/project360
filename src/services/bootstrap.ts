@@ -130,6 +130,10 @@ function rowToTask(r: Record<string, unknown>): Task {
     tag: x.tag ?? undefined,
     funnelId: x.funnel_id ?? undefined,
     phaseId: x.phase_id ?? undefined,
+    kpiNombre: x.kpi_nombre ?? undefined,
+    kpiMeta: x.kpi_meta ?? undefined,
+    kpiResultado: x.kpi_resultado ?? undefined,
+    kpiTipo: x.kpi_tipo ?? undefined,
     createdAt: x.created_at,
   };
 }

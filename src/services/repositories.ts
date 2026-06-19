@@ -8,6 +8,7 @@ import type { ProjectionState } from '@/types/projection';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { TeamMember } from '@/types/teamMember';
 import type { TeamRoleSlug } from '@/types/team';
+import type { Program } from '@/types/program';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { useRopreStore } from '@/store/useRopreStore';
 
@@ -232,6 +233,67 @@ function teamMemberToRow(m: Partial<TeamMember>, partial = false): Record<string
   return row;
 }
 
+/* ─────────────── PROGRAMS (tabla programs) ─────────────── */
+
+export const ProgramsRepo = {
+  async listByClientIds(clientIds: string[]): Promise<Program[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase.from('programs').select('*').in('client_id', clientIds);
+    if (error) throw error;
+    return (data ?? []).map(rowToProgram);
+  },
+  async create(p: Program): Promise<Program> {
+    if (!usingRemote || !supabase) return p;
+    const { data, error } = await supabase.from('programs').insert(programToRow(p)).select().single();
+    if (error) throw error;
+    return rowToProgram(data);
+  },
+  async update(id: string, patch: Partial<Program>): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('programs').update(programToRow(patch as Program, true)).eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('programs').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+function rowToProgram(row: Record<string, unknown>): Program {
+  const r = row as any;
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    nombre: r.nombre,
+    tipo: r.tipo,
+    descripcion: r.descripcion ?? undefined,
+    fechaInicio: r.fecha_inicio ?? undefined,
+    fechaEvento: r.fecha_evento ?? undefined,
+    fechaCierre: r.fecha_cierre ?? undefined,
+    estado: r.estado ?? 'activo',
+    funnelTemplate: r.funnel_template ?? undefined,
+    color: r.color ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+function programToRow(p: Partial<Program>, partial = false): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (!partial || p.id !== undefined) row.id = p.id;
+  if (!partial || p.clientId !== undefined) row.client_id = p.clientId;
+  if (!partial || p.nombre !== undefined) row.nombre = p.nombre;
+  if (!partial || p.tipo !== undefined) row.tipo = p.tipo;
+  if (!partial || p.descripcion !== undefined) row.descripcion = p.descripcion ?? null;
+  if (!partial || p.fechaInicio !== undefined) row.fecha_inicio = p.fechaInicio ?? null;
+  if (!partial || p.fechaEvento !== undefined) row.fecha_evento = p.fechaEvento ?? null;
+  if (!partial || p.fechaCierre !== undefined) row.fecha_cierre = p.fechaCierre ?? null;
+  if (!partial || p.estado !== undefined) row.estado = p.estado;
+  if (!partial || p.funnelTemplate !== undefined) row.funnel_template = p.funnelTemplate ?? null;
+  if (!partial || p.color !== undefined) row.color = p.color ?? null;
+  return row;
+}
+
 /* ─────────────── CONTENT PIECES ─────────────── */
 
 export const ContentRepo = {
@@ -376,6 +438,7 @@ function rowToFunnel(row: Record<string, unknown>): Funnel {
     eventDate: r.event_date ?? undefined,
     endDate: r.end_date ?? undefined,
     shareToken: r.share_token ?? '',
+    programId: r.program_id ?? undefined,
     createdAt: r.created_at,
   };
 }
@@ -391,6 +454,7 @@ function funnelToRow(f: Partial<Funnel>, partial = false): Record<string, unknow
     eventDate: 'event_date',
     endDate: 'end_date',
     shareToken: 'share_token',
+    programId: 'program_id',
     createdAt: 'created_at',
   };
   const row: Record<string, unknown> = {};

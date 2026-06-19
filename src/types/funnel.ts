@@ -77,6 +77,7 @@ export interface Funnel {
   eventDate?: string;            // fecha del evento principal (webinar/apertura carrito)
   endDate?: string;              // fecha de cierre
   shareToken: string;            // token unguessable para portal cliente público
+  programId?: string;            // programa al que pertenece (Sprint E · Sección 4)
   createdAt: string;
 }
 

@@ -13,6 +13,7 @@ import { ContentModule } from '@/components/brain/modules/ContentModule';
 import { TeamModule } from '@/components/brain/modules/TeamModule';
 import { ProjectionsModule } from '@/components/brain/modules/ProjectionsModule';
 import { PlanningModule } from '@/components/brain/modules/PlanningModule';
+import { ProgramsModule } from '@/components/brain/modules/ProgramsModule';
 
 const MODULE_DESCRIPTIONS: Record<string, { description: string; features: string[] }> = {
   planning: {
@@ -144,6 +145,8 @@ export function ClientBrainPage() {
           <ProjectionsModule client={client} />
         ) : module === 'planning' ? (
           <PlanningModule client={client} />
+        ) : module === 'programs' ? (
+          <ProgramsModule client={client} />
         ) : module === 'meetings' ? (
           <MeetingsModule client={client} />
         ) : (

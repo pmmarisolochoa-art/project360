@@ -1,7 +1,7 @@
 import { NavLink, useParams } from 'react-router-dom';
 import {
   User, ClipboardList, TrendingUp, BarChart2, CheckSquare,
-  Target, Calendar, Users,
+  Target, Calendar, Users, Rocket,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
@@ -17,6 +17,7 @@ export interface ModuleDef {
 export const BRAIN_MODULES: ModuleDef[] = [
   { slug: 'profile',     label: 'Perfil',      fullLabel: 'Perfil & Inteligencia',  icon: User,          index: 1 },
   { slug: 'planning',    label: 'Planeación',  fullLabel: 'Planeación del proyecto',icon: ClipboardList, index: 2 },
+  { slug: 'programs',    label: 'Programas',   fullLabel: 'Programas del cliente',  icon: Rocket,        index: 3 },
   { slug: 'projections', label: 'Proyección',  fullLabel: 'Proyección financiera',  icon: TrendingUp,    index: 3 },
   { slug: 'metrics',     label: 'Métricas',    fullLabel: 'Métricas & Campañas',    icon: BarChart2,     index: 4 },
   { slug: 'tasks',       label: 'Tareas',      fullLabel: 'Tareas & Seguimiento',   icon: CheckSquare,   index: 5 },

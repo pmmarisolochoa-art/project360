@@ -24,6 +24,8 @@ import { useClientStore } from '@/store/useClientStore';
 import { toast } from '@/store/useToastStore';
 import { ROLE_DEFS } from '@/types/team';
 import { useTeamStore } from '@/store/useTeamStore';
+import { useProgramsStore } from '@/store/useProgramsStore';
+import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { resolveRoleLabel } from '@/utils/roleResolver';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
@@ -61,6 +63,23 @@ export function TasksModule({ client }: { client: Client }) {
   const [filterAssignee, setFilterAssignee] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
   const [filterTag, setFilterTag] = useState<string>('');
+  // Filtro por programa (4D) — recuerda la última selección por cliente.
+  const programs = useProgramsStore((s) => s.programs).filter((p) => p.clientId === client.id);
+  const funnels = useFunnelLaunchStore((s) => s.funnels);
+  const programFilterKey = `p360.program.${client.id}`;
+  const [filterProgram, setFilterProgram] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem(programFilterKey) ?? '';
+  });
+  const changeProgramFilter = (id: string) => {
+    setFilterProgram(id);
+    if (typeof window !== 'undefined') window.localStorage.setItem(programFilterKey, id);
+  };
+  // funnelIds del programa seleccionado → para filtrar tareas por embudo.
+  const programFunnelIds = useMemo(() => {
+    if (!filterProgram) return null;
+    return new Set(funnels.filter((f) => f.programId === filterProgram).map((f) => f.id));
+  }, [filterProgram, funnels]);
   const [quickFilter, setQuickFilter] = useState<'all' | 'mine' | 'overdue' | 'today' | 'week'>('all');
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
@@ -128,6 +147,7 @@ export function TasksModule({ client }: { client: Client }) {
       }
       if (filterPriority && t.priority !== filterPriority) return false;
       if (filterTag && t.tag !== filterTag) return false;
+      if (programFunnelIds && !(t.funnelId && programFunnelIds.has(t.funnelId))) return false;
       if (quickFilter === 'mine' && t.assignedTo !== 'Marisol Ochoa') return false;
       if (quickFilter === 'overdue' && !(t.isDelayed && t.status !== 'completed')) return false;
       if (quickFilter === 'today') {
@@ -140,7 +160,7 @@ export function TasksModule({ client }: { client: Client }) {
       }
       return true;
     });
-  }, [tasks, filterAssignee, filterPriority, filterTag, quickFilter]);
+  }, [tasks, filterAssignee, filterPriority, filterTag, programFunnelIds, quickFilter]);
 
   const accent = client.primaryColor;
 
@@ -217,6 +237,17 @@ export function TasksModule({ client }: { client: Client }) {
           onChange={(e) => setFilterTag(e.target.value)}
           className="min-w-[160px]"
         />
+        {programs.length > 0 && (
+          <Select
+            options={[
+              { value: '', label: 'Todos los programas' },
+              ...programs.map((p) => ({ value: p.id, label: p.nombre })),
+            ]}
+            value={filterProgram}
+            onChange={(e) => changeProgramFilter(e.target.value)}
+            className="min-w-[180px]"
+          />
+        )}
 
         <div className="ml-auto flex items-center gap-2">
           {overdueCount > 0 && (

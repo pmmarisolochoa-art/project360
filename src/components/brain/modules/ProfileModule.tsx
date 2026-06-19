@@ -13,6 +13,7 @@ import { useClientStore } from '@/store/useClientStore';
 import { toast } from '@/store/useToastStore';
 import { regenerateBrainSection } from '@/services/claudeApi';
 import { AIOptionsFlow } from './AIOptionsFlow';
+import { ClientInfoEditor } from './ClientInfoEditor';
 
 type SubSection = '1A' | '1B' | '1C' | '1D' | '1E' | '1F';
 
@@ -38,10 +39,24 @@ const CURRENCIES = ['USD', 'COP', 'MXN', 'EUR', 'ARS', 'CLP', 'PEN', 'BRL'];
 
 export function ProfileModule({ client }: { client: Client }) {
   const [active, setActive] = useState<SubSection>('1A');
+  const [infoEditorOpen, setInfoEditorOpen] = useState(false);
   const accent = client.primaryColor;
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <Button
+          size="sm"
+          variant="secondary"
+          leftIcon={<Pencil className="h-3.5 w-3.5" />}
+          onClick={() => setInfoEditorOpen(true)}
+        >
+          Editar información del cliente
+        </Button>
+      </div>
+
+      {infoEditorOpen && <ClientInfoEditor client={client} onClose={() => setInfoEditorOpen(false)} />}
+
       <div className="surface p-1.5 flex items-center gap-1 overflow-x-auto">
         {subSections.map((s) => {
           const isActive = active === s.id;

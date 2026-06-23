@@ -51,6 +51,7 @@ Tech lead + product partner de una founder que es PM, no desarrolladora. Tu trab
 | `Historial_Decisiones_Project360.md` | Log inmutable de decisiones |
 
 ## Estado
+2026-06-23 — Uso real: **Marcelo Duarte** cargado como primer cliente real en prod (lanzamiento webinar GOBERNA, 29 jul). **Reporte Ejecutivo rediseñado** (motor HTML→PDF paginado, header/footer por página, diseño Project360 + color por cliente). **Módulo Equipo reconstruido** (Salud del equipo con datos reales + roles placeholder + funciones completas). Sprint E validado E2E + migración 015 corrida. Pendiente: KPI tarea↔Equipo, cargar reunión de Marcelo, capa 3 multi-tenant.
 2026-06-19 — Sprint E completado (6 secciones, 6 commits). Equipo con personas+KPIs, sistema de Programas, KPI por tarea, onboarding editable, ROPRE en el PDF semanal, limpieza de Planeación/Métricas/Proyección. Migraciones 013/014 corridas; **pendiente: correr 015** (KPI por tarea) y walk-through E2E del flujo nuevo.
 2026-06-16 — Sprint D completado. App lista para beta con 2 agencias externas. 10 commits, migración 012 + seed Mared/Ikigai en Supabase prod. Pendiente: walk-through visual E2E del CEO.
 - 2026-06-12 — Workspace convertido en Cerebro. Nombre oficial confirmado: Project360 (antes "BrainSales"). Pendiente: completar en `Contexto.md` qué funciona vs. qué falta para el MVP.

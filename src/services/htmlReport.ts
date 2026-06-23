@@ -248,7 +248,7 @@ async function buildReportModel(input: WeeklyHtmlInput): Promise<ReportModel> {
     .rep .sec{display:flex;align-items:center;gap:12px;margin:6px 0 14px}
     .rep .sec .no{font-size:11px;font-weight:800;color:${BRAND.v}}
     .rep .sec h2{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
-    .rep .sec .tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${BRAND.v};border:1px solid ${BRAND.v};border-radius:20px;padding:3px 9px}
+    .rep .sec .tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${BRAND.v};border:1px solid ${BRAND.v};border-radius:20px;padding:0 10px;height:18px;display:inline-flex;align-items:center;line-height:1}
     .rep .sec .ln{flex:1;height:1px;background:#e6e8ee}
     .rep .decs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .rep .dec{border:1px solid #e6e8ee;border-top:3px solid ${BRAND.v};border-radius:10px;padding:12px 14px;display:flex;gap:11px}

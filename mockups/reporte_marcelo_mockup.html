@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reporte Ejecutivo — Marcelo Duarte (mockup)</title>
+<style>
+  :root{
+    /* ===== PLATAFORMA Project360 (identidad fija) ===== */
+    --brand:#6366F1; --brand-2:#8B5CF6; --brand-3:#06B6D4;  /* gradiente de marca */
+    --ink:#0a0a0f;                       /* bandas = fondo oscuro de la app */
+    /* ===== PERILLAS DE COLOR ===== */
+    --accent:#6366F1;            /* acento principal (violeta de la plataforma) */
+    --client:#0284C7;            /* firma de color del cliente (KPI destacado) */
+    --accent-soft:#6366F115;     /* acento al 8% para fondos */
+    --text:#1f2430;
+    --muted:#6b7280;
+    --line:#e6e8ee;
+    --bg:#f4f5f8;
+    --green:#10b981; --amber:#f59e0b; --red:#ef4444; --blue:#3b82f6;
+    --paper:#ffffff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;
+    -webkit-font-smoothing:antialiased;padding:32px 16px;
+  }
+  .page{
+    max-width:880px;margin:0 auto;background:var(--paper);
+    border-radius:14px;overflow:hidden;
+    box-shadow:0 20px 60px -20px rgba(20,24,40,.25);
+  }
+
+  /* ===== HEADER ===== */
+  .head{background:linear-gradient(105deg,#0a0a0f 0%,#141021 100%);color:#fff;padding:30px 38px 26px;display:flex;justify-content:space-between;gap:24px}
+  .eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:#9aa3b2;font-weight:600}
+  .head h1{font-size:30px;font-weight:800;line-height:1.05;margin:6px 0 4px;letter-spacing:-.01em}
+  .head .sub{font-size:12px;color:#aeb6c4}
+  .head .meta{text-align:right;font-size:11px;min-width:150px}
+  .head .meta div{margin-bottom:8px}
+  .head .meta .k{color:#7e879a;letter-spacing:.16em;text-transform:uppercase;font-size:9px}
+  .head .meta .v{color:#fff;font-weight:600;font-size:12px}
+  .rule{height:4px;background:linear-gradient(90deg,var(--brand),var(--brand-2),var(--brand-3))}
+
+  .body{padding:26px 38px 8px}
+
+  /* ===== CHIPS DE ESTADO ===== */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+  .chip{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+        padding:7px 12px;border-radius:7px;border-left:4px solid var(--muted);background:#f7f8fa;color:#334}
+  .chip.g{border-color:var(--green)} .chip.a{border-color:var(--amber)}
+  .chip.r{border-color:var(--red)}   .chip.b{border-color:var(--accent)}
+
+  /* ===== RESUMEN ===== */
+  .summary{font-size:13.5px;color:#3a4150;line-height:1.7;margin-bottom:22px}
+  .summary b{color:var(--text)}
+
+  /* ===== KPI FEATURED + CARDS ===== */
+  .featured{display:flex;border:1px solid var(--client);border-radius:12px;overflow:hidden;margin-bottom:14px}
+  .featured .big{background:linear-gradient(135deg,var(--client),#0369a1);color:#fff;padding:18px 22px;min-width:190px}
+  .featured .big .n{font-size:30px;font-weight:800;line-height:1}
+  .featured .big .l{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.85;margin-top:6px}
+  .featured .ctx{padding:16px 20px;font-size:12px;color:#46505f}
+  .featured .ctx .t{font-weight:700;color:var(--text);font-size:12px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:28px}
+  .kpi{border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:9px;padding:12px 12px 14px;background:var(--paper)}
+  .kpi.g{border-top-color:var(--green)} .kpi.a{border-top-color:var(--amber)} .kpi.r{border-top-color:var(--red)}
+  .kpi .l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .kpi .n{font-size:22px;font-weight:800;margin-top:6px;letter-spacing:-.01em}
+  .kpi .s{font-size:10px;color:var(--muted);margin-top:3px}
+
+  /* ===== SECTION HEADER ===== */
+  .sec{display:flex;align-items:center;gap:12px;margin:26px 0 14px}
+  .sec .no{font-size:11px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+  .sec h2{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text)}
+  .sec .tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);
+            border:1px solid var(--accent);border-radius:20px;padding:3px 9px}
+  .sec .ln{flex:1;height:1px;background:var(--line)}
+
+  /* ===== ROPRE 5 COLUMNAS ===== */
+  .ropre{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px}
+  .col .ch{display:flex;align-items:center;gap:7px;color:#fff;padding:9px 10px;border-radius:8px 8px 0 0;font-weight:800}
+  .col .ch .big{font-size:16px} .col .ch .lab{font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+  .col .items{border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;padding:8px 9px;min-height:160px}
+  .col .it{font-size:10.5px;color:#3a4150;line-height:1.4;padding:7px 0;border-bottom:1px solid #f0f1f5}
+  .col .it:last-child{border-bottom:none}
+  .c1 .ch{background:var(--accent)} .c2 .ch{background:#7c8aa0}
+  .c3 .ch{background:#b08948} .c4 .ch{background:var(--red)} .c5 .ch{background:var(--green)}
+
+  /* ===== RIESGOS ===== */
+  .risks{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+  .risk{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .risk .rh{padding:9px 12px;color:#fff;font-size:11.5px;font-weight:700;display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .risk.hi .rh{background:#9a2a2a} .risk.md .rh{background:#9a6a2a}
+  .risk .badge{font-size:8.5px;font-weight:800;letter-spacing:.06em;background:rgba(255,255,255,.22);padding:2px 7px;border-radius:5px}
+  .risk .rb{padding:10px 12px;font-size:11px;color:#46505f;line-height:1.55}
+  .risk .mit{margin-top:6px;font-size:10.5px;color:var(--text)}
+  .risk .mit b{color:var(--accent)}
+
+  /* ===== PLAN DE ACCIÓN ===== */
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  thead th{text-align:left;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+           padding:9px 10px;border-bottom:2px solid var(--line);font-weight:700}
+  tbody td{padding:9px 10px;border-bottom:1px solid #f0f1f5;color:#3a4150}
+  tbody tr:nth-child(even){background:#fafbfc}
+  td.task{color:var(--text);font-weight:600}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%}
+  .dot.g{background:var(--green)} .dot.a{background:var(--amber)} .dot.x{background:#c7ccd6}
+
+  /* ===== DECISIONES ===== */
+  .decs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+  .dec{border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:10px;padding:12px 14px;display:flex;gap:11px}
+  .dec .num{flex:none;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .dec .dt{font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;line-height:1.3}
+  .dec .db{font-size:10.5px;color:#56606f;line-height:1.5}
+
+  /* ===== HITOS (timeline) ===== */
+  .hitos{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .hito{border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:9px;padding:11px 9px;text-align:center}
+  .hito .hd{font-size:11px;font-weight:800;color:var(--accent)}
+  .hito .ht{font-size:9.5px;color:var(--muted);margin-top:5px;line-height:1.4}
+
+  /* ===== FOOTER ===== */
+  .foot{background:var(--ink);color:#8a93a4;font-size:10px;padding:13px 38px;display:flex;justify-content:space-between;margin-top:24px}
+  .foot .p360{background:linear-gradient(135deg,var(--brand),var(--brand-3));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-weight:800}
+
+  @media print{body{background:#fff;padding:0}.page{box-shadow:none;border-radius:0;max-width:100%}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="head">
+    <div>
+      <div class="eyebrow">Marcelo Duarte · LaunchXpert LLC</div>
+      <h1>Reporte Ejecutivo Semanal</h1>
+      <div class="sub">Lanzamiento Webinar GOBERNA · Semana 22–28 Jun 2026</div>
+    </div>
+    <div class="meta">
+      <div><div class="k">Para</div><div class="v">CEO · Confidencial</div></div>
+      <div><div class="k">Fecha corte</div><div class="v">22 Jun 2026</div></div>
+      <div><div class="k">Webinar</div><div class="v">29 Jul · 37 días</div></div>
+    </div>
+  </div>
+  <div class="rule"></div>
+
+  <div class="body">
+
+    <!-- CHIPS -->
+    <div class="chips">
+      <span class="chip b">Webinar 29 Jul · 37 días</span>
+      <span class="chip g">Meta WhatsApp: 300</span>
+      <span class="chip b">Ventas meta: $10.000</span>
+      <span class="chip a">Tareas: 1 en curso / 8</span>
+      <span class="chip r">Riesgo: conversión 39→0 agendas</span>
+    </div>
+
+    <!-- RESUMEN -->
+    <p class="summary">
+      Arranca el <b>Lanzamiento Webinar GOBERNA</b> con el evento fijado para el <b>29 de julio</b> (37 días) y
+      21 días de captación previstos. La estrategia pivotó a un <b>webinar educativo gratuito</b> tras detectar
+      conciencia baja en la audiencia (39 registros → 0 agendas). El foco de la semana es dejar listos los
+      <b>activos de captación</b>: cronograma, landing de registro, comunidad de WhatsApp y la grabación de los
+      anuncios. Meta del lanzamiento: <b>300 personas a WhatsApp y USD 10.000 en ventas</b> (~20 a ticket $497).
+    </p>
+
+    <!-- FEATURED + KPIs -->
+    <div class="featured">
+      <div class="big"><div class="n">$10.000</div><div class="l">Meta de ventas · lanzamiento</div></div>
+      <div class="ctx">
+        <div class="t">Objetivo del webinar · 29 Jul 2026</div>
+        ~20 ventas a ticket USD 497 · 300 personas a la comunidad de WhatsApp ·
+        venta directa por QR durante el evento. Captación inicia ~8 jul.
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi b"><div class="l">Días al evento</div><div class="n">37</div><div class="s">29 jul 2026</div></div>
+      <div class="kpi g"><div class="l">Meta WhatsApp</div><div class="n">300</div><div class="s">a la comunidad</div></div>
+      <div class="kpi"><div class="l">Ticket</div><div class="n">$497</div><div class="s">USD</div></div>
+      <div class="kpi"><div class="l">Ventas meta</div><div class="n">~20</div><div class="s">= $10.000</div></div>
+      <div class="kpi a"><div class="l">Tareas</div><div class="n">1/8</div><div class="s">en curso</div></div>
+    </div>
+
+    <!-- DECISIONES -->
+    <div class="sec"><span class="no">01</span><h2>Decisiones clave de la semana</h2><span class="tag">6 decisiones</span><span class="ln"></span></div>
+    <div class="decs">
+      <div class="dec" style="border-top-color:var(--brand)"><div class="num" style="background:var(--brand)">1</div><div><div class="dt">Pivotar a webinar educativo gratuito</div><div class="db">La audiencia tiene conciencia baja del problema (39 registros → 0 agendas). El webinar educa antes de presentar la mentoría.</div></div></div>
+      <div class="dec" style="border-top-color:var(--brand-2)"><div class="num" style="background:var(--brand-2)">2</div><div><div class="dt">Evento 29 jul + 21 días de captación</div><div class="db">Calendarizado a fin de julio evitando el Mundial (no 19 jul), con dos semanas previas para armar páginas y grabar contenido.</div></div></div>
+      <div class="dec" style="border-top-color:var(--brand-3)"><div class="num" style="background:var(--brand-3)">3</div><div><div class="dt">Venta directa por QR en el webinar</div><div class="db">Sin agendar llamadas: código QR durante la presentación para conversión inmediata de los asistentes.</div></div></div>
+      <div class="dec" style="border-top-color:var(--green)"><div class="num" style="background:var(--green)">4</div><div><div class="dt">Contratar closer a comisión (10%)</div><div class="db">Un comercial gestiona la base de interesados y cierra ventas para maximizar la eficacia del evento.</div></div></div>
+      <div class="dec" style="border-top-color:var(--amber)"><div class="num" style="background:var(--amber)">5</div><div><div class="dt">Landing simple y directa</div><div class="db">Página de registro sin distracciones, enfocada solo en captar el registro al webinar.</div></div></div>
+      <div class="dec" style="border-top-color:var(--client)"><div class="num" style="background:var(--client)">6</div><div><div class="dt">Reposicionar la marca de Marcelo</div><div class="db">De BIM técnico a asesor/mentor para ejecutivos de alto nivel; el webinar acompaña esta nueva etapa.</div></div></div>
+    </div>
+
+    <!-- ROPRE -->
+    <div class="sec"><span class="no">02</span><h2>ROPRE de la semana</h2><span class="tag">R·O·P·R·E</span><span class="ln"></span></div>
+    <div class="ropre">
+      <div class="col c1"><div class="ch"><span class="big">R</span><span class="lab">Resultado</span></div>
+        <div class="items"><div class="it">Webinar 29 jul: 300 a WhatsApp y USD 10.000 en ventas (~20 a $497)</div></div></div>
+      <div class="col c2"><div class="ch"><span class="big">O</span><span class="lab">Objetivos</span></div>
+        <div class="items">
+          <div class="it">300 registros a WhatsApp</div>
+          <div class="it">21 días de captación</div>
+          <div class="it">Contratar closer (10%)</div>
+          <div class="it">Landing + ads listos</div>
+        </div></div>
+      <div class="col c3"><div class="ch"><span class="big">P</span><span class="lab">Premisas</span></div>
+        <div class="items">
+          <div class="it">Conciencia baja → webinar educa antes de vender</div>
+          <div class="it">Evitar fechas del Mundial (no 19 jul)</div>
+          <div class="it">Venta directa por QR (sin agendar llamadas)</div>
+        </div></div>
+      <div class="col c4"><div class="ch"><span class="big">R</span><span class="lab">Riesgos</span></div>
+        <div class="items">
+          <div class="it">Conversión: 39 registros → 0 agendas</div>
+          <div class="it">Atención dispersa por el Mundial</div>
+          <div class="it">Dependencia de Marcelo para grabar/preparar</div>
+        </div></div>
+      <div class="col c5"><div class="ch"><span class="big">E</span><span class="lab">Entregables</span></div>
+        <div class="items">
+          <div class="it">Landing de registro</div>
+          <div class="it">Comunidad WhatsApp</div>
+          <div class="it">10+3 ads + ads de venta</div>
+          <div class="it">Presentación + guion</div>
+          <div class="it">Oferta consolidada</div>
+        </div></div>
+    </div>
+
+    <!-- RIESGOS -->
+    <div class="sec"><span class="no">03</span><h2>Riesgos activos</h2><span class="tag">3 a vigilar</span><span class="ln"></span></div>
+    <div class="risks">
+      <div class="risk md"><div class="rh">Conversión: 39 registros → 0 agendas<span class="badge">MEDIO</span></div>
+        <div class="rb">La audiencia no comprende el problema que resuelve la oferta (conciencia baja).
+          <div class="mit"><b>→</b> Webinar + nurturing en WhatsApp antes de presentar la oferta.</div></div></div>
+      <div class="risk hi"><div class="rh">Atención dispersa por el Mundial<span class="badge">ALTO</span></div>
+        <div class="rb">El CPM sube y la atención se fragmenta durante la captación.
+          <div class="mit"><b>→</b> Evento al 29 jul, después de las fechas clave del Mundial.</div></div></div>
+    </div>
+
+    <!-- PLAN DE ACCIÓN -->
+    <div class="sec"><span class="no">04</span><h2>Plan de acción · esta semana</h2><span class="tag">8 tareas</span><span class="ln"></span></div>
+    <table>
+      <thead><tr><th>Tarea</th><th>Responsable</th><th>Fase</th><th style="text-align:center">Estado</th></tr></thead>
+      <tbody>
+        <tr><td class="task">Organizar cronograma del webinar + WhatsApp</td><td>Project Manager</td><td>Captación</td><td style="text-align:center"><span class="dot a"></span></td></tr>
+        <tr><td class="task">Grabar 10 ads + 3 recordatorio + ads de venta</td><td>Marcelo Duarte</td><td>Captación</td><td style="text-align:center"><span class="dot x"></span></td></tr>
+        <tr><td class="task">Crear landing de registro al webinar</td><td>Líder Operativo</td><td>Webinar</td><td style="text-align:center"><span class="dot x"></span></td></tr>
+        <tr><td class="task">Redactar textos (ads registro + correos)</td><td>Copywriter</td><td>Webinar</td><td style="text-align:center"><span class="dot x"></span></td></tr>
+        <tr><td class="task">Definir / contratar closer (10% comisión)</td><td>Project Manager</td><td>Webinar</td><td style="text-align:center"><span class="dot x"></span></td></tr>
+        <tr><td class="task">Consolidar la oferta (bonos + módulos)</td><td>Estratega</td><td>Captación</td><td style="text-align:center"><span class="dot x"></span></td></tr>
+        <tr><td class="task">Preparar webinar: presentación + guion</td><td>Marcelo Duarte</td><td>Evento</td><td style="text-align:center"><span class="dot x"></span></td></tr>
+        <tr><td class="task">Compartir página de ventas con el equipo</td><td>Marcelo Duarte</td><td>Captación</td><td style="text-align:center"><span class="dot x"></span></td></tr>
+      </tbody>
+    </table>
+
+    <!-- HITOS -->
+    <div class="sec"><span class="no">05</span><h2>Hitos clave · junio–agosto 2026</h2><span class="ln"></span></div>
+    <div class="hitos">
+      <div class="hito" style="border-top-color:var(--brand)"><div class="hd">HOY · 22 Jun</div><div class="ht">Setup de activos de captación</div></div>
+      <div class="hito" style="border-top-color:var(--brand-2)"><div class="hd">~8 Jul</div><div class="ht">Inicia captación (21 días)</div></div>
+      <div class="hito" style="border-top-color:var(--brand-3)"><div class="hd">Sem 3 Jul</div><div class="ht">Landing + ads + WhatsApp listos</div></div>
+      <div class="hito" style="border-top-color:var(--amber)"><div class="hd">25 Jul</div><div class="ht">Webinar preparado (guion + presentación)</div></div>
+      <div class="hito" style="border-top-color:var(--client)"><div class="hd">29 Jul</div><div class="ht">Webinar en vivo · pico de ventas</div></div>
+      <div class="hito" style="border-top-color:var(--green)"><div class="hd">Agosto</div><div class="ht">Cierre y post-venta</div></div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <span>Marcelo Duarte · Reporte Ejecutivo · Semana 22–28 Jun 2026</span>
+    <span><b class="p360">Project360</b> · Confidencial · No distribuir</span>
+  </div>
+</div>
+</body>
+</html>

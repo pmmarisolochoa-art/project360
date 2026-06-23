@@ -8,11 +8,11 @@ import { useRopreStore } from '@/store/useRopreStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
 import {
-  exportWeeklyReport,
   exportMonthlyReport,
   exportMeetingReport,
   exportLaunchReport,
 } from '@/services/reportsPdf';
+import { exportWeeklyReportHTML } from '@/services/htmlReport';
 
 /**
  * Menú compacto en el header del cerebro: 4 reportes PDF.
@@ -100,7 +100,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                       ? funnels.find((f) => f.id === client.activeFunnelId) ?? null
                       : funnels[0] ?? null;
                     run(
-                      () => exportWeeklyReport({ client, tasks, meetings, funnel: activeFunnel, ropreItems }),
+                      () => exportWeeklyReportHTML({ client, tasks, meetings, funnel: activeFunnel, ropreItems, phases: allPhases.filter((p) => activeFunnel != null && p.funnelId === activeFunnel.id) }),
                       'Reporte semanal',
                     );
                   }}

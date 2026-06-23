@@ -56,27 +56,34 @@ export function TeamModule({ client }: { client: Client }) {
       {/* Sprint E · Sección 3 — personas reales con funciones y KPIs editables. */}
       <TeamMembersPanel client={client} />
 
-      <GlobalDashboard
-        client={client}
-        assignments={assignments}
-        tasks={tasks.filter((t) => t.clientId === client.id)}
-        accent={accent}
-      />
-      <div className="space-y-3">
-        {ROLE_DEFS.map((def) => {
-          const assignment = assignments.find((a) => a.roleSlug === def.slug);
-          if (!assignment) return null;
-          return (
-            <RoleCard
-              key={def.slug}
-              def={def}
-              assignment={assignment}
-              accent={accent}
-              tasks={tasks.filter((t) => t.clientId === client.id && t.assignedTo === assignment.memberName)}
-            />
-          );
-        })}
-      </div>
+      {/* OCULTO BETA — dashboard de roles legacy (nombres y gráfica de datos
+          sembrados de prueba). El sistema real de equipo es "Personas del
+          equipo" (arriba). Se conserva en código para reactivar en v2. */}
+      {false && (
+        <>
+          <GlobalDashboard
+            client={client}
+            assignments={assignments}
+            tasks={tasks.filter((t) => t.clientId === client.id)}
+            accent={accent}
+          />
+          <div className="space-y-3">
+            {ROLE_DEFS.map((def) => {
+              const assignment = assignments.find((a) => a.roleSlug === def.slug);
+              if (!assignment) return null;
+              return (
+                <RoleCard
+                  key={def.slug}
+                  def={def}
+                  assignment={assignment}
+                  accent={accent}
+                  tasks={tasks.filter((t) => t.clientId === client.id && t.assignedTo === assignment.memberName)}
+                />
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { Plus, X, Trash2, UserPlus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Plus, X, Trash2, UserPlus, AlertTriangle } from 'lucide-react';
+import { BarChart, Bar, Cell, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip as RTooltip } from 'recharts';
 import type { Client } from '@/types/client';
 import type { TeamRoleSlug } from '@/types/team';
 import { ROLE_DEFS } from '@/types/team';
 import type { TeamMember, CustomKpiDef, CustomKpiType, KpiMeasure } from '@/types/teamMember';
 import { emptyKpis } from '@/types/teamMember';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
+import { useClientStore } from '@/store/useClientStore';
 import { useTeamKPIs, type MemberKpiSummary } from '@/hooks/useTeamKPIs';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -13,6 +15,7 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/store/useToastStore';
 import { genId } from '@/utils/id';
+import { resolveRoleLabel } from '@/utils/roleResolver';
 import { generateAccentColor, withAlpha } from '@/utils/colorGenerator';
 
 const ROLE_OPTIONS = ROLE_DEFS.map((r) => ({ value: r.slug, label: r.title }));
@@ -25,33 +28,94 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?';
 }
 
+const BAR_COLORS = ['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EC4899', '#14B8A6', '#A855F7'];
+
 export function TeamMembersPanel({ client }: { client: Client }) {
+  const accent = client.primaryColor;
   const add = useTeamMembersStore((s) => s.add);
   const summaries = useTeamKPIs(client.id);
+  const allTasks = useClientStore((s) => s.tasks);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const selected = summaries.find((s) => s.member.id === selectedId) ?? null;
+
+  // Salud del equipo — todo calculado de datos reales (tareas + KPIs).
+  const health = useMemo(() => {
+    const tasks = allTasks.filter((t) => t.clientId === client.id);
+    const total = tasks.length;
+    const done = tasks.filter((t) => t.status === 'completed').length;
+    const globalPct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const blocked = tasks.filter((t) => t.status !== 'completed' && (t.status === 'blocked' || t.isDelayed));
+
+    const perMember = summaries.map((s) => {
+      const mine = tasks.filter((t) => t.assignedTo === s.member.nombre || t.assignedTo === s.member.rol);
+      const md = mine.filter((t) => t.status === 'completed').length;
+      const active = mine.filter((t) => t.status !== 'completed').length;
+      const rate = mine.length ? Math.round((md / mine.length) * 100) : null;
+      const roleTitle = ROLE_DEFS.find((r) => r.slug === s.member.rol)?.title ?? s.member.rol;
+      return { s, roleTitle, total: mine.length, active, rate };
+    });
+    const carga = [...perMember].filter((p) => p.active > 0).sort((a, b) => b.active - a.active)[0] ?? null;
+    const peor = [...perMember].filter((p) => p.total >= 2 && p.rate != null).sort((a, b) => (a.rate! - b.rate!))[0] ?? null;
+    const cuellos = blocked.slice(0, 5).map((t) => ({
+      title: t.title,
+      role: resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo,
+      overdue: t.isDelayed,
+    }));
+    const chart = perMember.filter((p) => p.total > 0).map((p) => ({ name: p.roleTitle, pct: p.rate ?? 0 }));
+    return { globalPct, blockedN: blocked.length, carga, peor, cuellos, chart };
+  }, [allTasks, summaries, client.id]);
 
   return (
     <section className="surface p-5">
       <header className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <div>
           <h3 className="heading text-base font-bold flex items-center gap-1.5">
-            <UserPlus className="h-4 w-4" /> Personas del equipo
+            <UserPlus className="h-4 w-4" /> Salud del equipo · {client.name}
           </h3>
           <p className="text-[11px] text-text-muted">
-            Agrega a tu equipo real con nombre y rol. Cada persona tiene funciones y KPIs editables.
+            {summaries.length} roles · semáforo según KPIs. Clic en un rol para asignar la persona y editar funciones/KPIs.
           </p>
         </div>
-        <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
-          Agregar persona al equipo
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider text-text-muted">Cumplimiento global</div>
+            <div className="kpi-number" style={{ color: accent }}>{health.globalPct}%</div>
+          </div>
+          <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
+            Agregar persona
+          </Button>
+        </div>
       </header>
+
+      {/* Mini-stats reales */}
+      {(health.carga || health.peor || health.blockedN > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+          {health.carga && (
+            <div className="rounded-md border border-border-subtle bg-bg-base/30 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-text-muted">Mayor carga activa</div>
+              <div className="text-xs text-text-primary mt-0.5"><strong>{health.carga.s.member.nombre}</strong> · {health.carga.active} tarea{health.carga.active === 1 ? '' : 's'}</div>
+            </div>
+          )}
+          {health.peor && (
+            <div className="rounded-md border border-status-danger/30 bg-status-danger/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-status-danger">Peor cumplimiento</div>
+              <div className="text-xs text-text-primary mt-0.5"><strong>{health.peor.s.member.nombre}</strong> · {health.peor.rate}% completado</div>
+            </div>
+          )}
+          {health.blockedN > 0 && (
+            <div className="rounded-md border border-status-warning/30 bg-status-warning/5 px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wider text-status-warning">Bloqueos activos</div>
+              <div className="text-xs text-text-primary mt-0.5"><strong>{health.blockedN}</strong> tarea{health.blockedN === 1 ? '' : 's'} bloqueada{health.blockedN === 1 ? '' : 's'} o vencida{health.blockedN === 1 ? '' : 's'}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {summaries.length === 0 ? (
         <div className="rounded-[10px] border border-dashed border-border-default p-6 text-center text-sm text-text-muted">
-          Aún no hay personas asignadas. Agrega la primera para empezar a medir KPIs.
+          Aún no hay roles asignados. Agrega el primero para empezar a medir KPIs.
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
@@ -84,6 +148,52 @@ export function TeamMembersPanel({ client }: { client: Client }) {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Cuellos de botella + gráfica de cumplimiento por rol */}
+      {summaries.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-4 pt-4 border-t border-border-subtle">
+          <div>
+            <header className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-status-warning" />
+              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider">Cuellos de botella</h4>
+            </header>
+            {health.cuellos.length === 0 ? (
+              <div className="text-xs text-text-muted italic py-4 text-center">Sin tareas bloqueadas ni vencidas. 🎉</div>
+            ) : (
+              <ul className="space-y-1.5">
+                {health.cuellos.map((c, i) => (
+                  <li key={i} className="rounded-md border border-status-warning/30 bg-status-warning/5 p-2">
+                    <div className="text-[10px] uppercase tracking-wider text-status-warning mb-0.5">
+                      {c.role}{c.overdue ? ' · vencida' : ' · bloqueada'}
+                    </div>
+                    <div className="text-xs text-text-primary leading-snug line-clamp-2">{c.title}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-2">Cumplimiento por rol</h4>
+            {health.chart.length === 0 ? (
+              <div className="text-xs text-text-muted italic py-4 text-center">Sin tareas asignadas por rol todavía.</div>
+            ) : (
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={health.chart} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                    <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
+                    <XAxis dataKey="name" stroke="#6B6B80" fontSize={9} interval={0} angle={-15} textAnchor="end" height={40} />
+                    <YAxis stroke="#6B6B80" fontSize={10} domain={[0, 100]} />
+                    <RTooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 10, fontSize: 12 }} />
+                    <Bar dataKey="pct" radius={[3, 3, 0, 0]}>
+                      {health.chart.map((_, i) => <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

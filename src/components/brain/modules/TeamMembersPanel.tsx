@@ -224,6 +224,28 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
       }
     >
       <div className="space-y-5">
+        {/* Nombre + email — para asignar la persona real al rol */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-text-muted mb-1">Nombre</label>
+            <input
+              defaultValue={member.nombre}
+              onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== member.nombre) update(member.id, { nombre: v }); }}
+              placeholder="Asignar persona…"
+              className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-text-muted mb-1">Email (opcional)</label>
+            <input
+              defaultValue={member.email ?? ''}
+              onBlur={(e) => { const v = e.target.value.trim(); if (v !== (member.email ?? '')) update(member.id, { email: v || undefined }); }}
+              placeholder="persona@agencia.com"
+              className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none"
+            />
+          </div>
+        </div>
+
         {/* Funciones */}
         <div>
           <div className="text-[10px] uppercase tracking-wider text-text-muted mb-2">Funciones del rol</div>

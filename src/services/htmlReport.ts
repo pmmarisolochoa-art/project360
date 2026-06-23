@@ -41,25 +41,50 @@ export async function exportWeeklyReportHTML(input: WeeklyHtmlInput): Promise<vo
   document.body.appendChild(holder);
 
   try {
+    const SCALE = 2;
     const target = holder.firstElementChild as HTMLElement;
-    const canvas = await html2canvas(target, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+    const canvas = await html2canvas(target, { scale: SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false });
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    const pageW = 210;
-    const pageH = 297;
-    const imgW = pageW;
-    const imgH = (canvas.height * imgW) / canvas.width;
-    const data = canvas.toDataURL('image/png');
+    const pageWmm = 210;
+    const pageHmm = 297;
+    const pxPerMm = canvas.width / pageWmm;
+    const pageHpx = pageHmm * pxPerMm;
 
-    let heightLeft = imgH;
-    let position = 0;
-    doc.addImage(data, 'PNG', 0, position, imgW, imgH);
-    heightLeft -= pageH;
-    while (heightLeft > 0) {
-      position -= pageH;
-      doc.addPage();
-      doc.addImage(data, 'PNG', 0, position, imgW, imgH);
-      heightLeft -= pageH;
+    // Puntos de corte seguros = inicio de cada sección (.sec). Así nunca
+    // cortamos un título/tarjeta a la mitad; empacamos secciones por página.
+    const targetTop = target.getBoundingClientRect().top;
+    const breaks = Array.from(target.querySelectorAll('.sec'))
+      .map((el) => (el.getBoundingClientRect().top - targetTop) * SCALE)
+      .filter((y) => y > 1)
+      .sort((a, b) => a - b);
+
+    const ranges: Array<[number, number]> = [];
+    let start = 0;
+    let lastBreak = 0;
+    for (const b of breaks) {
+      if (b - start > pageHpx && lastBreak > start) {
+        ranges.push([start, lastBreak]);
+        start = lastBreak;
+      }
+      lastBreak = b;
     }
+    ranges.push([start, canvas.height]);
+
+    ranges.forEach(([s, e], idx) => {
+      const h = e - s;
+      const slice = document.createElement('canvas');
+      slice.width = canvas.width;
+      slice.height = h;
+      const ctx = slice.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, slice.width, h);
+        ctx.drawImage(canvas, 0, s, canvas.width, h, 0, 0, canvas.width, h);
+      }
+      const imgH = h / pxPerMm;
+      if (idx > 0) doc.addPage();
+      doc.addImage(slice.toDataURL('image/png'), 'PNG', 0, 0, pageWmm, imgH);
+    });
 
     const safe = input.client.name.replace(/\s+/g, '_');
     doc.save(`Reporte_Ejecutivo_${safe}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);

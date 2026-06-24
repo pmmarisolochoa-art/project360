@@ -13,10 +13,13 @@ import {
   type ChatMessage,
 } from '@/services/agentService';
 import { sendAgentMessage } from '@/services/claudeApi';
+import { parseAgentAction, ACTION_PROTOCOL, type AgentAction } from '@/services/agentActions';
+import { ActionCard } from '@/components/agent/ActionCard';
 
 interface UiMessage extends ChatMessage {
   id: string;
   error?: boolean;
+  action?: AgentAction | null;
 }
 
 interface AgentChatProps {
@@ -87,6 +90,7 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
     try {
       const system =
         agentDef.systemPrompt +
+        ACTION_PROTOCOL +
         '\n\nCONTEXTO ACTUAL DEL CLIENTE:\n' +
         buildClientContext(clientId);
 
@@ -96,9 +100,11 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
         model: agentDef.modelo,
       });
 
-      const assistantMsg: UiMessage = { id: newId(), role: 'assistant', content: reply };
+      const { visibleText, action } = parseAgentAction(reply);
+      const shown = visibleText || (action ? 'Te propongo esta acción 👇' : reply);
+      const assistantMsg: UiMessage = { id: newId(), role: 'assistant', content: shown, action };
       setMessages((prev) => [...prev, assistantMsg]);
-      void saveMessage(clientId, agente, 'assistant', reply);
+      void saveMessage(clientId, agente, 'assistant', shown);
     } catch (e) {
       console.warn('[AgentChat] error', e);
       setMessages((prev) => [
@@ -160,18 +166,23 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
                   <IconCmp className="h-4 w-4" />
                 </div>
               )}
-              <div
-                className={cn(
-                  'rounded-2xl px-3.5 py-2 text-sm max-w-[78%] whitespace-pre-wrap leading-relaxed',
-                  m.role === 'user'
-                    ? 'text-white rounded-br-sm'
-                    : m.error
-                      ? 'bg-bg-elevated text-status-danger rounded-bl-sm'
-                      : 'bg-bg-elevated text-text-primary rounded-bl-sm',
+              <div className={cn('max-w-[82%]', m.role === 'user' && 'flex flex-col items-end')}>
+                <div
+                  className={cn(
+                    'rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap leading-relaxed inline-block',
+                    m.role === 'user'
+                      ? 'text-white rounded-br-sm'
+                      : m.error
+                        ? 'bg-bg-elevated text-status-danger rounded-bl-sm'
+                        : 'bg-bg-elevated text-text-primary rounded-bl-sm',
+                  )}
+                  style={m.role === 'user' ? { background: accent } : undefined}
+                >
+                  {m.content}
+                </div>
+                {m.role === 'assistant' && m.action && (
+                  <ActionCard action={m.action} clientId={clientId} onDone={() => undefined} />
                 )}
-                style={m.role === 'user' ? { background: accent } : undefined}
-              >
-                {m.content}
               </div>
             </div>
           ))

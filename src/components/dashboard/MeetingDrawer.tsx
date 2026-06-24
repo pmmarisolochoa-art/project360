@@ -50,7 +50,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
   const [generating, setGenerating] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [generatingRopre, setGeneratingRopre] = useState(false);
-  const [extractedDraft, setExtractedDraft] = useState<ExtractedTask[]>(meeting.extractedTasks ?? []);
+  // Borrador local de tareas a confirmar (solo lo llena "Extraer tareas").
+  // NO se inicializa desde meeting.extractedTasks: ese campo es el REGISTRO
+  // persistido de compromisos (alimenta las "Decisiones" del reporte) y volver
+  // a mostrarlo como borrador re-crearía tareas duplicadas al reabrir.
+  const [extractedDraft, setExtractedDraft] = useState<ExtractedTask[]>([]);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveIndicator, setSaveIndicator] = useState<string>('');
@@ -289,7 +293,9 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
     // Si hay notas significativas, auto-extraer tareas y crearlas SIN confirmación manual.
     // El usuario puede borrarlas después si alguna no le sirve. Trade-off: velocidad > control.
     let extractedCount = 0;
-    if (client && notes.trim().length >= 20) {
+    let extractedRecord: ExtractedTask[] | null = null;
+    // Solo auto-extrae si NO se extrajo ya manualmente (evita crear tareas duplicadas).
+    if (client && notes.trim().length >= 20 && (meeting.extractedTasks?.length ?? 0) === 0) {
       try {
         const result = await extractTasksFromNotes({
           clientName: client.name,
@@ -299,6 +305,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
           agenda,
           availableRoles: ROLE_DEFS.map((r) => r.slug),
         });
+        extractedRecord = result;
         for (const t of result) {
           const task: Task = {
             id: genId(),
@@ -322,7 +329,10 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
       }
     }
 
-    updateMeeting(meeting.id, { completed: true });
+    updateMeeting(
+      meeting.id,
+      extractedRecord ? { completed: true, extractedTasks: extractedRecord } : { completed: true },
+    );
     if (extractedCount > 0) {
       toast.success(`Reunión realizada · ${extractedCount} tarea${extractedCount === 1 ? '' : 's'} creada${extractedCount === 1 ? '' : 's'} automáticamente`);
     } else {
@@ -532,7 +542,9 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
                     addTask(task);
                   }
                   setExtractedDraft([]);
-                  updateMeeting(meeting.id, { extractedTasks: [] });
+                  // Conserva los compromisos confirmados como registro de la reunión
+                  // (esto es lo que hace aparecer las "Decisiones" en el reporte).
+                  updateMeeting(meeting.id, { extractedTasks: selected });
                   toast.success(`${selected.length} tarea${selected.length === 1 ? '' : 's'} creada${selected.length === 1 ? '' : 's'} en el módulo Tareas`);
                 }}
               />

@@ -14,6 +14,7 @@ import { TeamModule } from '@/components/brain/modules/TeamModule';
 import { ProjectionsModule } from '@/components/brain/modules/ProjectionsModule';
 import { PlanningModule } from '@/components/brain/modules/PlanningModule';
 import { ProgramsModule } from '@/components/brain/modules/ProgramsModule';
+import { AgentPanel } from '@/components/agent/AgentPanel';
 
 const MODULE_DESCRIPTIONS: Record<string, { description: string; features: string[] }> = {
   planning: {
@@ -158,6 +159,9 @@ export function ClientBrainPage() {
           />
         )}
       </div>
+
+      {/* Agente PM — botón flotante + panel lateral, global a todos los módulos */}
+      <AgentPanel client={client} />
     </div>
   );
 }

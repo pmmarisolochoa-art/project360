@@ -37,6 +37,21 @@ async function callBackend<T>(feature: string, context: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+/* ─────────────── Agente PM (chat multi-turno) ─────────────── */
+
+/**
+ * Envía la conversación completa al agente (system ya incluye el contexto del cliente).
+ * No tiene fallback heurístico: si el backend falla, el componente muestra el error.
+ */
+export async function sendAgentMessage(args: {
+  system: string;
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  model?: string;
+}): Promise<string> {
+  const { text } = await callBackend<{ text: string }>('agent_chat', args);
+  return text;
+}
+
 /* ─────────────── BRAIN desde onboarding ─────────────── */
 
 export async function generateBrainFromOnboarding(data: OnboardingData): Promise<AIBrainData> {

@@ -151,8 +151,15 @@ interface GenerateContentCopyCtx {
   personas?: Array<{ name: string; description: string; pains: string[]; desires: string[] }>;
 }
 
+interface AgentChatCtx {
+  system: string;                                         // system prompt + contexto del cliente ya armado
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  model?: string;                                         // de agent_prompts.modelo
+}
+
 type RequestBody =
   | { feature: 'meeting_agenda'; context: MeetingAgendaCtx }
+  | { feature: 'agent_chat'; context: AgentChatCtx }
   | { feature: 'three_options'; context: ThreeOptionsCtx }
   | { feature: 'regenerate_section'; context: RegenerateCtx }
   | { feature: 'brain_from_onboarding'; context: BrainCtx }
@@ -187,6 +194,8 @@ export default async function handler(req: Request): Promise<Response> {
     switch (body.feature) {
       case 'meeting_agenda':
         return json({ text: await meetingAgenda(apiKey, body.context) });
+      case 'agent_chat':
+        return json({ text: await agentChat(apiKey, body.context) });
       case 'three_options':
         return json({ options: await threeOptions(apiKey, body.context) });
       case 'regenerate_section':
@@ -247,6 +256,48 @@ async function callAnthropic(apiKey: string, system: string, user: string, maxTo
   const block = data.content?.find((b) => b.type === 'text');
   if (!block?.text) throw new Error('Respuesta sin contenido de texto');
   return block.text.trim();
+}
+
+/**
+ * Variante multi-turno: recibe un array de mensajes (user/assistant) en vez de
+ * un único prompt. Usada por el chat del Agente PM para mantener conversación.
+ */
+async function callAnthropicChat(
+  apiKey: string,
+  system: string,
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  maxTokens = 1500,
+  model: string = MODEL,
+): Promise<string> {
+  const res = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': ANTHROPIC_VERSION,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Anthropic API ${res.status}: ${errText.slice(0, 300)}`);
+  }
+
+  const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
+  const block = data.content?.find((b) => b.type === 'text');
+  if (!block?.text) throw new Error('Respuesta sin contenido de texto');
+  return block.text.trim();
+}
+
+async function agentChat(apiKey: string, ctx: AgentChatCtx): Promise<string> {
+  const messages = (ctx.messages ?? [])
+    .filter((m) => m.content && m.content.trim().length > 0)
+    .map((m) => ({ role: m.role, content: m.content }));
+  if (messages.length === 0) throw new Error('Sin mensajes para el agente');
+  // El último mensaje debe ser del usuario (requisito de la API).
+  const model = ctx.model && ctx.model.startsWith('claude-') ? ctx.model : MODEL;
+  return callAnthropicChat(apiKey, ctx.system, messages, 1500, model);
 }
 
 async function meetingAgenda(apiKey: string, ctx: MeetingAgendaCtx): Promise<string> {

@@ -46,12 +46,20 @@ interface ReportModel {
   meta: Array<{ k: string; v: string }>;
   footerLeft: string;
   accentClient: string;
+  runningLabel: string;
   fileName: string;
 }
 
 export async function exportWeeklyReportHTML(input: WeeklyHtmlInput): Promise<void> {
-  const m = await buildReportModel(input);
+  await renderReport(await buildReportModel(input));
+}
 
+/**
+ * Pipeline compartido de render: captura cada bloque por separado con html2canvas,
+ * los acomoda en páginas A4 sin cortarlos y dibuja header/footer nativos en cada una.
+ * Lo usan tanto el reporte semanal como el de reunión, para que ambos se vean igual.
+ */
+async function renderReport(m: ReportModel): Promise<void> {
   const holder = document.createElement('div');
   holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff;';
   holder.innerHTML = `<div class="rep"><style>${m.styles}</style><div class="body">${
@@ -135,7 +143,7 @@ function drawRunningHeader(doc: jsPDF, m: ReportModel, page: number, total: numb
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(154, 163, 178);
   doc.text(m.client.toUpperCase(), 14, 8.5);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(154, 163, 178);
-  doc.text(`Reporte Ejecutivo · Pág. ${page} de ${total} · Confidencial`, 196, 8.5, { align: 'right' });
+  doc.text(`${m.runningLabel} · Pág. ${page} de ${total} · Confidencial`, 196, 8.5, { align: 'right' });
   doc.setFillColor(...hexRgb(BRAND.v)); doc.rect(0, 13, 70, 1.2, 'F');
   doc.setFillColor(...hexRgb(BRAND.p)); doc.rect(70, 13, 70, 1.2, 'F');
   doc.setFillColor(...hexRgb(BRAND.c)); doc.rect(140, 13, 70, 1.2, 'F');
@@ -334,6 +342,7 @@ async function buildReportModel(input: WeeklyHtmlInput): Promise<ReportModel> {
     client: client.name, agency,
     titleLines: ['Reporte Ejecutivo', 'Semanal'],
     subtitle: `${funnel ? funnel.name + ' · ' : ''}${weekLbl}`,
+    runningLabel: 'Reporte Ejecutivo',
     meta: [
       { k: 'Para', v: 'CEO · Confidencial' },
       { k: 'Fecha corte', v: format(today, 'd MMM yyyy', { locale: es }) },
@@ -342,4 +351,136 @@ async function buildReportModel(input: WeeklyHtmlInput): Promise<ReportModel> {
     footerLeft: `${client.name} · Reporte Ejecutivo · ${weekLbl}`,
     fileName: `Reporte_Ejecutivo_${client.name.replace(/\s+/g, '_')}_${format(today, 'yyyy-MM-dd')}.pdf`,
   };
+}
+
+/* ───────────────────────── REPORTE DE REUNIÓN ─────────────────────────
+   Mismo diseño que el reporte semanal (header/footer/cover compartidos),
+   con bloques específicos de la reunión: agenda, minuta, compromisos. */
+
+export interface MeetingHtmlInput {
+  client: Client;
+  meeting: Meeting;
+}
+
+const MEETING_TYPE_LABEL: Record<string, string> = {
+  kickoff: 'Kickoff',
+  weekly_metrics: 'Revisión semanal',
+  content_strategy: 'Estrategia de contenido',
+  ads_review: 'Revisión de ADS',
+  monthly_closing: 'Cierre mensual',
+  crisis: 'Crisis',
+  weekly_planning: 'Planeación semanal',
+  ropre_strategy: 'Estrategia ROPRE',
+};
+
+/** Estilos del informe de reunión — clases idénticas a las del semanal + .note. */
+function meetingStyles(accentClient: string): string {
+  return `
+    *{box-sizing:border-box;margin:0;padding:0}
+    .rep{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2430;line-height:1.5;background:#fff;width:760px}
+    .rep .body{width:760px}
+    .rep .block{width:760px;padding-bottom:2px}
+    .rep .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+    .rep .chip{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:7px 12px;border-radius:7px;border-left:4px solid #6b7280;background:#f7f8fa;color:#334}
+    .rep .chip.g{border-color:#10b981}.rep .chip.a{border-color:#f59e0b}.rep .chip.r{border-color:#ef4444}.rep .chip.b{border-color:${BRAND.v}}
+    .rep .summary{font-size:13.5px;color:#3a4150;line-height:1.7;margin-bottom:18px}
+    .rep .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+    .rep .kpi{border:1px solid #e6e8ee;border-top:3px solid ${BRAND.v};border-radius:9px;padding:12px;background:#fff}
+    .rep .kpi.g{border-top-color:#10b981}.rep .kpi.a{border-top-color:#f59e0b}.rep .kpi.r{border-top-color:#ef4444}.rep .kpi.b{border-top-color:${BRAND.v}}
+    .rep .kpi .l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;font-weight:700}
+    .rep .kpi .n{font-size:20px;font-weight:800;margin-top:6px}
+    .rep .kpi .s{font-size:10px;color:#6b7280;margin-top:3px}
+    .rep .sec{display:flex;align-items:center;gap:12px;margin:6px 0 14px}
+    .rep .sec .no{font-size:11px;font-weight:800;color:${BRAND.v}}
+    .rep .sec h2{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    .rep .sec .tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${BRAND.v};border:1px solid ${BRAND.v};border-radius:20px;padding:0 10px;height:18px;display:inline-flex;align-items:center;line-height:1}
+    .rep .sec .ln{flex:1;height:1px;background:#e6e8ee}
+    .rep .note{border:1px solid #e6e8ee;border-left:4px solid ${accentClient};border-radius:10px;padding:14px 16px;font-size:12.5px;color:#3a4150;line-height:1.7;white-space:pre-wrap}
+    .rep table{width:100%;border-collapse:collapse;font-size:11.5px}
+    .rep thead th{text-align:left;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;padding:9px 10px;border-bottom:2px solid #e6e8ee;font-weight:700}
+    .rep tbody td{padding:9px 10px;border-bottom:1px solid #f0f1f5;color:#3a4150}
+    .rep tbody tr:nth-child(even){background:#fafbfc}
+    .rep td.task{color:#1f2430;font-weight:600}
+  `;
+}
+
+export async function exportMeetingReportHTML(input: MeetingHtmlInput): Promise<void> {
+  const { client, meeting } = input;
+  const accentClient = client.primaryColor || BRAND.v;
+  const date = parseISO(meeting.scheduledAt);
+  const typeLabel = MEETING_TYPE_LABEL[meeting.type] ?? meeting.type;
+  const participants = meeting.participants.map((p) => p.name).filter(Boolean);
+  const tasks = meeting.extractedTasks ?? [];
+  const agency = ((client.onboardingData.team ?? {}) as { agency?: string }).agency ?? 'Project360';
+
+  let secN = 0;
+  const sh = (title: string, tag?: string) =>
+    `<div class="sec"><span class="no">${secN < 9 ? '0' : ''}${++secN}</span><h2>${esc(title)}</h2>${tag ? `<span class="tag">${esc(tag)}</span>` : ''}<span class="ln"></span></div>`;
+
+  // ── Chips ──
+  const chips: Array<{ cls: string; txt: string }> = [
+    { cls: 'b', txt: typeLabel },
+    { cls: meeting.completed ? 'g' : 'a', txt: meeting.completed ? 'Realizada' : 'Pendiente' },
+    { cls: '', txt: `${meeting.durationMin} min` },
+  ];
+  if (participants.length) chips.push({ cls: '', txt: `${participants.length} participantes` });
+  if (tasks.length) chips.push({ cls: 'b', txt: `${tasks.length} compromisos` });
+
+  // ── KPIs ──
+  const kpis = [
+    { cls: 'b', l: 'Fecha', n: format(date, 'd MMM', { locale: es }), s: format(date, 'yyyy', { locale: es }) },
+    { cls: '', l: 'Hora', n: format(date, 'HH:mm', { locale: es }), s: 'inicio' },
+    { cls: '', l: 'Duración', n: `${meeting.durationMin}'`, s: 'minutos' },
+    { cls: 'g', l: 'Participantes', n: String(participants.length || '—'), s: 'asistentes' },
+    { cls: tasks.length ? 'b' : '', l: 'Compromisos', n: String(tasks.length), s: 'tareas' },
+  ];
+
+  // ── Bloques ──
+  const blocks: string[] = [];
+
+  blocks.push(
+    `<div class="chips">${chips.map((c) => `<span class="chip ${c.cls}">${esc(c.txt)}</span>`).join('')}</div>` +
+    (meeting.summary && meeting.summary.trim() ? `<p class="summary">${esc(meeting.summary.trim())}</p>` : '') +
+    `<div class="kpis">${kpis.map((k) => `<div class="kpi ${k.cls}"><div class="l">${esc(k.l)}</div><div class="n">${esc(k.n)}</div><div class="s">${esc(k.s)}</div></div>`).join('')}</div>`,
+  );
+
+  if (meeting.agenda && meeting.agenda.trim()) {
+    blocks.push(sh('Agenda') + `<div class="note">${esc(meeting.agenda.trim())}</div>`);
+  }
+  if (meeting.notes && meeting.notes.trim()) {
+    blocks.push(sh('Minuta / Notas') + `<div class="note">${esc(meeting.notes.trim())}</div>`);
+  }
+  if (tasks.length) {
+    blocks.push(sh('Compromisos y tareas', `${tasks.length} tareas`) +
+      `<table><thead><tr><th>Tarea</th><th>Responsable</th><th style="text-align:center">Vence</th></tr></thead><tbody>${
+        tasks.map((t) => `<tr><td class="task">${esc(t.title)}</td><td>${esc(resolveRoleLabel(t.responsibleRole, client.id) ?? t.responsibleRole)}</td><td style="text-align:center">${t.dueInDays != null ? `en ${esc(t.dueInDays)}d` : '—'}</td></tr>`).join('')
+      }</tbody></table>`);
+  }
+  if (participants.length) {
+    blocks.push(sh('Participantes') +
+      `<div class="chips">${participants.map((p) => `<span class="chip">${esc(p)}</span>`).join('')}</div>`);
+  }
+  // Si la reunión no tiene contenido aún, mostrar una nota en vez de páginas en blanco.
+  if (!meeting.agenda?.trim() && !meeting.notes?.trim() && !tasks.length && !(meeting.summary && meeting.summary.trim())) {
+    blocks.push(sh('Notas') + `<div class="note">Esta reunión aún no tiene agenda, minuta ni compromisos registrados.</div>`);
+  }
+
+  const dateLabel = format(date, "EEEE d 'de' MMMM yyyy", { locale: es });
+  await renderReport({
+    styles: meetingStyles(accentClient),
+    blocks,
+    accentClient,
+    client: client.name,
+    agency,
+    titleLines: ['Reporte de', 'Reunión'],
+    subtitle: meeting.title,
+    runningLabel: 'Reporte de Reunión',
+    meta: [
+      { k: 'Tipo', v: typeLabel },
+      { k: 'Fecha', v: format(date, 'd MMM yyyy', { locale: es }) },
+      { k: 'Hora', v: format(date, 'HH:mm', { locale: es }) },
+    ],
+    footerLeft: `${client.name} · Reporte de Reunión · ${dateLabel}`,
+    fileName: `Reporte_Reunion_${client.name.replace(/\s+/g, '_')}_${format(date, 'yyyy-MM-dd')}.pdf`,
+  });
 }

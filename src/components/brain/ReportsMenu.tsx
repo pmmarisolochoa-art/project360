@@ -9,10 +9,9 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
 import {
   exportMonthlyReport,
-  exportMeetingReport,
   exportLaunchReport,
 } from '@/services/reportsPdf';
-import { exportWeeklyReportHTML } from '@/services/htmlReport';
+import { exportWeeklyReportHTML, exportMeetingReportHTML } from '@/services/htmlReport';
 
 /**
  * Menú compacto en el header del cerebro: 4 reportes PDF.
@@ -142,7 +141,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                         icon={<Mic className="h-3.5 w-3.5" />}
                         label={m.title}
                         hint={new Date(m.scheduledAt).toLocaleDateString('es')}
-                        onClick={() => run(() => exportMeetingReport({ client, meeting: m }), 'Reporte de reunión')}
+                        onClick={() => run(() => exportMeetingReportHTML({ client, meeting: m }), 'Reporte de reunión')}
                       />
                     ))}
                 </div>

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain,
 } from 'lucide-react';
-import { exportMeetingReport } from '@/services/reportsPdf';
+import { exportMeetingReportHTML } from '@/services/htmlReport';
 import { marked } from 'marked';
 import mammoth from 'mammoth';
 import { format, parseISO } from 'date-fns';
@@ -552,9 +552,9 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
                 size="sm"
                 variant="secondary"
                 leftIcon={<FileDown className="h-3.5 w-3.5" />}
-                onClick={() => {
+                onClick={async () => {
                   try {
-                    exportMeetingReport({ client, meeting });
+                    await exportMeetingReportHTML({ client, meeting });
                     toast.success('Reporte de reunión generado');
                   } catch (e) {
                     console.warn('[meetingPdf]', e);

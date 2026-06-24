@@ -14,12 +14,13 @@ import {
 } from '@/services/agentService';
 import { sendAgentMessage } from '@/services/claudeApi';
 import { parseAgentAction, ACTION_PROTOCOL, type AgentAction } from '@/services/agentActions';
+import { tryAgentTool } from '@/services/agentTools';
 import { ActionCard } from '@/components/agent/ActionCard';
 
 interface UiMessage extends ChatMessage {
   id: string;
   error?: boolean;
-  action?: AgentAction | null;
+  actions?: AgentAction[];
 }
 
 interface AgentChatProps {
@@ -88,6 +89,16 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
     void saveMessage(clientId, agente, 'user', text);
 
     try {
+      // Canal adicional: si el mensaje activa una función existente (ej. extraer
+      // tareas de una reunión), la usamos directamente en vez del LLM.
+      const tool = await tryAgentTool(clientId, text);
+      if (tool) {
+        const msg: UiMessage = { id: newId(), role: 'assistant', content: tool.text, actions: tool.actions };
+        setMessages((prev) => [...prev, msg]);
+        void saveMessage(clientId, agente, 'assistant', tool.text);
+        return;
+      }
+
       const system =
         agentDef.systemPrompt +
         ACTION_PROTOCOL +
@@ -102,7 +113,12 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
 
       const { visibleText, action } = parseAgentAction(reply);
       const shown = visibleText || (action ? 'Te propongo esta acción 👇' : reply);
-      const assistantMsg: UiMessage = { id: newId(), role: 'assistant', content: shown, action };
+      const assistantMsg: UiMessage = {
+        id: newId(),
+        role: 'assistant',
+        content: shown,
+        actions: action ? [action] : undefined,
+      };
       setMessages((prev) => [...prev, assistantMsg]);
       void saveMessage(clientId, agente, 'assistant', shown);
     } catch (e) {
@@ -180,9 +196,9 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
                 >
                   {m.content}
                 </div>
-                {m.role === 'assistant' && m.action && (
-                  <ActionCard action={m.action} clientId={clientId} onDone={() => undefined} />
-                )}
+                {m.role === 'assistant' && m.actions?.map((a, i) => (
+                  <ActionCard key={`${m.id}-${i}`} action={a} clientId={clientId} onDone={() => undefined} />
+                ))}
               </div>
             </div>
           ))

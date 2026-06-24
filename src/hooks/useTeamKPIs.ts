@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useClientStore } from '@/store/useClientStore';
 import { ROLE_DEFS, evaluateKpi } from '@/types/team';
-import type { KpiHealth } from '@/types/team';
+import type { KpiHealth, KpiDef } from '@/types/team';
 import type { TeamMember } from '@/types/teamMember';
 
 /**
@@ -20,6 +20,7 @@ export interface MemberKpiRow {
   health: KpiHealth | null;
   measure: 'auto' | 'manual';
   custom: boolean;
+  targetOverridden?: boolean;   // la meta fue editada por cliente (≠ default del rol)
 }
 
 export interface MemberKpiSummary {
@@ -46,6 +47,19 @@ function num(v: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Devuelve un KpiDef con la meta sobreescrita por cliente, escalando los umbrales
+ * (red/yellow) en proporción para que el semáforo siga siendo coherente.
+ * Si la meta original es 0 (ej. "bloqueos abiertos") no se puede escalar: se
+ * conservan los umbrales originales con la nueva meta.
+ */
+function applyTargetOverride(def: KpiDef, newTarget: number): KpiDef {
+  if (def.target === 0 || newTarget === def.target) return { ...def, target: newTarget };
+  const ratio = newTarget / def.target;
+  const scale = (t?: number) => (t === undefined ? undefined : Math.round(t * ratio * 100) / 100);
+  return { ...def, target: newTarget, redThreshold: scale(def.redThreshold), yellowThreshold: scale(def.yellowThreshold) };
+}
+
 export function computeMemberKpis(
   member: TeamMember,
   tasks: Array<{ assignedTo: string; status: string; isDelayed: boolean }>,
@@ -54,7 +68,10 @@ export function computeMemberKpis(
   const rows: MemberKpiRow[] = [];
 
   // KPIs del rol (valores manuales; tasks_on_time se puede calcular auto).
-  for (const def of roleDef?.kpis ?? []) {
+  for (const baseDef of roleDef?.kpis ?? []) {
+    const override = num(member.kpis.targets?.[baseDef.key]);
+    const targetOverridden = override != null && override !== baseDef.target;
+    const def = targetOverridden ? applyTargetOverride(baseDef, override) : baseDef;
     const manual = num(member.kpis.values[def.key]);
     const isAutoKey = def.key === 'tasks_on_time';
     const value = manual ?? (isAutoKey ? autoTaskRate(member.nombre, tasks) : null);
@@ -67,6 +84,7 @@ export function computeMemberKpis(
       health: value != null ? evaluateKpi(value, def) : null,
       measure: isAutoKey && manual == null ? 'auto' : 'manual',
       custom: false,
+      targetOverridden,
     });
   }
 

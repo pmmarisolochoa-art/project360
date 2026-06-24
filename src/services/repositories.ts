@@ -214,8 +214,8 @@ function rowToTeamMember(row: Record<string, unknown>): TeamMember {
     avatarColor: r.avatar_color ?? '#6366F1',
     funciones: Array.isArray(r.funciones) ? r.funciones : [],
     kpis: r.kpis_custom && typeof r.kpis_custom === 'object'
-      ? { values: r.kpis_custom.values ?? {}, history: r.kpis_custom.history ?? {}, custom: r.kpis_custom.custom ?? [] }
-      : { values: {}, history: {}, custom: [] },
+      ? { values: r.kpis_custom.values ?? {}, history: r.kpis_custom.history ?? {}, targets: r.kpis_custom.targets ?? {}, custom: r.kpis_custom.custom ?? [] }
+      : { values: {}, history: {}, targets: {}, custom: [] },
     createdAt: r.created_at,
   };
 }

@@ -25,6 +25,11 @@ export interface TeamMemberKpis {
   values: Record<string, string>;
   /** Historial de los últimos valores manuales por KPI (máx 4). */
   history?: Record<string, string[]>;
+  /**
+   * Meta (target) sobreescrita por cliente para un KPI del rol.
+   * Si falta, se usa el target por defecto de ROLE_DEFS. Clave = key del KPI.
+   */
+  targets?: Record<string, string>;
   /** KPIs personalizados agregados por el PM. */
   custom: CustomKpiDef[];
 }
@@ -42,5 +47,5 @@ export interface TeamMember {
 }
 
 export function emptyKpis(): TeamMemberKpis {
-  return { values: {}, history: {}, custom: [] };
+  return { values: {}, history: {}, targets: {}, custom: [] };
 }

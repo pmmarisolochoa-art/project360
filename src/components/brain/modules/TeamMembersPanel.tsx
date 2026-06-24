@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, X, Trash2, UserPlus, AlertTriangle } from 'lucide-react';
+import { Plus, X, Trash2, UserPlus, AlertTriangle, Pencil } from 'lucide-react';
 import { BarChart, Bar, Cell, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip as RTooltip } from 'recharts';
 import type { Client } from '@/types/client';
 import type { TeamRoleSlug } from '@/types/team';
@@ -290,6 +290,7 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
   const roleTitle = ROLE_DEFS.find((r) => r.slug === member.rol)?.title ?? member.rol;
   const [newFn, setNewFn] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<string | null>(null);
 
   const live = () => useTeamMembersStore.getState().members.find((m) => m.id === member.id) ?? member;
 
@@ -309,6 +310,14 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
     const history = { ...(m.kpis.history ?? {}) };
     if (prev) history[key] = [prev, ...(history[key] ?? [])].slice(0, 4);
     update(member.id, { kpis: { ...m.kpis, values: { ...m.kpis.values, [key]: val }, history } });
+  };
+  const setKpiTarget = (key: string, val: string) => {
+    const m = live();
+    const targets = { ...(m.kpis.targets ?? {}) };
+    const clean = val.trim();
+    if (clean === '') delete targets[key];
+    else targets[key] = clean;
+    update(member.id, { kpis: { ...m.kpis, targets } });
   };
   const addCustomKpi = (def: CustomKpiDef) => {
     update(member.id, { kpis: { ...live().kpis, custom: [...live().kpis.custom, def] } });
@@ -398,8 +407,31 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
                     {row.custom && <span className="text-[9px] uppercase text-text-muted">custom</span>}
                     {row.measure === 'auto' && <span className="text-[9px] uppercase text-accent-violet">auto</span>}
                   </div>
-                  <div className="text-[10px] text-text-muted">
-                    {row.target != null ? `Meta: ${row.target}${row.unit ?? ''}` : 'Sin meta numérica'}
+                  <div className="text-[10px] text-text-muted flex items-center gap-1">
+                    {editTarget === row.key ? (
+                      <input
+                        type="number"
+                        defaultValue={row.target ?? ''}
+                        autoFocus
+                        onBlur={(e) => { setKpiTarget(row.key, e.target.value); setEditTarget(null); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
+                        className="w-16 bg-bg-elevated/60 border border-border-subtle rounded px-1.5 py-0.5 text-[10px] text-text-primary outline-none"
+                      />
+                    ) : (
+                      <>
+                        <span>{row.target != null ? `Meta: ${row.target}${row.unit ?? ''}` : 'Sin meta numérica'}</span>
+                        {!row.custom && row.target != null && (
+                          <button
+                            onClick={() => setEditTarget(row.key)}
+                            className="text-text-muted hover:text-accent-violet"
+                            title="Editar meta para este cliente"
+                          >
+                            <Pencil className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                        {row.targetOverridden && <span className="text-[8px] uppercase tracking-wide text-accent-violet">editada</span>}
+                      </>
+                    )}
                   </div>
                 </div>
                 {row.textValue !== undefined ? (

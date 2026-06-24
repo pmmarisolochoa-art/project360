@@ -145,6 +145,11 @@ export function TeamMembersPanel({ client }: { client: Client }) {
                 <div className="text-[10px] mt-1" style={{ color: HEALTH_COLOR[s.health] }}>
                   {s.score}% KPIs ✓
                 </div>
+                {s.taskKpis.length > 0 && (
+                  <div className="text-[10px] mt-0.5 text-text-muted">
+                    🎯 {s.taskKpis.filter((t) => t.health === 'green').length}/{s.taskKpis.length} resultados
+                  </div>
+                )}
               </button>
             );
           })}
@@ -462,6 +467,39 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Resultados de tareas — KPIs capturados al completar tareas de la persona */}
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-text-muted mb-2">
+            Resultados de tareas
+            <span className="ml-1 normal-case tracking-normal text-text-muted/70">· se llenan al completar tareas con KPI</span>
+          </div>
+          {summary.taskKpis.length === 0 ? (
+            <div className="text-xs text-text-muted italic rounded-[8px] border border-border-subtle bg-bg-base/30 px-3 py-2.5">
+              Aún sin resultados. Cuando esta persona complete una tarea que tenga KPI de resultado, aparecerá aquí.
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {summary.taskKpis.map((tk, i) => (
+                <div key={i} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center rounded-[8px] border border-border-subtle bg-bg-base/30 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-xs text-text-primary truncate">{tk.nombre}</div>
+                    <div className="text-[10px] text-text-muted truncate">{tk.taskTitle}</div>
+                  </div>
+                  <div className="text-sm font-semibold text-text-primary text-right whitespace-nowrap">
+                    {tk.resultado}
+                    {tk.meta && <span className="text-[10px] text-text-muted font-normal"> / {tk.meta}</span>}
+                  </div>
+                  <span
+                    className="h-2.5 w-2.5 rounded-full justify-self-end"
+                    style={{ background: tk.health ? HEALTH_COLOR[tk.health] : '#4B5563' }}
+                    title={tk.health ?? 'sin dato'}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Acciones */}

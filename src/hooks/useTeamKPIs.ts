@@ -23,10 +23,20 @@ export interface MemberKpiRow {
   targetOverridden?: boolean;   // la meta fue editada por cliente (≠ default del rol)
 }
 
+/** Resultado de KPI capturado al completar una tarea, atribuido a la persona. */
+export interface MemberTaskKpi {
+  taskTitle: string;
+  nombre: string;         // kpiNombre de la tarea (ej. "Leads captados")
+  meta?: string;          // kpiMeta
+  resultado: string;      // kpiResultado registrado al completar
+  health: KpiHealth | null;
+}
+
 export interface MemberKpiSummary {
   member: TeamMember;
   rows: MemberKpiRow[];
-  score: number;          // % de KPIs en verde (solo numéricos)
+  taskKpis: MemberTaskKpi[];   // resultados que vienen de tareas completadas
+  score: number;          // % de KPIs en verde (KPIs del rol/custom + resultados de tareas)
   health: KpiHealth;
 }
 
@@ -60,9 +70,32 @@ function applyTargetOverride(def: KpiDef, newTarget: number): KpiDef {
   return { ...def, target: newTarget, redThreshold: scale(def.redThreshold), yellowThreshold: scale(def.yellowThreshold) };
 }
 
+/**
+ * Semáforo de un resultado de tarea vs su meta. Misma lógica que el módulo Tareas:
+ * numéricos → verde si alcanza/supera la meta, amarillo si no; sin meta numérica
+ * pero con resultado registrado → verde. Sin resultado → null.
+ */
+function taskKpiHealth(meta: string | undefined, resultado: string): KpiHealth | null {
+  if (!resultado.trim()) return null;
+  const m = num(meta);
+  const r = num(resultado);
+  if (m != null && r != null) return r >= m ? 'green' : 'yellow';
+  return 'green';
+}
+
+type KpiTask = {
+  assignedTo: string;
+  status: string;
+  isDelayed: boolean;
+  title?: string;
+  kpiNombre?: string;
+  kpiMeta?: string;
+  kpiResultado?: string;
+};
+
 export function computeMemberKpis(
   member: TeamMember,
-  tasks: Array<{ assignedTo: string; status: string; isDelayed: boolean }>,
+  tasks: KpiTask[],
 ): MemberKpiSummary {
   const roleDef = ROLE_DEFS.find((r) => r.slug === member.rol);
   const rows: MemberKpiRow[] = [];
@@ -111,14 +144,31 @@ export function computeMemberKpis(
     });
   }
 
-  const numeric = rows.filter((r) => r.health != null);
-  const greens = numeric.filter((r) => r.health === 'green').length;
-  const reds = numeric.filter((r) => r.health === 'red').length;
-  const yellows = numeric.filter((r) => r.health === 'yellow').length;
-  const score = numeric.length ? Math.round((greens / numeric.length) * 100) : 0;
+  // Resultados de tareas completadas atribuidas a la persona (por nombre o rol).
+  const taskKpis: MemberTaskKpi[] = tasks
+    .filter((t) =>
+      (t.assignedTo === member.nombre || t.assignedTo === member.rol) &&
+      t.status === 'completed' && !!t.kpiNombre && !!t.kpiResultado)
+    .map((t) => ({
+      taskTitle: t.title ?? '',
+      nombre: t.kpiNombre as string,
+      meta: t.kpiMeta,
+      resultado: t.kpiResultado as string,
+      health: taskKpiHealth(t.kpiMeta, t.kpiResultado as string),
+    }));
+
+  // Score y salud: combinan KPIs del rol/custom + resultados de tareas.
+  const healthVals: KpiHealth[] = [
+    ...rows.filter((r) => r.health != null).map((r) => r.health as KpiHealth),
+    ...taskKpis.filter((t) => t.health != null).map((t) => t.health as KpiHealth),
+  ];
+  const greens = healthVals.filter((h) => h === 'green').length;
+  const reds = healthVals.filter((h) => h === 'red').length;
+  const yellows = healthVals.filter((h) => h === 'yellow').length;
+  const score = healthVals.length ? Math.round((greens / healthVals.length) * 100) : 0;
   const health: KpiHealth = reds >= 2 ? 'red' : reds === 1 || yellows >= 3 ? 'yellow' : 'green';
 
-  return { member, rows, score, health };
+  return { member, rows, taskKpis, score, health };
 }
 
 export function useTeamKPIs(clientId: string): MemberKpiSummary[] {

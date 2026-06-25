@@ -6,7 +6,7 @@ import { es } from 'date-fns/locale';
 import { Plus, ArrowRight } from 'lucide-react';
 import type { Task } from '@/types/task';
 import { useClientStore } from '@/store/useClientStore';
-import { useTeamStore } from '@/store/useTeamStore';
+import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/store/useToastStore';
@@ -33,22 +33,22 @@ export function WeeklyPlanningGrid({
   const allTasks = useClientStore((s) => s.tasks);
   const updateTask = useClientStore((s) => s.updateTask);
   const addTask = useClientStore((s) => s.addTask);
-  const assignments = useTeamStore((s) => s.assignments);
+  const members = useTeamMembersStore((s) => s.members);
 
   // Semana de la reunión (Lun-Vie).
   const weekStart = useMemo(() => startOfWeek(parseISO(weekAnchor), { weekStartsOn: 1 }), [weekAnchor]);
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const weekEnd = addDays(weekStart, 4);
 
-  // Equipo del cliente — los assignments del useTeamStore + memberName.
-  // Si no hay assignments, usamos los responsables únicos de tareas existentes.
+  // Equipo REAL del cliente — las personas del módulo "Salud del equipo" (tabla team_members).
+  // Si aún no hay personas cargadas, usamos los responsables únicos de tareas existentes.
   const teamMembers = useMemo(() => {
-    const fromTeam = assignments
-      .filter((a) => a.clientId === clientId)
-      .map((a) => ({
-        name: a.memberName,
-        roleSlug: a.roleSlug,
-        roleLabel: ROLE_DEFS.find((r) => r.slug === a.roleSlug)?.title ?? a.roleSlug,
+    const fromTeam = members
+      .filter((m) => m.clientId === clientId)
+      .map((m) => ({
+        name: m.nombre,
+        roleSlug: m.rol,
+        roleLabel: ROLE_DEFS.find((r) => r.slug === m.rol)?.title ?? m.rol,
       }));
     if (fromTeam.length > 0) return fromTeam;
     // Fallback: extraer de las tareas.
@@ -56,7 +56,7 @@ export function WeeklyPlanningGrid({
       allTasks.filter((t) => t.clientId === clientId).map((t) => t.assignedTo).filter(Boolean),
     ));
     return unique.map((name) => ({ name, roleSlug: 'strategist' as const, roleLabel: '—' }));
-  }, [assignments, clientId, allTasks]);
+  }, [members, clientId, allTasks]);
 
   // Tareas del cliente que caen en la semana mostrada.
   const weekTasks = useMemo(() => allTasks.filter((t) => {
@@ -134,7 +134,7 @@ export function WeeklyPlanningGrid({
             </thead>
             <tbody>
               {teamMembers.map((m) => (
-                <tr key={m.name}>
+                <tr key={`${m.name}-${m.roleSlug}`}>
                   <td className="px-2 py-2 align-top">
                     <div className="text-xs font-semibold text-text-primary">{m.name}</div>
                     <div className="text-[10px] text-text-muted">{m.roleLabel}</div>

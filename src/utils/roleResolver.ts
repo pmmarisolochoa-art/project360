@@ -1,5 +1,5 @@
 import { ROLE_DEFS, type TeamRoleSlug } from '@/types/team';
-import { useTeamStore } from '@/store/useTeamStore';
+import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 
 const VALID_SLUGS: ReadonlySet<string> = new Set(ROLE_DEFS.map((r) => r.slug));
 
@@ -19,10 +19,10 @@ export function resolveAssignee(assignedTo: string, clientId?: string): string {
 
   // Buscar miembro real del equipo del cliente
   if (clientId) {
-    const assignment = useTeamStore.getState().assignments.find(
-      (a) => a.clientId === clientId && a.roleSlug === assignedTo,
+    const member = useTeamMembersStore.getState().members.find(
+      (m) => m.clientId === clientId && m.rol === assignedTo,
     );
-    if (assignment?.memberName) return assignment.memberName;
+    if (member?.nombre) return member.nombre;
   }
 
   // Fallback: título legible del rol
@@ -58,11 +58,11 @@ export function resolveRoleLabel(assignedTo: string, clientId?: string): string 
 
   // Si es nombre, busca en el team del cliente
   if (clientId) {
-    const assignment = useTeamStore.getState().assignments.find(
-      (a) => a.clientId === clientId && a.memberName === assignedTo,
+    const member = useTeamMembersStore.getState().members.find(
+      (m) => m.clientId === clientId && m.nombre === assignedTo,
     );
-    if (assignment) {
-      const role = ROLE_DEFS.find((r) => r.slug === assignment.roleSlug);
+    if (member) {
+      const role = ROLE_DEFS.find((r) => r.slug === member.rol);
       return role?.title ?? null;
     }
   }

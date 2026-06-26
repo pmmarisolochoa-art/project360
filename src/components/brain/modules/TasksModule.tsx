@@ -23,7 +23,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { useClientStore } from '@/store/useClientStore';
 import { toast } from '@/store/useToastStore';
 import { ROLE_DEFS } from '@/types/team';
-import { useTeamStore } from '@/store/useTeamStore';
+import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useProgramsStore } from '@/store/useProgramsStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { resolveRoleLabel } from '@/utils/roleResolver';
@@ -764,12 +764,12 @@ function TaskModal({
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'P2');
   const [assignedTo, setAssignedTo] = useState(task?.assignedTo ?? '');
 
-  // Opciones del Responsable = team del cliente + roles
-  const teamAssignments = useTeamStore((s) => s.assignments).filter((a) => a.clientId === clientId);
+  // Opciones del Responsable = equipo real del cliente (team_members) + roles
+  const teamMembers = useTeamMembersStore((s) => s.members).filter((m) => m.clientId === clientId);
   const responsibleOptions = useMemo(() => {
-    const teamOpts = teamAssignments.map((a) => {
-      const role = ROLE_DEFS.find((r) => r.slug === a.roleSlug);
-      return { value: a.memberName, label: `👤 ${a.memberName} · ${role?.title ?? a.roleSlug}` };
+    const teamOpts = teamMembers.map((m) => {
+      const role = ROLE_DEFS.find((r) => r.slug === m.rol);
+      return { value: m.nombre, label: `👤 ${m.nombre} · ${role?.title ?? m.rol}` };
     });
     const roleOpts = ROLE_DEFS.map((r) => ({ value: r.slug, label: `🏷️ Por rol: ${r.title}` }));
     return [
@@ -777,7 +777,7 @@ function TaskModal({
       ...teamOpts,
       ...roleOpts,
     ];
-  }, [teamAssignments]);
+  }, [teamMembers]);
 
   // Si assignedTo viene como slug, mostrar título legible. Si viene como
   // nombre que no está en team, igualmente sale en el select como custom.

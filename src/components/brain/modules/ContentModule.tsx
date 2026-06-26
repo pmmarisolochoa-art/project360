@@ -17,7 +17,7 @@ import type {
 } from '@/types/content';
 import { CONTENT_STATUS_META, PLATFORM_META, FORMAT_LABEL, CTA_TYPE_LABEL, type CtaType } from '@/types/content';
 import { ROLE_DEFS, type TeamRoleSlug } from '@/types/team';
-import { useTeamStore } from '@/store/useTeamStore';
+import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -487,15 +487,15 @@ function ContentDrawer({
 
   // Equipo: para Responsable, sugerimos personas asignadas al rol seleccionado
   // (filtradas por cliente). Si no hay asignaciones, el campo queda libre.
-  const teamAssignments = useTeamStore((s) => s.assignments);
+  const teamMembers = useTeamMembersStore((s) => s.members);
   const assigneesForRole = useMemo(() => {
     if (!draft.roleSlug) return [] as string[];
     return Array.from(new Set(
-      teamAssignments
-        .filter((a) => a.clientId === client.id && a.roleSlug === draft.roleSlug && a.memberName.trim())
-        .map((a) => a.memberName.trim()),
+      teamMembers
+        .filter((m) => m.clientId === client.id && m.rol === draft.roleSlug && m.nombre.trim())
+        .map((m) => m.nombre.trim()),
     ));
-  }, [teamAssignments, draft.roleSlug, client.id]);
+  }, [teamMembers, draft.roleSlug, client.id]);
 
   return (
     <>

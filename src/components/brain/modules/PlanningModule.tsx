@@ -23,7 +23,7 @@ import { cn } from '@/utils/cn';
 
 type PlanningTab = 'research' | 'funnels' | 'diagrams';
 
-export function PlanningModule({ client }: { client: Client }) {
+export function PlanningModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const [tab, setTab] = useState<PlanningTab>('funnels');
   const navigate = useNavigate();
 
@@ -37,7 +37,7 @@ export function PlanningModule({ client }: { client: Client }) {
         {/* OCULTO BETA: <TabBtn active={tab === 'diagrams'} onClick={() => setTab('diagrams')}>📊 Diagramas de Funnel</TabBtn> */}
       </div>
 
-      {tab === 'funnels' && <FunnelLaunchPanel client={client} />}
+      {tab === 'funnels' && <FunnelLaunchPanel client={client} readOnly={readOnly} />}
       {/* OCULTO BETA — Investigación (→ Perfil) y Sistema de Embudos (→ Programas)
           conservados en código para reactivar en v2; no se renderizan. */}
       {false && <MarketResearchPanel client={client} />}

@@ -29,7 +29,7 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { genId } from '@/utils/id';
 
-export function ContentModule({ client }: { client: Client }) {
+export function ContentModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const allPieces = useContentStore((s) => s.pieces);
   const pieces = useMemo(
     () => allPieces.filter((p) => p.clientId === client.id),
@@ -66,24 +66,26 @@ export function ContentModule({ client }: { client: Client }) {
           </ToggleButton>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            leftIcon={<DollarSign className="h-4 w-4" />}
-            onClick={() => setAdsOpen(true)}
-            title="Generar anuncios para pauta con IA"
-          >
-            Anuncios pauta
-          </Button>
-          <Button
-            size="sm"
-            leftIcon={<Plus className="h-4 w-4" />}
-            onClick={() => setCreating({ date: new Date() })}
-          >
-            Nueva pieza
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<DollarSign className="h-4 w-4" />}
+              onClick={() => setAdsOpen(true)}
+              title="Generar anuncios para pauta con IA"
+            >
+              Anuncios pauta
+            </Button>
+            <Button
+              size="sm"
+              leftIcon={<Plus className="h-4 w-4" />}
+              onClick={() => setCreating({ date: new Date() })}
+            >
+              Nueva pieza
+            </Button>
+          </div>
+        )}
       </div>
 
       {view === 'kanban' ? (
@@ -94,6 +96,7 @@ export function ContentModule({ client }: { client: Client }) {
           accent={client.primaryColor}
           onOpen={setEditing}
           onCreateAt={(date) => setCreating({ date })}
+          readOnly={readOnly}
         />
       )}
 
@@ -105,6 +108,7 @@ export function ContentModule({ client }: { client: Client }) {
             piece={editing}
             createAt={creating?.date}
             onClose={() => { setEditing(null); setCreating(null); }}
+            readOnly={readOnly}
           />
         )}
       </AnimatePresence>
@@ -229,12 +233,13 @@ function KanbanCard({
 /* ───────────────────────── CALENDARIO ───────────────────────── */
 
 function ContentCalendar({
-  pieces, accent, onOpen, onCreateAt,
+  pieces, accent, onOpen, onCreateAt, readOnly = false,
 }: {
   pieces: ContentPiece[];
   accent: string;
   onOpen: (p: ContentPiece) => void;
   onCreateAt: (date: Date) => void;
+  readOnly?: boolean;
 }) {
   const [cursor, setCursor] = useState<Date>(new Date());
   const [dateField, setDateField] = useState<DateField>('publishDate');
@@ -344,7 +349,7 @@ function ContentCalendar({
                 >
                   {format(d, 'd')}
                 </span>
-                {inMonth && (
+                {inMonth && !readOnly && (
                   <button
                     onClick={() => onCreateAt(d)}
                     className="opacity-0 group-hover:opacity-100 h-5 w-5 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-elevated transition"
@@ -405,12 +410,13 @@ function CalendarPieceCard({
 /* ───────────────────────── DRAWER (detalle/edición/creación) ───────────────────────── */
 
 function ContentDrawer({
-  client, piece, createAt, onClose,
+  client, piece, createAt, onClose, readOnly = false,
 }: {
   client: Client;
   piece: ContentPiece | null;
   createAt?: Date;
   onClose: () => void;
+  readOnly?: boolean;
 }) {
   const add = useContentStore((s) => s.add);
   const update = useContentStore((s) => s.update);
@@ -533,6 +539,7 @@ function ContentDrawer({
             required
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            disabled={readOnly}
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -542,6 +549,7 @@ function ContentDrawer({
               value={draft.platform}
               onChange={(e) => setDraft({ ...draft, platform: e.target.value as ContentPlatform })}
               options={Object.entries(PLATFORM_META).map(([v, m]) => ({ value: v, label: `${m.emoji} ${m.label}` }))}
+              disabled={readOnly}
             />
             <Select
               label="Formato"
@@ -549,6 +557,7 @@ function ContentDrawer({
               value={draft.format}
               onChange={(e) => setDraft({ ...draft, format: e.target.value as ContentFormat })}
               options={Object.entries(FORMAT_LABEL).map(([v, l]) => ({ value: v, label: l }))}
+              disabled={readOnly}
             />
           </div>
 
@@ -561,23 +570,26 @@ function ContentDrawer({
               { value: '', label: '— Elegir CTA —' },
               ...Object.entries(CTA_TYPE_LABEL).map(([v, l]) => ({ value: v, label: l })),
             ]}
+            disabled={readOnly}
           />
 
           {/* Botón generar IA — produce script + caption en una sola llamada */}
-          <div className="rounded-[10px] border border-dashed border-border-default bg-bg-base/30 p-3 flex items-center justify-between gap-3">
-            <div className="text-[11px] text-text-secondary leading-relaxed">
-              La IA usa el título, plataforma, formato, CTA, arquitectura de marca y avatar
-              del cliente para generar <strong>script</strong> + <strong>caption</strong>.
+          {!readOnly && (
+            <div className="rounded-[10px] border border-dashed border-border-default bg-bg-base/30 p-3 flex items-center justify-between gap-3">
+              <div className="text-[11px] text-text-secondary leading-relaxed">
+                La IA usa el título, plataforma, formato, CTA, arquitectura de marca y avatar
+                del cliente para generar <strong>script</strong> + <strong>caption</strong>.
+              </div>
+              <button
+                onClick={generateCopy}
+                disabled={loading}
+                className="shrink-0 text-xs inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 hover:brightness-125 disabled:opacity-50 font-medium"
+                style={{ color: accent, borderColor: withAlpha(accent, 0.4), background: withAlpha(accent, 0.10) }}
+              >
+                <Sparkles className="h-3.5 w-3.5" /> {loading ? 'Generando…' : 'Generar con IA'}
+              </button>
             </div>
-            <button
-              onClick={generateCopy}
-              disabled={loading}
-              className="shrink-0 text-xs inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 hover:brightness-125 disabled:opacity-50 font-medium"
-              style={{ color: accent, borderColor: withAlpha(accent, 0.4), background: withAlpha(accent, 0.10) }}
-            >
-              <Sparkles className="h-3.5 w-3.5" /> {loading ? 'Generando…' : 'Generar con IA'}
-            </button>
-          </div>
+          )}
 
           {/* Guion / Script — para el equipo, no se publica */}
           <div>
@@ -590,6 +602,7 @@ function ContentDrawer({
               value={draft.script ?? ''}
               onChange={(e) => setDraft({ ...draft, script: e.target.value })}
               placeholder="Beats del video, ángulo, transiciones, líneas clave…"
+              disabled={readOnly}
             />
           </div>
 
@@ -617,6 +630,7 @@ function ContentDrawer({
               value={draft.caption ?? ''}
               onChange={(e) => setDraft({ ...draft, caption: e.target.value })}
               placeholder="Hook + cuerpo + CTA + hashtags…"
+              disabled={readOnly}
             />
           </div>
 
@@ -630,7 +644,6 @@ function ContentDrawer({
                 setDraft({
                   ...draft,
                   roleSlug: next,
-                  // Si el rol cambia, limpiamos el responsable previo.
                   assignedTo: next === draft.roleSlug ? draft.assignedTo : undefined,
                 });
               }}
@@ -638,6 +651,7 @@ function ContentDrawer({
                 { value: '', label: '— Elegir rol —' },
                 ...ROLE_DEFS.map((r) => ({ value: r.slug, label: r.title })),
               ]}
+              disabled={readOnly}
             />
             {assigneesForRole.length > 0 ? (
               <Select
@@ -648,6 +662,7 @@ function ContentDrawer({
                   { value: '', label: '— Sin asignar —' },
                   ...assigneesForRole.map((name) => ({ value: name, label: name })),
                 ]}
+                disabled={readOnly}
               />
             ) : (
               <Input
@@ -655,7 +670,7 @@ function ContentDrawer({
                 value={draft.assignedTo ?? ''}
                 onChange={(e) => setDraft({ ...draft, assignedTo: e.target.value || undefined })}
                 placeholder={draft.roleSlug ? 'Nombre de la persona' : 'Elige un rol primero'}
-                disabled={!draft.roleSlug}
+                disabled={readOnly || !draft.roleSlug}
               />
             )}
           </div>
@@ -665,21 +680,25 @@ function ContentDrawer({
               label="📹 Grabación"
               value={draft.recordingDate}
               onChange={(v) => setDraft({ ...draft, recordingDate: v })}
+              disabled={readOnly}
             />
             <DateInput
               label="✂️ Edición"
               value={draft.editingDate}
               onChange={(v) => setDraft({ ...draft, editingDate: v })}
+              disabled={readOnly}
             />
             <DateInput
               label="✅ Aprobación"
               value={draft.approvalDate}
               onChange={(v) => setDraft({ ...draft, approvalDate: v })}
+              disabled={readOnly}
             />
             <DateInput
               label="📅 Publicación"
               value={draft.publishDate}
               onChange={(v) => setDraft({ ...draft, publishDate: v })}
+              disabled={readOnly}
             />
           </div>
 
@@ -688,6 +707,7 @@ function ContentDrawer({
             value={draft.status}
             onChange={(e) => setDraft({ ...draft, status: e.target.value as ContentStatus })}
             options={STATUS_FLOW.map((s) => ({ value: s, label: CONTENT_STATUS_META[s].label }))}
+            disabled={readOnly}
           />
 
           <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3">
@@ -697,6 +717,7 @@ function ContentDrawer({
                 checked={draft.hasLeadMagnet}
                 onChange={(e) => setDraft({ ...draft, hasLeadMagnet: e.target.checked })}
                 className="h-4 w-4 accent-accent-violet"
+                disabled={readOnly}
               />
               <Magnet className="h-4 w-4" style={{ color: accent }} />
               <span className="text-sm text-text-primary">Lleva Lead Magnet</span>
@@ -707,6 +728,7 @@ function ContentDrawer({
                 placeholder="Descripción del lead magnet (PDF, audio, mini-curso…)"
                 value={draft.leadMagnetDescription ?? ''}
                 onChange={(e) => setDraft({ ...draft, leadMagnetDescription: e.target.value })}
+                disabled={readOnly}
               />
             )}
           </div>
@@ -716,6 +738,7 @@ function ContentDrawer({
             rows={3}
             value={draft.productionNotes ?? ''}
             onChange={(e) => setDraft({ ...draft, productionNotes: e.target.value })}
+            disabled={readOnly}
           />
 
           <div>
@@ -727,10 +750,13 @@ function ContentDrawer({
                 placeholder="URL del archivo o súbelo a Drive"
                 value={draft.mediaUrl ?? ''}
                 onChange={(e) => setDraft({ ...draft, mediaUrl: e.target.value })}
+                disabled={readOnly}
               />
-              <Button size="sm" variant="secondary" leftIcon={<Upload className="h-3.5 w-3.5" />}>
-                Subir
-              </Button>
+              {!readOnly && (
+                <Button size="sm" variant="secondary" leftIcon={<Upload className="h-3.5 w-3.5" />}>
+                  Subir
+                </Button>
+              )}
             </div>
           </div>
 
@@ -741,23 +767,26 @@ function ContentDrawer({
               value={draft.approvalNotes ?? ''}
               onChange={(e) => setDraft({ ...draft, approvalNotes: e.target.value })}
               className="border-status-danger/40"
+              disabled={readOnly}
             />
           )}
         </div>
 
         <footer className="border-t border-border-subtle px-5 py-3 flex items-center justify-between gap-2">
           <div>
-            {!isNew && (
+            {!readOnly && !isNew && (
               <Button variant="danger" size="sm" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={del}>
                 Eliminar
               </Button>
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose}>Cancelar</Button>
-            <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
-              {isNew ? 'Crear pieza' : 'Guardar'}
-            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose}>{readOnly ? 'Cerrar' : 'Cancelar'}</Button>
+            {!readOnly && (
+              <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
+                {isNew ? 'Crear pieza' : 'Guardar'}
+              </Button>
+            )}
           </div>
         </footer>
       </motion.aside>
@@ -766,11 +795,12 @@ function ContentDrawer({
 }
 
 function DateInput({
-  label, value, onChange,
+  label, value, onChange, disabled,
 }: {
   label: string;
   value: string | undefined;
   onChange: (v: string | undefined) => void;
+  disabled?: boolean;
 }) {
   const dateValue = value ? value.slice(0, 10) : '';
   return (
@@ -781,6 +811,7 @@ function DateInput({
       onChange={(e) =>
         onChange(e.target.value ? new Date(`${e.target.value}T12:00:00`).toISOString() : undefined)
       }
+      disabled={disabled}
     />
   );
 }

@@ -62,7 +62,7 @@ function kpiResult(meta: string | undefined, resultado: string | undefined): { l
   return { label: 'Resultado registrado', emoji: '🟢', color: '#10B981' };
 }
 
-export function TasksModule({ client }: { client: Client }) {
+export function TasksModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const navigate = useNavigate();
   // IMPORTANTE: el selector debe devolver una referencia estable.
   // Filtrar dentro del selector crea un array nuevo en cada render y
@@ -282,9 +282,11 @@ export function TasksModule({ client }: { client: Client }) {
               <GanttChartSquare className="h-3 w-3" /> Gantt
             </button>
           </div>
-          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>
-            Nueva tarea
-          </Button>
+          {!readOnly && (
+            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>
+              Nueva tarea
+            </Button>
+          )}
         </div>
       </div>
 
@@ -295,24 +297,30 @@ export function TasksModule({ client }: { client: Client }) {
         <EmptyState
           emoji="📋"
           title="No hay tareas todavía"
-          description="Crea tu primer embudo para generar tareas automáticamente, o agrega una tarea manual."
+          description={
+            readOnly
+              ? 'Aún no hay tareas asignadas en este espacio.'
+              : 'Crea tu primer embudo para generar tareas automáticamente, o agrega una tarea manual.'
+          }
           actions={
-            <>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => navigate(`/client/${client.id}/planning`)}
-              >
-                Elegir embudo
-              </Button>
-              <Button
-                size="sm"
-                leftIcon={<Plus className="h-4 w-4" />}
-                onClick={() => setCreating(true)}
-              >
-                Tarea manual
-              </Button>
-            </>
+            readOnly ? undefined : (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => navigate(`/client/${client.id}/planning`)}
+                >
+                  Elegir embudo
+                </Button>
+                <Button
+                  size="sm"
+                  leftIcon={<Plus className="h-4 w-4" />}
+                  onClick={() => setCreating(true)}
+                >
+                  Tarea manual
+                </Button>
+              </>
+            )
           }
         />
       )}
@@ -333,7 +341,7 @@ export function TasksModule({ client }: { client: Client }) {
                   boxShadow: isDropTarget ? `inset 0 0 0 1px ${accent}` : undefined,
                 }}
                 onDragOver={(e) => {
-                  if (!draggedTaskId) return;
+                  if (readOnly || !draggedTaskId) return;
                   e.preventDefault();
                   e.dataTransfer.dropEffect = 'move';
                   if (dragOverStatus !== col.status) setDragOverStatus(col.status);
@@ -344,6 +352,7 @@ export function TasksModule({ client }: { client: Client }) {
                   if (dragOverStatus === col.status) setDragOverStatus(null);
                 }}
                 onDrop={(e) => {
+                  if (readOnly) return;
                   e.preventDefault();
                   const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
                   if (taskId) {
@@ -385,10 +394,11 @@ export function TasksModule({ client }: { client: Client }) {
                         index={idx}
                         clientId={client.id}
                         allTasks={tasks}
+                        readOnly={readOnly}
                         isDragging={draggedTaskId === task.id}
                         isSelected={selectedIds.has(task.id)}
                         anySelected={selectedCount > 0}
-                        onToggleSelected={() => toggleSelected(task.id)}
+                        onToggleSelected={readOnly ? undefined : () => toggleSelected(task.id)}
                         onDragStart={(id) => setDraggedTaskId(id)}
                         onDragEnd={() => { setDraggedTaskId(null); setDragOverStatus(null); }}
                         onOpen={() => {
@@ -397,8 +407,8 @@ export function TasksModule({ client }: { client: Client }) {
                           if (selectedCount > 0) { toggleSelected(task.id); return; }
                           setEditing(task);
                         }}
-                        onAdvance={() => advanceStatus(task, updateTask)}
-                        onDelete={() => deleteTask(task.id)}
+                        onAdvance={readOnly ? undefined : () => advanceStatus(task, updateTask)}
+                        onDelete={readOnly ? undefined : () => deleteTask(task.id)}
                       />
                     ))
                   )}
@@ -435,6 +445,7 @@ export function TasksModule({ client }: { client: Client }) {
           accent={accent}
           allTasks={tasks}
           clientId={client.id}
+          readOnly={readOnly}
           onClose={() => setEditing(null)}
           onSave={(patch) => {
             updateTask(editing.id, patch);
@@ -490,7 +501,7 @@ function advanceStatus(task: Task, updateTask: (id: string, p: Partial<Task>) =>
 /* ───────────────────────── Task Card ───────────────────────── */
 
 function TaskCard({
-  task, accent, index, onOpen, onAdvance, onDelete, clientId, allTasks,
+  task, accent, index, onOpen, onAdvance, onDelete, clientId, allTasks, readOnly,
   isDragging, onDragStart, onDragEnd,
   isSelected, anySelected, onToggleSelected,
 }: {
@@ -498,10 +509,11 @@ function TaskCard({
   accent: string;
   index: number;
   onOpen: () => void;
-  onAdvance: () => void;
+  onAdvance?: () => void;
   onDelete?: () => void;
   clientId: string;
   allTasks: Task[];
+  readOnly?: boolean;
   isDragging?: boolean;
   onDragStart?: (taskId: string) => void;
   onDragEnd?: () => void;
@@ -523,9 +535,12 @@ function TaskCard({
       animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
       exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
       transition={{ duration: 0.25, delay: index * 0.03 }}
-      className="group relative w-full text-left rounded-[10px] border p-3 transition hover:brightness-[1.02] cursor-grab active:cursor-grabbing"
+      className={cn(
+        'group relative w-full text-left rounded-[10px] border p-3 transition hover:brightness-[1.02]',
+        readOnly ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing',
+      )}
       onClick={onOpen}
-      draggable
+      draggable={!readOnly}
       onDragStart={(e) => {
         // framer-motion tipa onDragStart con su propio DragEvent, pero el handler
         // recibe el evento nativo en runtime; convertimos para usar dataTransfer.
@@ -730,7 +745,7 @@ function TaskCard({
         </div>
       )}
 
-      {task.status !== 'completed' && task.status !== 'blocked' && (
+      {onAdvance && task.status !== 'completed' && task.status !== 'blocked' && (
         <div
           className="mt-2 pt-2 border-t border-border-subtle flex items-center justify-end text-[11px] text-text-muted hover:text-accent-violet"
           onClick={(e) => {
@@ -748,7 +763,7 @@ function TaskCard({
 /* ───────────────────────── Modal ───────────────────────── */
 
 function TaskModal({
-  task, accent, onClose, onSave, onDelete, allTasks, clientId,
+  task, accent, onClose, onSave, onDelete, allTasks, clientId, readOnly = false,
 }: {
   task?: Task;
   accent: string;
@@ -757,6 +772,7 @@ function TaskModal({
   onDelete?: () => void;
   allTasks: Task[];
   clientId: string;
+  readOnly?: boolean;
 }) {
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
@@ -833,6 +849,11 @@ function TaskModal({
         </span>
       }
       footer={
+        readOnly ? (
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cerrar
+          </Button>
+        ) : (
         <>
           {onDelete && (
             <Button variant="danger" size="sm" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={onDelete}>
@@ -865,6 +886,7 @@ function TaskModal({
             {task ? 'Guardar' : 'Crear tarea'}
           </Button>
         </>
+        )
       }
     >
       <div className="space-y-4">

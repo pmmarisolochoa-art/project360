@@ -37,7 +37,7 @@ const RISK_LABEL: Record<RiskLevel, string> = {
   low: 'Riesgo bajo',
 };
 
-export function RopreModule({ client }: { client: Client }) {
+export function RopreModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const navigate = useNavigate();
   // Igual que TasksModule: filtrar en el selector causa loop infinito.
   const allItems = useRopreStore((s) => s.items);
@@ -82,9 +82,11 @@ export function RopreModule({ client }: { client: Client }) {
             Los cambios se guardan automáticamente acá.
           </p>
         </div>
-        <Button onClick={() => navigate(`/client/${client.id}/agenda?create=ropre`)}>
-          Crear reunión de Estrategia ROPRE
-        </Button>
+        {!readOnly && (
+          <Button onClick={() => navigate(`/client/${client.id}/agenda?create=ropre`)}>
+            Crear reunión de Estrategia ROPRE
+          </Button>
+        )}
       </div>
     );
   }
@@ -206,7 +208,7 @@ export function RopreModule({ client }: { client: Client }) {
       </SectionBlock>
 
       {/* E — Entregables (Kanban + Gantt) */}
-      <DeliverablesSection items={grouped.deliverable} accent={accent} clientId={client.id} />
+      <DeliverablesSection items={grouped.deliverable} accent={accent} clientId={client.id} readOnly={readOnly} />
     </div>
   );
 }
@@ -296,11 +298,12 @@ function EmptyMini({ accent, message }: { accent: string; message: string }) {
 /* ───────────────────────── Entregables: Kanban + Gantt ───────────────────────── */
 
 function DeliverablesSection({
-  items, accent, clientId,
+  items, accent, clientId, readOnly = false,
 }: {
   items: RopreItem[];
   accent: string;
   clientId: string;
+  readOnly?: boolean;
 }) {
   const [view, setView] = useState<'kanban' | 'gantt'>('kanban');
   const update = useRopreStore((s) => s.update);
@@ -377,34 +380,38 @@ function DeliverablesSection({
             </button>
           </div>
 
-          <Button
-            size="sm"
-            variant="secondary"
-            leftIcon={<Zap className="h-3.5 w-3.5" />}
-            onClick={syncAll}
-          >
-            Sincronizar todos
-          </Button>
+          {!readOnly && (
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<Zap className="h-3.5 w-3.5" />}
+              onClick={syncAll}
+            >
+              Sincronizar todos
+            </Button>
+          )}
 
-          <Button
-            size="sm"
-            variant="secondary"
-            leftIcon={<Plus className="h-3.5 w-3.5" />}
-            onClick={() =>
-              add({
-                id: genId(),
-                clientId,
-                type: 'deliverable',
-                title: 'Nuevo entregable',
-                status: 'todo',
-                startDate: new Date().toISOString(),
-                dueDate: new Date(Date.now() + 7 * 86400000).toISOString(),
-                createdAt: new Date().toISOString(),
-              })
-            }
-          >
-            Agregar
-          </Button>
+          {!readOnly && (
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() =>
+                add({
+                  id: genId(),
+                  clientId,
+                  type: 'deliverable',
+                  title: 'Nuevo entregable',
+                  status: 'todo',
+                  startDate: new Date().toISOString(),
+                  dueDate: new Date(Date.now() + 7 * 86400000).toISOString(),
+                  createdAt: new Date().toISOString(),
+                })
+              }
+            >
+              Agregar
+            </Button>
+          )}
         </div>
       </header>
 
@@ -417,6 +424,7 @@ function DeliverablesSection({
           onAdvance={(id, status) => update(id, { status })}
           onPromoteToTask={promoteToTask}
           tasksById={Object.fromEntries(allTasks.map((t) => [t.id, t]))}
+          readOnly={readOnly}
         />
       ) : (
         <DeliverablesGantt items={items} accent={accent} />
@@ -450,13 +458,14 @@ function buildTaskFromDeliverable(item: RopreItem, clientId: string): Task {
 }
 
 function DeliverablesKanban({
-  items, accent, onAdvance, onPromoteToTask, tasksById,
+  items, accent, onAdvance, onPromoteToTask, tasksById, readOnly = false,
 }: {
   items: RopreItem[];
   accent: string;
   onAdvance: (id: string, status: DeliverableStatus) => void;
   onPromoteToTask: (item: RopreItem) => void;
   tasksById: Record<string, Task>;
+  readOnly?: boolean;
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -505,30 +514,32 @@ function DeliverablesKanban({
                       </div>
                     )}
 
-                    <div className="mt-2 flex items-center gap-1.5">
-                      {item.status !== 'done' && (
-                        <button
-                          onClick={() => {
-                            const flow: DeliverableStatus[] = ['todo', 'in_progress', 'review', 'done'];
-                            const idx = flow.indexOf(item.status ?? 'todo');
-                            if (idx < flow.length - 1) onAdvance(item.id, flow[idx + 1]);
-                          }}
-                          className="flex-1 text-[10px] uppercase tracking-wider py-1 rounded-md border border-border-subtle hover:border-accent-violet/40 transition"
-                          style={{ color: accent }}
-                        >
-                          Avanzar →
-                        </button>
-                      )}
-                      {!taskCreated && item.status !== 'done' && (
-                        <button
-                          onClick={() => onPromoteToTask(item)}
-                          className="text-[10px] uppercase tracking-wider py-1 px-2 rounded-md border border-border-subtle hover:bg-bg-elevated transition flex items-center gap-1"
-                          title="Crear tarea en Módulo 04"
-                        >
-                          <Link2 className="h-3 w-3" /> Tarea
-                        </button>
-                      )}
-                    </div>
+                    {!readOnly && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        {item.status !== 'done' && (
+                          <button
+                            onClick={() => {
+                              const flow: DeliverableStatus[] = ['todo', 'in_progress', 'review', 'done'];
+                              const idx = flow.indexOf(item.status ?? 'todo');
+                              if (idx < flow.length - 1) onAdvance(item.id, flow[idx + 1]);
+                            }}
+                            className="flex-1 text-[10px] uppercase tracking-wider py-1 rounded-md border border-border-subtle hover:border-accent-violet/40 transition"
+                            style={{ color: accent }}
+                          >
+                            Avanzar →
+                          </button>
+                        )}
+                        {!taskCreated && item.status !== 'done' && (
+                          <button
+                            onClick={() => onPromoteToTask(item)}
+                            className="text-[10px] uppercase tracking-wider py-1 px-2 rounded-md border border-border-subtle hover:bg-bg-elevated transition flex items-center gap-1"
+                            title="Crear tarea en Módulo 04"
+                          >
+                            <Link2 className="h-3 w-3" /> Tarea
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 );
               })}

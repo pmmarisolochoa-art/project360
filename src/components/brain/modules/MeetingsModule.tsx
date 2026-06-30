@@ -59,7 +59,7 @@ export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
   ropre_strategy: '🎯 Sesión estratégica para actualizar el ROPRE y convertir entregables en tareas. El resultado se guarda directamente en el módulo ROPRE.',
 };
 
-export function MeetingsModule({ client }: { client: Client }) {
+export function MeetingsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const allMeetings = useClientStore((s) => s.meetings);
   const meetings = useMemo(
     () => allMeetings.filter((m) => m.clientId === client.id).sort((a, b) => +parseISO(b.scheduledAt) - +parseISO(a.scheduledAt)),
@@ -152,9 +152,11 @@ export function MeetingsModule({ client }: { client: Client }) {
               </p>
             </div>
           </div>
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> Nueva reunión
-          </Button>
+          {!readOnly && (
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" /> Nueva reunión
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -215,7 +217,7 @@ export function MeetingsModule({ client }: { client: Client }) {
       </div>
 
       {view === 'list' ? (
-        <ListView meetings={filtered} accent={accent} onOpen={openMeeting} onDelete={(m) => {
+        <ListView meetings={filtered} accent={accent} onOpen={openMeeting} readOnly={readOnly} onDelete={(m) => {
           if (confirm(`¿Eliminar "${m.title}"?`)) {
             deleteMeeting(m.id);
             toast.success('Reunión eliminada');
@@ -243,7 +245,7 @@ export function MeetingsModule({ client }: { client: Client }) {
       )}
 
       <AnimatePresence>
-        {activeMeeting && <MeetingDrawer meeting={activeMeeting} onClose={closeMeeting} />}
+        {activeMeeting && <MeetingDrawer meeting={activeMeeting} onClose={closeMeeting} readOnly={readOnly} />}
       </AnimatePresence>
     </div>
   );
@@ -267,8 +269,8 @@ function Stat({ label, value, icon, tone }: { label: string; value: number | str
   );
 }
 
-function ListView({ meetings, accent, onOpen, onDelete }: {
-  meetings: Meeting[]; accent: string; onOpen: (id: string) => void; onDelete: (m: Meeting) => void;
+function ListView({ meetings, accent, onOpen, onDelete, readOnly = false }: {
+  meetings: Meeting[]; accent: string; onOpen: (id: string) => void; onDelete: (m: Meeting) => void; readOnly?: boolean;
 }) {
   if (meetings.length === 0) {
     return (
@@ -327,13 +329,15 @@ function ListView({ meetings, accent, onOpen, onDelete }: {
                     </div>
                   </div>
                 </button>
-                <button
-                  onClick={() => onDelete(m)}
-                  title="Eliminar"
-                  className="opacity-0 group-hover:opacity-100 transition h-8 w-8 inline-flex items-center justify-center rounded-md text-text-muted hover:text-status-danger hover:bg-status-danger/10"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => onDelete(m)}
+                    title="Eliminar"
+                    className="opacity-0 group-hover:opacity-100 transition h-8 w-8 inline-flex items-center justify-center rounded-md text-text-muted hover:text-status-danger hover:bg-status-danger/10"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </li>
           );

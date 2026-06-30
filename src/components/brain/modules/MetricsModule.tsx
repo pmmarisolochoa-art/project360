@@ -27,7 +27,7 @@ const PERIODS = [
   { value: 30, label: '30 días' },
 ];
 
-export function MetricsModule({ client }: { client: Client }) {
+export function MetricsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const accent = client.primaryColor;
   const updateClient = useClientStore((s) => s.updateClient);
   const [period, setPeriod] = useState<number>(14);
@@ -147,12 +147,14 @@ export function MetricsModule({ client }: { client: Client }) {
             return (
               <button
                 key={p}
-                onClick={() =>
+                onClick={() => {
+                  if (readOnly) return;
                   updateClient(client.id, {
                     adsConnected: { ...client.adsConnected, [p]: !connected },
-                  })
-                }
-                className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 text-left hover:bg-bg-elevated transition"
+                  });
+                }}
+                disabled={readOnly}
+                className={`rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 text-left transition ${readOnly ? 'opacity-70 cursor-not-allowed' : 'hover:bg-bg-elevated cursor-pointer'}`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-text-primary">{platformLabel(p)}</span>

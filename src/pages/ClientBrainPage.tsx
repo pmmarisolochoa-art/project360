@@ -15,6 +15,8 @@ import { ProjectionsModule } from '@/components/brain/modules/ProjectionsModule'
 import { PlanningModule } from '@/components/brain/modules/PlanningModule';
 import { ProgramsModule } from '@/components/brain/modules/ProgramsModule';
 import { AgentPanel } from '@/components/agent/AgentPanel';
+import { useClientMode } from '@/hooks/useClientMode';
+import { useAuthStore } from '@/store/useAuthStore';
 
 const MODULE_DESCRIPTIONS: Record<string, { description: string; features: string[] }> = {
   planning: {
@@ -105,6 +107,8 @@ export function ClientBrainPage() {
   const location = useLocation();
   const client = useClientStore((s) => s.clients.find((c) => c.id === id));
   const setCurrentClient = useClientStore((s) => s.setCurrentClient);
+  const { isMember, canEditTasks } = useClientMode();
+  const memberClientId = useAuthStore((s) => s.clientAccess?.clientId);
 
   useEffect(() => {
     if (id) setCurrentClient(id);
@@ -117,6 +121,11 @@ export function ClientBrainPage() {
       navigate(`/client/${id}/profile`, { replace: true });
     }
   }, [id, module, navigate, location.pathname]);
+
+  // Blindaje: un miembro solo puede ver SU cliente, nunca otro id en la URL.
+  if (isMember && memberClientId && id && id !== memberClientId) {
+    return <Navigate to={`/client/${memberClientId}/profile`} replace />;
+  }
 
   if (!client) {
     return <Navigate to="/" replace />;
@@ -131,25 +140,25 @@ export function ClientBrainPage() {
 
       <div className="max-w-[1600px] mx-auto px-6 lg:px-8 py-6">
         {module === 'profile' || !module ? (
-          <ProfileModule client={client} />
+          <ProfileModule client={client} readOnly={isMember} />
         ) : module === 'tasks' ? (
-          <TasksModule client={client} />
+          <TasksModule client={client} readOnly={!canEditTasks} />
         ) : module === 'ropre' ? (
-          <RopreModule client={client} />
+          <RopreModule client={client} readOnly={isMember} />
         ) : module === 'metrics' ? (
-          <MetricsModule client={client} />
+          <MetricsModule client={client} readOnly={isMember} />
         ) : module === 'content' ? (
-          <ContentModule client={client} />
+          <ContentModule client={client} readOnly={isMember} />
         ) : module === 'team' ? (
-          <TeamModule client={client} />
+          <TeamModule client={client} readOnly={isMember} />
         ) : module === 'projections' ? (
-          <ProjectionsModule client={client} />
+          <ProjectionsModule client={client} readOnly={isMember} />
         ) : module === 'planning' ? (
-          <PlanningModule client={client} />
+          <PlanningModule client={client} readOnly={isMember} />
         ) : module === 'programs' ? (
-          <ProgramsModule client={client} />
+          <ProgramsModule client={client} readOnly={isMember} />
         ) : module === 'meetings' ? (
-          <MeetingsModule client={client} />
+          <MeetingsModule client={client} readOnly={isMember} />
         ) : (
           <PlaceholderModule
             title={`${moduleDef.index.toString().padStart(2, '0')} · ${moduleDef.fullLabel}`}
@@ -160,8 +169,8 @@ export function ClientBrainPage() {
         )}
       </div>
 
-      {/* Agente PM — botón flotante + panel lateral, global a todos los módulos */}
-      <AgentPanel client={client} />
+      {/* Agente PM — solo para el owner de la agencia (el cliente no lo usa). */}
+      {!isMember && <AgentPanel client={client} />}
     </div>
   );
 }

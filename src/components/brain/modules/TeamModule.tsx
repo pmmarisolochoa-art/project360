@@ -38,7 +38,7 @@ const ROLE_ICON: Record<TeamRoleSlug, typeof Briefcase> = {
   onboarding: HeartHandshake,
 };
 
-export function TeamModule({ client }: { client: Client }) {
+export function TeamModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const accent = client.primaryColor;
   const ensureForClient = useTeamStore((s) => s.ensureForClient);
   const allAssignments = useTeamStore((s) => s.assignments);
@@ -54,7 +54,7 @@ export function TeamModule({ client }: { client: Client }) {
   return (
     <div className="space-y-4">
       {/* Sprint E · Sección 3 — personas reales con funciones y KPIs editables. */}
-      <TeamMembersPanel client={client} />
+      <TeamMembersPanel client={client} readOnly={readOnly} />
 
       {/* OCULTO BETA — dashboard de roles legacy (nombres y gráfica de datos
           sembrados de prueba). El sistema real de equipo es "Personas del

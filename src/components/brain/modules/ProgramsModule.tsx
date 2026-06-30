@@ -30,7 +30,7 @@ interface ProgramStats {
   funnelShareToken?: string;
 }
 
-export function ProgramsModule({ client }: { client: Client }) {
+export function ProgramsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const accent = client.primaryColor;
   const navigate = useNavigate();
   const programs = useProgramsStore((s) => s.programs).filter((p) => p.clientId === client.id);
@@ -77,14 +77,18 @@ export function ProgramsModule({ client }: { client: Client }) {
             </h3>
             <p className="text-[11px] text-text-muted">Un cliente puede correr varios programas a la vez.</p>
           </div>
-          <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>Nuevo programa</Button>
+          {!readOnly && (
+            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>Nuevo programa</Button>
+          )}
         </header>
 
         {programs.length === 0 ? (
           <div className="rounded-[10px] border border-dashed border-border-default p-8 text-center">
             <div className="text-3xl mb-2">🚀</div>
             <p className="text-sm text-text-secondary mb-3">Elige el sistema de ventas de este proyecto.</p>
-            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>Crear primer programa</Button>
+            {!readOnly && (
+              <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreateOpen(true)}>Crear primer programa</Button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">

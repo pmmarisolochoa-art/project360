@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-06-30 — Capa 3: acceso de cliente/equipo a la app (Camino C) — Fase 1+2
+
+**Qué:** Se decide habilitar que usuarios externos (equipo de Ikigai) **inicien sesión y entren a la app**, no solo reciban reportes. Es Camino C (multi-tenant del lado cliente). *Nota: contradice parcialmente la decisión del 24 jun ("no construir multi-tenant hasta ≥3 paguen"); se asume conscientemente porque el dogfooding con Ikigai requiere que el equipo entre y use la app de verdad. La validación de pago sigue pendiente.*
+
+**Caso de uso:** equipo de Ikigai con **dos roles** — unos **ejecutan** tareas (`editor`) y otros **revisan** (`viewer`).
+
+**Implementado (Fase 1+2, sin features nuevas de producto):**
+- **Migración 018** (escrita; pendiente correr en prod): login de cliente con RLS por cliente. Endurecida: editar tareas requiere `is_client_editor` (un `viewer` no puede modificar ni a nivel BD).
+- **Detección de rol** (`resolveUserContext`): al loguear, la app distingue *owner de agencia* vs *miembro de cliente* (vía `team_members.user_id`). Store de auth extendido con `role` + `clientAccess`.
+- **Router del miembro:** un miembro queda encerrado en el cerebro de SU cliente — no llega al dashboard de agencia ni a otros clientes (`MemberLayout` slim, sin sidebar de agencia; blindaje por id en `ClientBrainPage`).
+- **Modo lectura/edición** (`useClientMode`): el Agente PM se oculta para miembros; `viewer` ve Tareas en solo-lectura (sin crear/mover/borrar), `editor` con interacción completa.
+
+**Verificado:** `tsc --noEmit` + `npm run build` limpios.
+
+**Fase 2.5 (solo-lectura por módulo) — HECHA mismo día:** todos los módulos del cerebro (Perfil, Proyección, Métricas, ROPRE, Agenda+MeetingDrawer, Equipo, Programas, Planeación+FunnelLaunchPanel, Contenido) reciben `readOnly` y ocultan/deshabilitan crear/editar/eliminar/IA cuando el usuario es miembro. Solo Tareas queda editable para `editor`. Criterio: miembro = lectura en todo salvo Tareas (RLS solo concede UPDATE de tasks). Verificado con `tsc` + `build` limpios (13 archivos blindados; ningún `readOnly` default true → owner intacto).
+
+**Pendiente para que el equipo entre (no-código de Marisol):** (1) correr migración 018; (2) crear usuarios en Supabase Auth; (3) ligar cada usuario a Ikigai en `team_members` (user_id + access_level). **Fase 3** (botón "invitar miembro" desde la app) queda como siguiente paso opcional.
+
+---
+
+## 2026-06-24 — Decisión de dirección: validar y monetizar antes de seguir construyendo
+
+**Qué:** Cambio de foco estratégico. La app está más avanzada de lo que la narrativa interna ("MVP a medias") sugería — 100+ commits, cliente real en prod (Marcelo), Agente PM vivo, reportes PDF, equipo con KPIs, generador de anuncios IA. El riesgo dejó de ser "falta feature" y pasó a ser **scope creep / sobre-pulido**. Se decide **frenar features nuevas y entrar a validación + monetización**.
+
+**Decisiones clave:**
+- **Modelo de entrada = Camino A (Done-for-you).** La founder opera Project360 *a mano* para 2 agencias externas (2 semanas gratis cada una, entregando reportes ejecutivos + gestión ordenada). Cobra consultoría, no software. **No** se construye onboarding/pagos/multi-tenant (Camino C) hasta tener ≥3 personas dispuestas a pagar. Razón: valida *disposición a pagar* sin escribir código.
+- **Congelar features.** Desde hoy solo se arreglan bugs que bloqueen a un usuario real. Nada nuevo hasta que alguien externo use la app.
+- **Métrica de validación:** que al final de las 2 semanas el cliente pregunte "¿cuánto te pago por seguir?". Si no lo pregunta, el problema era de valor, no de pulido.
+- **Límite de capacidad:** máximo 2 externos a la vez (operación manual no escala más).
+
+**Lista de candidatos priorizada** (dolor confirmado × cercanía × encaje):
+1. 🥇 **Launch Xpert** (agencia de lanzamientos, cercanía 4) — dolor **confirmado**: cuello de botella en sistematización, **no tienen reporte ni gestión de cliente**. Encaje perfecto. → Contactar #1.
+2. 🥈 **Andres Alzate** (tiene agencia, cercanía 5) — dolor por confirmar. → Contactar #2.
+3. 🥉 **Jhonatan Rengifo** (freelance, varios proyectos, cercanía 5) — dolor por confirmar. → Reserva.
+4. **Maryori** (freelance, marca personal, cercanía 5) — encaje medio (1 cliente). → Reserva.
+- ⭐ **Ikigai** (negocio propio de la founder, growth marketing) — dolor confirmado (estrategias que se proponen y no se ejecutan). **NO es venta → es dogfooding:** usar Project360 en Ikigai esta semana; se vuelve el mejor caso de estudio para vender después.
+
+**Plan de la semana:** (1) usar la app en Ikigai; (2) mandar pregunta de validación a Launch Xpert y Andres (sin vender); (3) al que se queje, oferta de 2 semanas gratis; (4) medir a las 2 semanas.
+
+**Por qué:** la duda de la founder ("¿pulir más o no?") era señal de la trampa de sobre-construir. Validar disposición a pagar con la persona correcta (Launch Xpert) es el siguiente experimento de mayor valor y casi sin costo.
+
+---
+
 ## 2026-06-23 (noche) — Reunión real de Marcelo, bug de compromisos y KPI tarea↔Equipo
 
 **Qué:** Continuación operando con Marcelo. Cada cambio con commit + push a `main`:

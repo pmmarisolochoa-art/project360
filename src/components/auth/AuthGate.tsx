@@ -15,7 +15,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const setUser = useAuthStore((s) => s.setUser);
   const setAgencyId = useAuthStore((s) => s.setAgencyId);
   const setRole = useAuthStore((s) => s.setRole);
-  const setClientAccess = useAuthStore((s) => s.setClientAccess);
+  const setClientAccesses = useAuthStore((s) => s.setClientAccesses);
   const setLoading = useAuthStore((s) => s.setLoading);
   const reset = useAuthStore((s) => s.reset);
   const [ready, setReady] = useState(!requiresAuth);
@@ -33,7 +33,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email ?? '' });
-        await hydrateContext(session.user.id, setAgencyId, setRole, setClientAccess);
+        await hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
         reset();
       }
@@ -44,7 +44,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthChange((session) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email ?? '' });
-        void hydrateContext(session.user.id, setAgencyId, setRole, setClientAccess);
+        void hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
         reset();
       }
@@ -54,7 +54,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       cancelled = true;
       unsubscribe();
     };
-  }, [setUser, setAgencyId, setRole, setClientAccess, setLoading, reset]);
+  }, [setUser, setAgencyId, setRole, setClientAccesses, setLoading, reset]);
 
   if (!ready || loading) {
     return (
@@ -77,17 +77,17 @@ async function hydrateContext(
   userId: string,
   setAgencyId: (id: string | null) => void,
   setRole: (r: 'owner' | 'member' | null) => void,
-  setClientAccess: (c: { clientId: string; accessLevel: 'viewer' | 'editor' } | null) => void,
+  setClientAccesses: (list: import('@/store/useAuthStore').ClientAccess[]) => void,
 ): Promise<void> {
   try {
     const ctx = await resolveUserContext(userId);
     setRole(ctx.role);
     setAgencyId(ctx.agencyId);
-    setClientAccess(ctx.clientAccess);
+    setClientAccesses(ctx.clientAccesses);
   } catch (e) {
     console.warn('[auth] No se pudo resolver el contexto del usuario', e);
     setRole('owner');
     setAgencyId(null);
-    setClientAccess(null);
+    setClientAccesses([]);
   }
 }

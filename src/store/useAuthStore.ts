@@ -8,20 +8,28 @@ export type UserRole = 'owner' | 'member';
 export interface ClientAccess {
   clientId: string;
   accessLevel: 'viewer' | 'editor';
+  /** Fila de team_members que representa a esta persona en este cliente. */
+  teamMemberId: string;
+  /** Nombre de la persona en ese cliente (para matchear sus tareas). */
+  nombre: string;
+  /** Rol de equipo (slug) en ese cliente: copywriter, strategist, etc. */
+  rol: string;
 }
 
 interface AuthState {
   user: AuthUser | null;
   agencyId: string | null;
-  /** 'owner' = dueño de agencia (ve todo lo suyo). 'member' = equipo/cliente (ve 1 cliente). */
+  /** 'owner' = dueño de agencia (ve todo lo suyo). 'member' = equipo/cliente. */
   role: UserRole | null;
-  /** Solo para role === 'member': el cliente y nivel de acceso. */
+  /** Todos los clientes a los que el miembro tiene acceso (multi-cliente). */
+  clientAccesses: ClientAccess[];
+  /** Atajo al primer acceso — usado por la vista scopeada de 1 cliente. */
   clientAccess: ClientAccess | null;
   loading: boolean;
   setUser: (u: AuthUser | null) => void;
   setAgencyId: (id: string | null) => void;
   setRole: (r: UserRole | null) => void;
-  setClientAccess: (c: ClientAccess | null) => void;
+  setClientAccesses: (list: ClientAccess[]) => void;
   setLoading: (v: boolean) => void;
   reset: () => void;
 }
@@ -30,12 +38,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   agencyId: null,
   role: null,
+  clientAccesses: [],
   clientAccess: null,
   loading: true,
   setUser: (u) => set({ user: u }),
   setAgencyId: (id) => set({ agencyId: id }),
   setRole: (r) => set({ role: r }),
-  setClientAccess: (c) => set({ clientAccess: c }),
+  setClientAccesses: (list) => set({ clientAccesses: list, clientAccess: list[0] ?? null }),
   setLoading: (v) => set({ loading: v }),
-  reset: () => set({ user: null, agencyId: null, role: null, clientAccess: null, loading: false }),
+  reset: () =>
+    set({ user: null, agencyId: null, role: null, clientAccesses: [], clientAccess: null, loading: false }),
 }));

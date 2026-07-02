@@ -16,7 +16,6 @@ import { PlanningModule } from '@/components/brain/modules/PlanningModule';
 import { ProgramsModule } from '@/components/brain/modules/ProgramsModule';
 import { AgentPanel } from '@/components/agent/AgentPanel';
 import { useClientMode } from '@/hooks/useClientMode';
-import { useAuthStore } from '@/store/useAuthStore';
 
 const MODULE_DESCRIPTIONS: Record<string, { description: string; features: string[] }> = {
   planning: {
@@ -107,8 +106,7 @@ export function ClientBrainPage() {
   const location = useLocation();
   const client = useClientStore((s) => s.clients.find((c) => c.id === id));
   const setCurrentClient = useClientStore((s) => s.setCurrentClient);
-  const { isMember, canEditTasks } = useClientMode();
-  const memberClientId = useAuthStore((s) => s.clientAccess?.clientId);
+  const { isMember, canEditTasks, hasAccessToClient } = useClientMode(id);
 
   useEffect(() => {
     if (id) setCurrentClient(id);
@@ -122,9 +120,9 @@ export function ClientBrainPage() {
     }
   }, [id, module, navigate, location.pathname]);
 
-  // Blindaje: un miembro solo puede ver SU cliente, nunca otro id en la URL.
-  if (isMember && memberClientId && id && id !== memberClientId) {
-    return <Navigate to={`/client/${memberClientId}/profile`} replace />;
+  // Blindaje: un miembro solo puede abrir clientes a los que tiene acceso.
+  if (isMember && id && !hasAccessToClient) {
+    return <Navigate to="/mi-espacio" replace />;
   }
 
   if (!client) {

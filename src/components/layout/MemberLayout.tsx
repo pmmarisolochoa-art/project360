@@ -1,21 +1,19 @@
-import { Outlet, useNavigate } from 'react-router-dom';
-import { Sparkles, LogOut } from 'lucide-react';
+import { Outlet, useNavigate, NavLink } from 'react-router-dom';
+import { Sparkles, LogOut, LayoutGrid } from 'lucide-react';
 import { signOut } from '@/services/auth';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useClientStore } from '@/store/useClientStore';
 
 /**
- * Layout para usuarios tipo MIEMBRO (equipo/cliente — Capa 3).
- * Barra superior mínima, sin sidebar de agencia: el miembro solo ve
- * el cerebro de SU cliente. Toda la navegación entre módulos vive
- * dentro de ClientBrainPage (BrainNav).
+ * Layout para usuarios tipo MIEMBRO (equipo — Capa 1, multi-cliente).
+ * Barra superior mínima con acceso a "Mi espacio" (dashboard personal) y
+ * salir. El miembro no ve la operación de agencia; navega su propio trabajo
+ * y, desde ahí, entra a los cerebros de sus clientes.
  */
 export function MemberLayout() {
   const navigate = useNavigate();
   const reset = useAuthStore((s) => s.reset);
-  const accessLevel = useAuthStore((s) => s.clientAccess?.accessLevel);
-  const clientId = useAuthStore((s) => s.clientAccess?.clientId);
-  const client = useClientStore((s) => s.clients.find((c) => c.id === clientId));
+  const email = useAuthStore((s) => s.user?.email);
+  const name = useAuthStore((s) => s.clientAccesses[0]?.nombre);
 
   const handleLogout = async () => {
     await signOut();
@@ -29,25 +27,36 @@ export function MemberLayout() {
         className="flex items-center justify-between gap-3 px-5 py-3 border-b"
         style={{ borderColor: 'var(--sidebar-border)' }}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-accent shrink-0">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
-          <div className="min-w-0">
-            <div className="heading text-sm font-bold leading-tight truncate">
-              {client?.name ?? 'Tu espacio'}
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-accent shrink-0">
+              <Sparkles className="h-4 w-4 text-white" />
             </div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">
-              {accessLevel === 'viewer' ? 'Vista de seguimiento' : 'Espacio de equipo'} · Project360
-            </div>
+            <div className="heading text-sm font-bold leading-tight">Project360</div>
           </div>
+          <NavLink
+            to="/mi-espacio"
+            className={({ isActive }) =>
+              `inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs transition ${
+                isActive ? 'bg-bg-elevated/60 text-text-primary font-medium' : 'text-text-secondary hover:text-text-primary'
+              }`
+            }
+          >
+            <LayoutGrid className="h-3.5 w-3.5" /> Mi espacio
+          </NavLink>
         </div>
-        <button
-          onClick={handleLogout}
-          className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated/40 transition focus-ring"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Salir
-        </button>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="text-right min-w-0 hidden sm:block">
+            <div className="text-xs text-text-primary truncate max-w-[180px]">{name || email}</div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Equipo</div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated/40 transition focus-ring"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Salir
+          </button>
+        </div>
       </header>
       <main className="flex-1 overflow-y-auto">
         <Outlet />

@@ -16,25 +16,26 @@ import { TeamPage } from '@/pages/TeamPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { ClientPortalFunnelPage } from '@/pages/ClientPortalFunnelPage';
+import { MiEspacio } from '@/pages/MiEspacio';
 
 export function AppRouter() {
   const role = useAuthStore((s) => s.role);
   const clientAccess = useAuthStore((s) => s.clientAccess);
 
-  // Usuario MIEMBRO (equipo/cliente): solo el cerebro de su cliente.
-  // Cualquier otra ruta lo devuelve a su espacio.
+  // Usuario MIEMBRO (equipo): su espacio personal multi-cliente.
+  // Home = /mi-espacio; puede entrar a los cerebros de sus clientes.
   if (role === 'member' && clientAccess) {
-    const home = `/client/${clientAccess.clientId}/profile`;
     return (
       <ErrorBoundary>
         <Routes>
           <Route path="login" element={<LoginPage />} />
           <Route path="client-portal/funnel/:token" element={<ClientPortalFunnelPage />} />
           <Route element={<MemberLayout />}>
+            <Route path="mi-espacio" element={<MiEspacio />} />
             <Route path="client/:id" element={<ClientBrainPage />} />
             <Route path="client/:id/:module" element={<ClientBrainPage />} />
-            <Route index element={<Navigate to={home} replace />} />
-            <Route path="*" element={<Navigate to={home} replace />} />
+            <Route index element={<Navigate to="/mi-espacio" replace />} />
+            <Route path="*" element={<Navigate to="/mi-espacio" replace />} />
           </Route>
         </Routes>
       </ErrorBoundary>

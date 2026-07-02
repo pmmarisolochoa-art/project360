@@ -43,23 +43,34 @@ export function onAuthChange(cb: (session: Session | null) => void): () => void 
  */
 export const requiresAuth = usingRemote;
 
+/** Acceso de un miembro a un cliente. */
+export interface ClientAccessCtx {
+  clientId: string;
+  accessLevel: 'viewer' | 'editor';
+  teamMemberId: string;
+  nombre: string;
+  rol: string;
+}
+
 /** Contexto resuelto del usuario: qué tipo es y qué puede ver. */
 export interface UserContext {
   role: 'owner' | 'member';
   agencyId: string | null;
-  clientAccess: { clientId: string; accessLevel: 'viewer' | 'editor' } | null;
+  /** Todos los clientes del miembro (multi-cliente). Vacío para owner. */
+  clientAccesses: ClientAccessCtx[];
 }
 
 /**
  * Determina quién es el usuario logueado:
  *   1. Si es owner de una agencia → role 'owner' (ve todo lo suyo, como hasta hoy).
- *   2. Si NO, pero está en team_members.user_id → role 'member' (ve 1 cliente).
+ *   2. Si NO, pero está en team_members.user_id → role 'member'. Un miembro
+ *      puede tener VARIAS filas (una por cliente): se devuelven todas.
  *   3. Si no es ninguno → 'owner' sin agencia (estado neutro, como antes).
  * La consulta a team_members la protege la policy `team_members_client_read`
- * de la migración 018 (un miembro solo lee su propia fila vía is_client_member).
+ * de la migración 018 (el miembro solo lee filas de sus clientes).
  */
 export async function resolveUserContext(userId: string): Promise<UserContext> {
-  if (!supabase) return { role: 'owner', agencyId: null, clientAccess: null };
+  if (!supabase) return { role: 'owner', agencyId: null, clientAccesses: [] };
 
   // 1. ¿Es dueño de una agencia?
   const { data: agency } = await supabase
@@ -68,26 +79,29 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
     .eq('owner_id', userId)
     .limit(1)
     .maybeSingle();
-  if (agency?.id) return { role: 'owner', agencyId: agency.id, clientAccess: null };
+  if (agency?.id) return { role: 'owner', agencyId: agency.id, clientAccesses: [] };
 
-  // 2. ¿Es miembro del equipo de algún cliente?
-  const { data: member } = await supabase
+  // 2. ¿Es miembro del equipo de uno o más clientes?
+  const { data: members } = await supabase
     .from('team_members')
-    .select('client_id, access_level')
-    .eq('user_id', userId)
-    .limit(1)
-    .maybeSingle();
-  if (member?.client_id) {
+    .select('id, client_id, access_level, nombre, rol')
+    .eq('user_id', userId);
+  if (members && members.length > 0) {
     return {
       role: 'member',
       agencyId: null,
-      clientAccess: {
-        clientId: member.client_id as string,
-        accessLevel: member.access_level === 'viewer' ? 'viewer' : 'editor',
-      },
+      clientAccesses: members
+        .filter((m) => m.client_id)
+        .map((m) => ({
+          clientId: m.client_id as string,
+          accessLevel: m.access_level === 'viewer' ? 'viewer' : 'editor',
+          teamMemberId: m.id as string,
+          nombre: (m.nombre as string) ?? '',
+          rol: (m.rol as string) ?? '',
+        })),
     };
   }
 
   // 3. Sin contexto reconocido — neutro.
-  return { role: 'owner', agencyId: null, clientAccess: null };
+  return { role: 'owner', agencyId: null, clientAccesses: [] };
 }

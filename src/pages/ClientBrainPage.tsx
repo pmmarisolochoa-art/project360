@@ -2,7 +2,7 @@ import { useParams, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect } from 'react';
 import { useClientStore } from '@/store/useClientStore';
 import { BrainHeader } from '@/components/brain/BrainHeader';
-import { BrainNav, BRAIN_MODULES } from '@/components/brain/BrainNav';
+import { BrainNav, BRAIN_MODULES, MEMBER_MODULE_SLUGS } from '@/components/brain/BrainNav';
 import { ProfileModule } from '@/components/brain/modules/ProfileModule';
 import { PlaceholderModule } from '@/components/brain/modules/PlaceholderModule';
 import { MeetingsModule } from '@/components/brain/modules/MeetingsModule';
@@ -123,6 +123,11 @@ export function ClientBrainPage() {
   // Blindaje: un miembro solo puede abrir clientes a los que tiene acceso.
   if (isMember && id && !hasAccessToClient) {
     return <Navigate to="/mi-espacio" replace />;
+  }
+
+  // Blindaje: un miembro solo ve un subconjunto de módulos (el resto es interno).
+  if (isMember && module && !MEMBER_MODULE_SLUGS.includes(module)) {
+    return <Navigate to={`/client/${id}/tasks`} replace />;
   }
 
   if (!client) {

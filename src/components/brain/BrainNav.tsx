@@ -5,6 +5,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
+import { useAuthStore } from '@/store/useAuthStore';
+
+/** Módulos que un MIEMBRO puede ver dentro de un cliente (el resto es interno del owner). */
+export const MEMBER_MODULE_SLUGS = ['profile', 'tasks', 'ropre', 'meetings', 'team'];
 
 export interface ModuleDef {
   slug: string;
@@ -31,12 +35,16 @@ export const BRAIN_MODULES: ModuleDef[] = [
 
 export function BrainNav({ accent }: { accent: string }) {
   const { id } = useParams();
+  const isMember = useAuthStore((s) => s.role === 'member');
+  const modules = isMember
+    ? BRAIN_MODULES.filter((m) => MEMBER_MODULE_SLUGS.includes(m.slug))
+    : BRAIN_MODULES;
 
   return (
     <nav className="sticky top-0 z-20 bg-bg-base/85 backdrop-blur-md border-b border-border-subtle">
       <div className="max-w-[1600px] mx-auto px-3 lg:px-4">
         <ul className="flex items-stretch gap-0.5 py-2 overflow-hidden">
-          {BRAIN_MODULES.map((m) => (
+          {modules.map((m) => (
             <li key={m.slug} className="flex-1 min-w-0">
               <NavLink
                 to={`/client/${id}/${m.slug}`}

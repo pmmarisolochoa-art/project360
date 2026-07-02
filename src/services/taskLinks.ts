@@ -57,14 +57,16 @@ export const TaskLinksRepo = {
     return (data ?? []).map(rowToLink);
   },
 
-  /** Crea un link/entregable. created_by debe ser el usuario logueado (RLS). */
+  /**
+   * Crea un link/entregable. created_by lo asigna el servidor (DEFAULT
+   * auth.uid(), migración 019b). Lanza si falla, para que la UI lo muestre.
+   */
   async create(input: {
     taskId: string;
     clientId: string;
     nombre: string;
     url: string;
     tipo?: TaskLink['tipo'];
-    createdBy: string;
   }): Promise<TaskLink | null> {
     if (!supabase) return null;
     const { data, error } = await supabase
@@ -75,13 +77,12 @@ export const TaskLinksRepo = {
         nombre: input.nombre,
         url: input.url,
         tipo: input.tipo ?? 'entregable',
-        created_by: input.createdBy,
       })
       .select('*')
       .single();
     if (error) {
       console.warn('[taskLinks.create]', error);
-      return null;
+      throw new Error(error.message);
     }
     return rowToLink(data);
   },

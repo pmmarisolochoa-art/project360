@@ -6,7 +6,6 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { useClientStore } from '@/store/useClientStore';
-import { useAuthStore } from '@/store/useAuthStore';
 import { TaskLinksRepo } from '@/services/taskLinks';
 import { toast } from '@/store/useToastStore';
 
@@ -28,7 +27,6 @@ export function DeliverableDrawer({
   onSaved?: () => void;
 }) {
   const updateTask = useClientStore((s) => s.updateTask);
-  const userId = useAuthStore((s) => s.user?.id);
 
   const [driveUrl, setDriveUrl] = useState(task.driveLink ?? '');
   const [nombre, setNombre] = useState('');
@@ -44,23 +42,19 @@ export function DeliverableDrawer({
   const canSave = driveUrl.trim().length > 0;
 
   const handleSave = async () => {
-    if (!canSave || !userId) return;
+    if (!canSave) return;
     setSaving(true);
     try {
-      // 1. El link de Drive queda en la tarea (visible para el PM en el Kanban).
-      updateTask(task.id, { driveLink: driveUrl.trim() });
-
-      // 2. Registro persistente del entregable.
+      // 1. Registro persistente del entregable (created_by lo pone el servidor).
       await TaskLinksRepo.create({
         taskId: task.id,
         clientId: task.clientId,
         nombre: nombre.trim() || task.title,
         url: driveUrl.trim(),
         tipo: 'entregable',
-        createdBy: userId,
       });
 
-      // 3. Links adicionales.
+      // 2. Links adicionales.
       for (const ex of extras) {
         if (!ex.url.trim()) continue;
         await TaskLinksRepo.create({
@@ -69,16 +63,19 @@ export function DeliverableDrawer({
           nombre: ex.nombre.trim() || ex.url.trim(),
           url: ex.url.trim(),
           tipo: ex.tipo,
-          createdBy: userId,
         });
       }
+
+      // 3. El link de Drive queda en la tarea (visible para el PM en el Kanban).
+      updateTask(task.id, { driveLink: driveUrl.trim() });
 
       toast.success('✅ Entregable guardado');
       onSaved?.();
       onClose();
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error desconocido';
       console.warn('[deliverable.save]', e);
-      toast.error('No se pudo guardar el entregable');
+      toast.error(`No se pudo guardar: ${msg}`);
     } finally {
       setSaving(false);
     }

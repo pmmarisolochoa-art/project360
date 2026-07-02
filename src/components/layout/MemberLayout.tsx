@@ -1,7 +1,8 @@
 import { Outlet, useNavigate, NavLink } from 'react-router-dom';
-import { Sparkles, LogOut, LayoutGrid } from 'lucide-react';
+import { Sparkles, LogOut, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { signOut } from '@/services/auth';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useAppStore } from '@/store/useAppStore';
 
 /**
  * Layout para usuarios tipo MIEMBRO (equipo — Capa 1, multi-cliente).
@@ -14,6 +15,8 @@ export function MemberLayout() {
   const reset = useAuthStore((s) => s.reset);
   const email = useAuthStore((s) => s.user?.email);
   const name = useAuthStore((s) => s.clientAccesses[0]?.nombre);
+  const theme = useAppStore((s) => s.theme);
+  const setTheme = useAppStore((s) => s.setTheme);
 
   const handleLogout = async () => {
     await signOut();
@@ -50,6 +53,13 @@ export function MemberLayout() {
             <div className="text-xs text-text-primary truncate max-w-[180px]">{name || email}</div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Equipo</div>
           </div>
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            title={theme === 'dark' ? 'Cambiar a claro' : 'Cambiar a oscuro'}
+            className="inline-flex items-center justify-center h-9 w-9 rounded-[10px] text-text-secondary hover:text-text-primary hover:bg-bg-elevated/40 transition focus-ring"
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
           <button
             onClick={handleLogout}
             className="inline-flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated/40 transition focus-ring"

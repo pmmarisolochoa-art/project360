@@ -246,6 +246,31 @@ export function MiEspacio() {
         )}
       </div>
 
+      {/* 4b. Mis clientes → cronograma de tareas */}
+      {myClients.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-text-primary mb-3">Mis clientes</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {myClients.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => navigate(`/client/${c.id}/tasks`)}
+                className="surface p-4 text-left hover:brightness-110 transition flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: c.primaryColor }} />
+                  <div className="min-w-0">
+                    <div className="text-sm text-text-primary truncate">{c.name}</div>
+                    <div className="text-[11px] text-text-muted">Ver cronograma de tareas</div>
+                  </div>
+                </div>
+                <Calendar className="h-4 w-4 text-text-muted shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 5. Últimos links entregados */}
       <div>
         <h2 className="text-sm font-semibold text-text-primary mb-3">Últimos links entregados</h2>

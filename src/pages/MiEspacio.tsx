@@ -22,7 +22,6 @@ function greetingPrefix(): string {
 export function MiEspacio() {
   const navigate = useNavigate();
   const accesses = useAuthStore((s) => s.clientAccesses);
-  const userId = useAuthStore((s) => s.user?.id);
   const clients = useClientStore((s) => s.clients);
   const allTasks = useClientStore((s) => s.tasks);
   const updateTask = useClientStore((s) => s.updateTask);
@@ -60,15 +59,20 @@ export function MiEspacio() {
   const overdueSinEntregar = useMemo(() => overdue.filter((t) => !t.driveLink), [overdue]);
 
   // Cargar links entregados (persistentes) de mis clientes.
+  const refreshLinks = () => {
+    if (myClientIds.length === 0) return;
+    void TaskLinksRepo.listByClientIds(myClientIds).then((all) => setLinks(all.slice(0, 5)));
+  };
   useEffect(() => {
     let cancel = false;
     if (myClientIds.length === 0) return;
     void TaskLinksRepo.listByClientIds(myClientIds).then((all) => {
       if (cancel) return;
-      setLinks(all.filter((l) => !userId || l.createdBy === userId).slice(0, 5));
+      setLinks(all.slice(0, 5));
     });
     return () => { cancel = true; };
-  }, [myClientIds, userId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myClientIds]);
 
   // Subtítulo contextual del saludo.
   const todayTasks = pending.filter((t) => t.dueDate && isToday(new Date(t.dueDate)));
@@ -280,11 +284,7 @@ export function MiEspacio() {
         <DeliverableDrawer
           task={{ id: deliverableTask.id, clientId: deliverableTask.clientId, title: deliverableTask.title, driveLink: deliverableTask.driveLink }}
           onClose={() => setDeliverableTask(null)}
-          onSaved={() => {
-            void TaskLinksRepo.listByClientIds(myClientIds).then((all) =>
-              setLinks(all.filter((l) => !userId || l.createdBy === userId).slice(0, 5)),
-            );
-          }}
+          onSaved={refreshLinks}
         />
       )}
     </div>

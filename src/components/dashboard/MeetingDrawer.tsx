@@ -32,7 +32,7 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   weekly_planning: 'Planeación semanal', ropre_strategy: 'Estrategia ROPRE & Entregables',
 };
 
-export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose: () => void }) {
+export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting: Meeting; onClose: () => void; readOnly?: boolean }) {
   const client = useClientStore((s) => s.clients.find((c) => c.id === meeting.clientId));
   const updateMeeting = useClientStore((s) => s.updateMeeting);
   const deleteMeeting = useClientStore((s) => s.deleteMeeting);
@@ -410,6 +410,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               value={videoLink}
               onChange={(e) => setVideoLink(e.target.value)}
               onBlur={() => updateMeeting(meeting.id, { videoCallLink: videoLink || undefined })}
+              disabled={readOnly}
             />
             <div className="mt-2 flex gap-2">
               <Button
@@ -429,9 +430,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
           <section>
             <div className="flex items-center justify-between">
               <SectionTitle text="📋 Agenda" accent={accent} />
-              <Button size="sm" variant="ghost" leftIcon={<Sparkles className="h-3.5 w-3.5" />} loading={generating} onClick={generateAgenda}>
-                Generar con IA
-              </Button>
+              {!readOnly && (
+                <Button size="sm" variant="ghost" leftIcon={<Sparkles className="h-3.5 w-3.5" />} loading={generating} onClick={generateAgenda}>
+                  Generar con IA
+                </Button>
+              )}
             </div>
             <Textarea
               className="mt-2"
@@ -440,6 +443,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               value={agenda}
               onChange={(e) => setAgenda(e.target.value)}
               onBlur={() => updateMeeting(meeting.id, { agenda })}
+              disabled={readOnly}
             />
           </section>
 
@@ -469,6 +473,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               placeholder="Escribe notas aquí — se guardan automáticamente cada 3s…"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              disabled={readOnly}
             />
             {uploadedFileName && (
               <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-text-secondary rounded-md border border-border-subtle bg-bg-base/40 px-2 py-1">
@@ -486,38 +491,43 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
               value={recordingUrl}
               onChange={(e) => setRecordingUrl(e.target.value)}
               onBlur={() => updateMeeting(meeting.id, { recordingUrl: recordingUrl || undefined })}
+              disabled={readOnly}
             />
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button size="sm" variant="secondary" leftIcon={<Paperclip className="h-3.5 w-3.5" />}
-                onClick={() => fileInputRef.current?.click()}>Subir resumen (.md o .docx)</Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".md,.markdown,.docx"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleResumeUpload(f);
-                  e.target.value = '';
-                }}
-              />
-              <Button size="sm" variant="secondary" leftIcon={<Upload className="h-3.5 w-3.5" />}
-                onClick={() => toast.info('Upload de audio/video disponible próximamente')}>Subir archivo</Button>
-              <Button size="sm" variant="secondary" leftIcon={<Mic className="h-3.5 w-3.5" />}
-                onClick={() => toast.info('Transcripción disponible próximamente')}>Transcribir con IA</Button>
-              <Button size="sm" variant="secondary" leftIcon={<ListChecks className="h-3.5 w-3.5" />}
-                loading={extracting} onClick={runExtractTasks}>Extraer tareas</Button>
-              <Button size="sm" variant="secondary" leftIcon={<Brain className="h-3.5 w-3.5" />}
-                loading={generatingRopre} onClick={runGenerateRopre}>Generar ROPRE</Button>
-            </div>
-            <p className="mt-1.5 text-[10px] text-text-muted leading-relaxed">
-              <Brain className="inline h-2.5 w-2.5 mr-0.5" /> Genera Resultados · Objetivos · Primicias · Riesgos · Entregables
-              desde la transcripción o notas. Los items se crean en el módulo ROPRE del cliente.
-            </p>
+            {!readOnly && (
+              <>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button size="sm" variant="secondary" leftIcon={<Paperclip className="h-3.5 w-3.5" />}
+                    onClick={() => fileInputRef.current?.click()}>Subir resumen (.md o .docx)</Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".md,.markdown,.docx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleResumeUpload(f);
+                      e.target.value = '';
+                    }}
+                  />
+                  <Button size="sm" variant="secondary" leftIcon={<Upload className="h-3.5 w-3.5" />}
+                    onClick={() => toast.info('Upload de audio/video disponible próximamente')}>Subir archivo</Button>
+                  <Button size="sm" variant="secondary" leftIcon={<Mic className="h-3.5 w-3.5" />}
+                    onClick={() => toast.info('Transcripción disponible próximamente')}>Transcribir con IA</Button>
+                  <Button size="sm" variant="secondary" leftIcon={<ListChecks className="h-3.5 w-3.5" />}
+                    loading={extracting} onClick={runExtractTasks}>Extraer tareas</Button>
+                  <Button size="sm" variant="secondary" leftIcon={<Brain className="h-3.5 w-3.5" />}
+                    loading={generatingRopre} onClick={runGenerateRopre}>Generar ROPRE</Button>
+                </div>
+                <p className="mt-1.5 text-[10px] text-text-muted leading-relaxed">
+                  <Brain className="inline h-2.5 w-2.5 mr-0.5" /> Genera Resultados · Objetivos · Primicias · Riesgos · Entregables
+                  desde la transcripción o notas. Los items se crean en el módulo ROPRE del cliente.
+                </p>
+              </>
+            )}
           </section>
 
           {/* Tareas extraídas */}
-          {extractedDraft.length > 0 && (
+          {!readOnly && extractedDraft.length > 0 && (
             <section>
               <SectionTitle text="✅ Tareas detectadas — revisa y confirma" accent={accent} />
               <ExtractedTasksList
@@ -555,9 +565,11 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
         <footer className="border-t border-border-subtle px-5 py-3 flex items-center justify-between gap-2"
           style={{ background: withAlpha(accent, 0.04) }}
         >
-          <Button variant="danger" size="sm" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={cancelMeeting}>
-            Cancelar reunión
-          </Button>
+          {!readOnly && (
+            <Button variant="danger" size="sm" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={cancelMeeting}>
+              Cancelar reunión
+            </Button>
+          )}
           <div className="flex items-center gap-2">
             {client && (
               <Button
@@ -577,7 +589,7 @@ export function MeetingDrawer({ meeting, onClose }: { meeting: Meeting; onClose:
                 PDF
               </Button>
             )}
-            {!meeting.completed && (
+            {!readOnly && !meeting.completed && (
               <Button size="sm" leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />} onClick={markDone}>
                 Marcar como realizada
               </Button>

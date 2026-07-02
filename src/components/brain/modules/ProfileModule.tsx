@@ -37,23 +37,25 @@ const BUSINESS_TYPES = [
 ];
 const CURRENCIES = ['USD', 'COP', 'MXN', 'EUR', 'ARS', 'CLP', 'PEN', 'BRL'];
 
-export function ProfileModule({ client }: { client: Client }) {
+export function ProfileModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const [active, setActive] = useState<SubSection>('1A');
   const [infoEditorOpen, setInfoEditorOpen] = useState(false);
   const accent = client.primaryColor;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <Button
-          size="sm"
-          variant="secondary"
-          leftIcon={<Pencil className="h-3.5 w-3.5" />}
-          onClick={() => setInfoEditorOpen(true)}
-        >
-          Editar información del cliente
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center justify-end">
+          <Button
+            size="sm"
+            variant="secondary"
+            leftIcon={<Pencil className="h-3.5 w-3.5" />}
+            onClick={() => setInfoEditorOpen(true)}
+          >
+            Editar información del cliente
+          </Button>
+        </div>
+      )}
 
       {infoEditorOpen && <ClientInfoEditor client={client} onClose={() => setInfoEditorOpen(false)} />}
 
@@ -84,12 +86,12 @@ export function ProfileModule({ client }: { client: Client }) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        {active === '1A' && <ClientCard client={client} accent={accent} />}
-        {active === '1B' && <MarketAnalysis client={client} accent={accent} />}
-        {active === '1C' && <IrresistibleOffer client={client} accent={accent} />}
-        {active === '1D' && <BrandNarrative client={client} accent={accent} />}
-        {active === '1E' && <BuyerPersonas client={client} accent={accent} />}
-        {active === '1F' && <BrandArchitecture client={client} accent={accent} />}
+        {active === '1A' && <ClientCard client={client} accent={accent} readOnly={readOnly} />}
+        {active === '1B' && <MarketAnalysis client={client} accent={accent} readOnly={readOnly} />}
+        {active === '1C' && <IrresistibleOffer client={client} accent={accent} readOnly={readOnly} />}
+        {active === '1D' && <BrandNarrative client={client} accent={accent} readOnly={readOnly} />}
+        {active === '1E' && <BuyerPersonas client={client} accent={accent} readOnly={readOnly} />}
+        {active === '1F' && <BrandArchitecture client={client} accent={accent} readOnly={readOnly} />}
       </motion.div>
     </div>
   );
@@ -139,7 +141,7 @@ function buildDraft(client: Client): FichaDraft {
   };
 }
 
-function ClientCard({ client, accent }: { client: Client; accent: string }) {
+function ClientCard({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const updateClient = useClientStore((s) => s.updateClient);
   const [editing, setEditing] = useState<EditingSection>(null);
   const [draft, setDraft] = useState<FichaDraft>(() => buildDraft(client));
@@ -248,7 +250,7 @@ function ClientCard({ client, accent }: { client: Client; accent: string }) {
             title="Datos del negocio"
             accent={accent}
             action={
-              isBizEdit ? (
+              readOnly ? undefined : isBizEdit ? (
                 <EditActions onCancel={cancel} onSave={save} />
               ) : (
                 <Button
@@ -372,7 +374,7 @@ function ClientCard({ client, accent }: { client: Client; accent: string }) {
             title="Contacto & redes"
             accent={accent}
             action={
-              isContactEdit ? (
+              readOnly ? undefined : isContactEdit ? (
                 <EditActions onCancel={cancel} onSave={save} />
               ) : (
                 <Button
@@ -582,7 +584,7 @@ function EditableSelect({
    1B — Análisis de Mercado (regenerar con IA)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function MarketAnalysis({ client, accent }: { client: Client; accent: string }) {
+function MarketAnalysis({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const updateClient = useClientStore((s) => s.updateClient);
   const [loading, setLoading] = useState(false);
   const [showAiFlow, setShowAiFlow] = useState(false);
@@ -618,9 +620,11 @@ function MarketAnalysis({ client, accent }: { client: Client; accent: string }) 
         message="Aún no se ha generado el análisis de mercado con IA."
         accent={accent}
         action={
-          <Button size="sm" leftIcon={<Sparkles className="h-3.5 w-3.5" />} onClick={regenerate} loading={loading}>
-            Generar con IA
-          </Button>
+          !readOnly ? (
+            <Button size="sm" leftIcon={<Sparkles className="h-3.5 w-3.5" />} onClick={regenerate} loading={loading}>
+              Generar con IA
+            </Button>
+          ) : undefined
         }
       />
     );
@@ -631,14 +635,16 @@ function MarketAnalysis({ client, accent }: { client: Client; accent: string }) 
       <div className="surface p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <SectionTitle icon={<Sparkles className="h-4 w-4" />} title="Resumen ejecutivo" accent={accent} subtitle="Generado por IA" />
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant="ghost" leftIcon={<Sparkles className="h-3.5 w-3.5" />} onClick={() => setShowAiFlow(!showAiFlow)}>
-              {showAiFlow ? 'Cerrar IA' : 'Generar en 3 pasos'}
-            </Button>
-            <Button size="sm" variant="secondary" leftIcon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />} onClick={regenerate} loading={loading}>
-              Regenerar
-            </Button>
-          </div>
+          {!readOnly && (
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="ghost" leftIcon={<Sparkles className="h-3.5 w-3.5" />} onClick={() => setShowAiFlow(!showAiFlow)}>
+                {showAiFlow ? 'Cerrar IA' : 'Generar en 3 pasos'}
+              </Button>
+              <Button size="sm" variant="secondary" leftIcon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />} onClick={regenerate} loading={loading}>
+                Regenerar
+              </Button>
+            </div>
+          )}
         </div>
         {showAiFlow ? (
           <AIOptionsFlow
@@ -698,7 +704,7 @@ function MarketAnalysis({ client, accent }: { client: Client; accent: string }) 
    1C — Oferta Irresistible (editable + regenerar)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function IrresistibleOffer({ client, accent }: { client: Client; accent: string }) {
+function IrresistibleOffer({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const updateClient = useClientStore((s) => s.updateClient);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(client.aiBrainData.irresistibleOffer ?? '');
@@ -739,7 +745,7 @@ function IrresistibleOffer({ client, accent }: { client: Client; accent: string 
         <div className="relative">
           <div className="flex items-start justify-between gap-3">
             <SectionTitle icon={<Gem className="h-4 w-4" />} title="Propuesta de valor v1" accent={accent} subtitle="Editable por el estratega" />
-            {editing ? (
+            {!readOnly && (editing ? (
               <EditActions
                 onCancel={() => { setDraft(client.aiBrainData.irresistibleOffer ?? ''); setEditing(false); }}
                 onSave={save}
@@ -756,7 +762,7 @@ function IrresistibleOffer({ client, accent }: { client: Client; accent: string 
                   Regenerar
                 </Button>
               </div>
-            )}
+            ))}
           </div>
 
           {showAiFlow ? (
@@ -813,7 +819,7 @@ interface NarrativeDraft {
   forbiddenTopics: string;
 }
 
-function BrandNarrative({ client, accent }: { client: Client; accent: string }) {
+function BrandNarrative({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const updateClient = useClientStore((s) => s.updateClient);
   const content = (client.onboardingData.content as Record<string, unknown>) ?? {};
   const audience = (client.onboardingData.audience as Record<string, unknown>) ?? {};
@@ -875,7 +881,7 @@ function BrandNarrative({ client, accent }: { client: Client; accent: string }) 
       <div className="surface p-5">
         <div className="flex items-start justify-between gap-3">
           <SectionTitle icon={<BookOpen className="h-4 w-4" />} title="Narrativa de marca" accent={accent} subtitle="Tono, lenguaje y temas" />
-          {editing ? (
+          {!readOnly && (editing ? (
             <EditActions onCancel={() => { setDraft(initial); setEditing(false); }} onSave={save} />
           ) : (
             <div className="flex gap-1.5">
@@ -889,7 +895,7 @@ function BrandNarrative({ client, accent }: { client: Client; accent: string }) 
                 Regenerar
               </Button>
             </div>
-          )}
+          ))}
         </div>
 
         {showAiFlow && (
@@ -995,7 +1001,7 @@ function NarrativeRow({
    1E — Buyer Personas (editar c/u + regenerar todos)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function BuyerPersonas({ client, accent }: { client: Client; accent: string }) {
+function BuyerPersonas({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const updateClient = useClientStore((s) => s.updateClient);
   const personas = client.aiBrainData.buyerPersonas ?? [];
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -1076,26 +1082,28 @@ function BuyerPersonas({ client, accent }: { client: Client; accent: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          leftIcon={<Sparkles className="h-3.5 w-3.5" />}
-          onClick={() => { setShowAiFlow(!showAiFlow); if (!showAiFlow && aiOptions.length === 0) generatePersonaOptions(); }}
-        >
-          {showAiFlow ? 'Cerrar IA' : 'Generar opciones (multi-select)'}
-        </Button>
-        <Button
-          size="sm"
-          leftIcon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />}
-          onClick={regenerateAll}
-          loading={loading}
-        >
-          Regenerar todos
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<Sparkles className="h-3.5 w-3.5" />}
+            onClick={() => { setShowAiFlow(!showAiFlow); if (!showAiFlow && aiOptions.length === 0) generatePersonaOptions(); }}
+          >
+            {showAiFlow ? 'Cerrar IA' : 'Generar opciones (multi-select)'}
+          </Button>
+          <Button
+            size="sm"
+            leftIcon={<RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />}
+            onClick={regenerateAll}
+            loading={loading}
+          >
+            Regenerar todos
+          </Button>
+        </div>
+      )}
 
-      {showAiFlow && (
+      {!readOnly && showAiFlow && (
         <div className="surface p-4 space-y-3" style={{ borderColor: withAlpha(accent, 0.3) }}>
           <div className="flex items-center justify-between gap-2">
             <div className="text-xs text-text-secondary">
@@ -1163,7 +1171,7 @@ function BuyerPersonas({ client, accent }: { client: Client; accent: string }) {
                     <div className="text-[10px] uppercase tracking-wider text-text-muted">Avatar #{i + 1}</div>
                   </div>
                 </div>
-                {isEdit ? (
+                {!readOnly && (isEdit ? (
                   <div className="flex gap-1">
                     <button onClick={cancel} className="h-7 w-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-elevated" aria-label="Cancelar">
                       <X className="h-3.5 w-3.5 mx-auto" />
@@ -1179,7 +1187,7 @@ function BuyerPersonas({ client, accent }: { client: Client; accent: string }) {
                   >
                     <Pencil className="h-3 w-3" /> Editar
                   </button>
-                )}
+                ))}
               </div>
 
               {isEdit ? (
@@ -1327,7 +1335,7 @@ function formatNum(v: unknown): string {
    1F — Arquitectura de Marca (misión · visión · valores · pilares · tono · do's/don'ts)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function BrandArchitecture({ client, accent }: { client: Client; accent: string }) {
+function BrandArchitecture({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const updateClient = useClientStore((s) => s.updateClient);
   const arch = client.aiBrainData.brandArchitecture;
   const [loading, setLoading] = useState(false);
@@ -1389,14 +1397,16 @@ function BrandArchitecture({ client, accent }: { client: Client; accent: string 
           tono de voz, y do's & don'ts. Esta arquitectura alimenta todos los copies, anuncios y
           contenido del cliente.
         </p>
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <Button size="sm" leftIcon={<Sparkles className="h-3.5 w-3.5" />} loading={loading} onClick={regenerate}>
-            Generar con IA
-          </Button>
-          <Button size="sm" variant="secondary" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditing(true)}>
-            Crear manualmente
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <Button size="sm" leftIcon={<Sparkles className="h-3.5 w-3.5" />} loading={loading} onClick={regenerate}>
+              Generar con IA
+            </Button>
+            <Button size="sm" variant="secondary" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditing(true)}>
+              Crear manualmente
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1415,27 +1425,29 @@ function BrandArchitecture({ client, accent }: { client: Client; accent: string 
             Estos cimientos guían toda la comunicación de {client.name}.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {editing ? (
-            <>
-              <Button size="sm" variant="ghost" leftIcon={<X className="h-3.5 w-3.5" />} onClick={() => { setEditing(false); if (arch) setDraft(arch); }}>
-                Cancelar
-              </Button>
-              <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
-                Guardar
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button size="sm" variant="secondary" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditing(true)}>
-                Editar
-              </Button>
-              <Button size="sm" variant="secondary" leftIcon={<RefreshCw className="h-3.5 w-3.5" />} loading={loading} onClick={regenerate}>
-                Regenerar IA
-              </Button>
-            </>
-          )}
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2 shrink-0">
+            {editing ? (
+              <>
+                <Button size="sm" variant="ghost" leftIcon={<X className="h-3.5 w-3.5" />} onClick={() => { setEditing(false); if (arch) setDraft(arch); }}>
+                  Cancelar
+                </Button>
+                <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
+                  Guardar
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="secondary" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setEditing(true)}>
+                  Editar
+                </Button>
+                <Button size="sm" variant="secondary" leftIcon={<RefreshCw className="h-3.5 w-3.5" />} loading={loading} onClick={regenerate}>
+                  Regenerar IA
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Misión + Visión */}

@@ -25,7 +25,7 @@ import { format } from 'date-fns';
  *  - Sin embudos → muestra TemplateSelector con las 4 plantillas
  *  - Con embudos → tabs por embudo + roadmap del activo
  */
-export function FunnelLaunchPanel({ client }: { client: Client }) {
+export function FunnelLaunchPanel({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const navigate = useNavigate();
   // IMPORTANTE: el selector debe devolver una referencia estable. Filtrar
   // dentro del selector crea un array nuevo en cada render y dispara
@@ -131,6 +131,14 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
   ) : null;
 
   if (funnels.length === 0) {
+    if (readOnly) {
+      return (
+        <div className="surface p-10 text-center">
+          <h3 className="heading text-lg mb-1">Sin embudos activos</h3>
+          <p className="text-sm text-text-secondary">No hay embudos configurados para este cliente.</p>
+        </div>
+      );
+    }
     return (
       <>
         <TemplateGallery
@@ -164,9 +172,11 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
             </button>
           );
         })}
-        <Button size="sm" variant="ghost" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setSelectedFunnelId('__new__')}>
-          Nuevo embudo
-        </Button>
+        {!readOnly && (
+          <Button size="sm" variant="ghost" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setSelectedFunnelId('__new__')}>
+            Nuevo embudo
+          </Button>
+        )}
         {archivedFunnels.length > 0 && (
           <button
             onClick={() => setShowHistory(!showHistory)}
@@ -198,7 +208,7 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
       )}
 
       {/* Si tab "__new__", muestra galería */}
-      {selectedFunnelId === '__new__' ? (
+      {selectedFunnelId === '__new__' && !readOnly ? (
         <TemplateGallery
           accent={client.primaryColor}
           onSelect={(template) => setCreating(template)}
@@ -252,17 +262,17 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
               >
                 PDF
               </Button>
-              {selectedFunnel.status !== 'active' && (
+              {!readOnly && selectedFunnel.status !== 'active' && (
                 <Button size="sm" variant="secondary" leftIcon={<Play className="h-3.5 w-3.5" />} onClick={() => { setStatus(selectedFunnel.id, 'active'); toast.success('Embudo activado'); }}>
                   Activar
                 </Button>
               )}
-              {selectedFunnel.status === 'active' && (
+              {!readOnly && selectedFunnel.status === 'active' && (
                 <Button size="sm" variant="secondary" leftIcon={<Pause className="h-3.5 w-3.5" />} onClick={() => { setStatus(selectedFunnel.id, 'paused'); toast.info('Embudo pausado'); }}>
                   Pausar
                 </Button>
               )}
-              {selectedFunnel.status !== 'completed' && selectedFunnel.status !== 'cancelled' && (
+              {!readOnly && selectedFunnel.status !== 'completed' && selectedFunnel.status !== 'cancelled' && (
                 <Button size="sm" variant="secondary" leftIcon={<Archive className="h-3.5 w-3.5" />} onClick={() => {
                   setStatus(selectedFunnel.id, 'completed');
                   toast.success('Embudo archivado · visible en Historial');
@@ -270,13 +280,15 @@ export function FunnelLaunchPanel({ client }: { client: Client }) {
                   Archivar
                 </Button>
               )}
-              <Button size="sm" variant="danger" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => {
-                if (confirm(`¿Eliminar el embudo "${selectedFunnel.name}"? Las tareas se conservan pero pierden vínculo al embudo.`)) {
-                  remove(selectedFunnel.id);
-                  setSelectedFunnelId(null);
-                  toast.success('Embudo eliminado');
-                }
-              }}>Eliminar</Button>
+              {!readOnly && (
+                <Button size="sm" variant="danger" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => {
+                  if (confirm(`¿Eliminar el embudo "${selectedFunnel.name}"? Las tareas se conservan pero pierden vínculo al embudo.`)) {
+                    remove(selectedFunnel.id);
+                    setSelectedFunnelId(null);
+                    toast.success('Embudo eliminado');
+                  }
+                }}>Eliminar</Button>
+              )}
             </div>
           </div>
         </>

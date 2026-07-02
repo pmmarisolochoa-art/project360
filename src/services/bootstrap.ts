@@ -122,6 +122,7 @@ function rowToTask(r: Record<string, unknown>): Task {
     delayDays: x.delay_days ?? 0,
     input: x.input ?? undefined,
     output: x.output ?? undefined,
+    driveLink: x.drive_link ?? undefined,
     dependsOn: x.depends_on ?? undefined,
     startDate: x.start_date ?? undefined,
     origin: x.origin ?? undefined,

@@ -30,7 +30,7 @@ function initials(name: string): string {
 
 const BAR_COLORS = ['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EC4899', '#14B8A6', '#A855F7'];
 
-export function TeamMembersPanel({ client }: { client: Client }) {
+export function TeamMembersPanel({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const accent = client.primaryColor;
   const add = useTeamMembersStore((s) => s.add);
   const summaries = useTeamKPIs(client.id);
@@ -83,9 +83,11 @@ export function TeamMembersPanel({ client }: { client: Client }) {
             <div className="text-[10px] uppercase tracking-wider text-text-muted">Cumplimiento global</div>
             <div className="kpi-number" style={{ color: accent }}>{health.globalPct}%</div>
           </div>
-          <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
-            Agregar persona
-          </Button>
+          {!readOnly && (
+            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
+              Agregar persona
+            </Button>
+          )}
         </div>
       </header>
 
@@ -215,7 +217,7 @@ export function TeamMembersPanel({ client }: { client: Client }) {
       )}
 
       {selected && (
-        <MemberDetailModal summary={selected} onClose={() => setSelectedId(null)} />
+        <MemberDetailModal summary={selected} onClose={() => setSelectedId(null)} readOnly={readOnly} />
       )}
     </section>
   );
@@ -288,7 +290,7 @@ function AddMemberModal({
 
 /* ───────────────────────── Modal: detalle de la persona ───────────────────────── */
 
-function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; onClose: () => void }) {
+function MemberDetailModal({ summary, onClose, readOnly = false }: { summary: MemberKpiSummary; onClose: () => void; readOnly?: boolean }) {
   const update = useTeamMembersStore((s) => s.update);
   const remove = useTeamMembersStore((s) => s.remove);
   const member = summary.member;
@@ -354,18 +356,20 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
             <label className="block text-[10px] uppercase tracking-wider text-text-muted mb-1">Nombre</label>
             <input
               defaultValue={member.nombre}
-              onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== member.nombre) update(member.id, { nombre: v }); }}
+              onBlur={(e) => { if (readOnly) return; const v = e.target.value.trim(); if (v && v !== member.nombre) update(member.id, { nombre: v }); }}
+              disabled={readOnly}
               placeholder="Asignar persona…"
-              className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none"
+              className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-text-muted mb-1">Email (opcional)</label>
             <input
               defaultValue={member.email ?? ''}
-              onBlur={(e) => { const v = e.target.value.trim(); if (v !== (member.email ?? '')) update(member.id, { email: v || undefined }); }}
+              onBlur={(e) => { if (readOnly) return; const v = e.target.value.trim(); if (v !== (member.email ?? '')) update(member.id, { email: v || undefined }); }}
+              disabled={readOnly}
               placeholder="persona@agencia.com"
-              className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none"
+              className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
         </div>
@@ -377,31 +381,37 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
             {live().funciones.map((f, i) => (
               <span key={i} className="inline-flex items-center gap-1 rounded-full border border-border-subtle bg-bg-base/40 pl-2.5 pr-1 py-1 text-[11px] text-text-secondary">
                 {f}
-                <button onClick={() => removeFunction(i)} className="h-4 w-4 rounded-full hover:bg-status-danger/15 hover:text-status-danger inline-flex items-center justify-center">
-                  <X className="h-2.5 w-2.5" />
-                </button>
+                {!readOnly && (
+                  <button onClick={() => removeFunction(i)} className="h-4 w-4 rounded-full hover:bg-status-danger/15 hover:text-status-danger inline-flex items-center justify-center">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                )}
               </span>
             ))}
           </div>
-          <div className="flex items-center gap-2 mt-2">
-            <input
-              value={newFn}
-              onChange={(e) => setNewFn(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addFunction()}
-              placeholder="+ Agregar función"
-              className="flex-1 bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-xs text-text-primary outline-none"
-            />
-            <Button size="sm" variant="ghost" onClick={addFunction}>Agregar</Button>
-          </div>
+          {!readOnly && (
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                value={newFn}
+                onChange={(e) => setNewFn(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addFunction()}
+                placeholder="+ Agregar función"
+                className="flex-1 bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-xs text-text-primary outline-none"
+              />
+              <Button size="sm" variant="ghost" onClick={addFunction}>Agregar</Button>
+            </div>
+          )}
         </div>
 
         {/* KPIs */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <div className="text-[10px] uppercase tracking-wider text-text-muted">KPIs del rol</div>
-            <Button size="sm" variant="ghost" leftIcon={<Plus className="h-3 w-3" />} onClick={() => setCustomOpen(true)}>
-              KPI personalizado
-            </Button>
+            {!readOnly && (
+              <Button size="sm" variant="ghost" leftIcon={<Plus className="h-3 w-3" />} onClick={() => setCustomOpen(true)}>
+                KPI personalizado
+              </Button>
+            )}
           </div>
           <div className="space-y-1.5">
             {summary.rows.map((row) => (
@@ -413,7 +423,7 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
                     {row.measure === 'auto' && <span className="text-[9px] uppercase text-accent-violet">auto</span>}
                   </div>
                   <div className="text-[10px] text-text-muted flex items-center gap-1">
-                    {editTarget === row.key ? (
+                    {editTarget === row.key && !readOnly ? (
                       <input
                         type="number"
                         defaultValue={row.target ?? ''}
@@ -425,7 +435,7 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
                     ) : (
                       <>
                         <span>{row.target != null ? `Meta: ${row.target}${row.unit ?? ''}` : 'Sin meta numérica'}</span>
-                        {!row.custom && row.target != null && (
+                        {!readOnly && !row.custom && row.target != null && (
                           <button
                             onClick={() => setEditTarget(row.key)}
                             className="text-text-muted hover:text-accent-violet"
@@ -442,9 +452,10 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
                 {row.textValue !== undefined ? (
                   <input
                     defaultValue={row.textValue}
-                    onBlur={(e) => setKpiValue(row.key, e.target.value)}
+                    onBlur={(e) => { if (!readOnly) setKpiValue(row.key, e.target.value); }}
+                    disabled={readOnly}
                     placeholder="—"
-                    className="w-40 bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none"
+                    className="w-40 bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 ) : row.measure === 'auto' ? (
                   <div className="text-sm font-semibold text-text-primary text-right w-20">
@@ -454,9 +465,10 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
                   <input
                     type="number"
                     defaultValue={row.value ?? ''}
-                    onBlur={(e) => setKpiValue(row.key, e.target.value)}
+                    onBlur={(e) => { if (!readOnly) setKpiValue(row.key, e.target.value); }}
+                    disabled={readOnly}
                     placeholder="—"
-                    className="w-20 bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1 text-sm text-right text-text-primary outline-none"
+                    className="w-20 bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1 text-sm text-right text-text-primary outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 )}
                 <span
@@ -504,16 +516,18 @@ function MemberDetailModal({ summary, onClose }: { summary: MemberKpiSummary; on
 
         {/* Acciones */}
         <div className="flex items-center justify-between pt-2 border-t border-border-subtle">
-          <button
-            onClick={() => {
-              remove(member.id);
-              toast.success('Persona eliminada del equipo');
-              onClose();
-            }}
-            className="inline-flex items-center gap-1 text-xs text-status-danger hover:underline"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Quitar del equipo
-          </button>
+          {!readOnly ? (
+            <button
+              onClick={() => {
+                remove(member.id);
+                toast.success('Persona eliminada del equipo');
+                onClose();
+              }}
+              className="inline-flex items-center gap-1 text-xs text-status-danger hover:underline"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Quitar del equipo
+            </button>
+          ) : <span />}
           <Button size="sm" onClick={onClose}>Listo</Button>
         </div>
       </div>

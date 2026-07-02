@@ -54,7 +54,7 @@ function formatMoney(usdValue: number, code: CurrencyCode): string {
   return `${symbol}${new Intl.NumberFormat('en-US').format(converted)}`;
 }
 
-export function ProjectionsModule({ client }: { client: Client }) {
+export function ProjectionsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const accent = client.primaryColor;
   const ensure = useProjectionStore((s) => s.ensure);
   const state = useProjectionStore((s) => s.states[client.id]);
@@ -160,13 +160,13 @@ export function ProjectionsModule({ client }: { client: Client }) {
         transition={{ duration: 0.25 }}
       >
         {active === 'summary'    && <SummarySection client={client} accent={accent} />}
-        {active === 'funnel'     && <FunnelSection client={client} accent={accent} currency={currency} />}
-        {active === 'phases'     && <PhasesSection client={client} accent={accent} />}
+        {active === 'funnel'     && <FunnelSection client={client} accent={accent} currency={currency} readOnly={readOnly} />}
+        {active === 'phases'     && <PhasesSection client={client} accent={accent} readOnly={readOnly} />}
         {/* OCULTO BETA — MarketSection conservada para v2; no se renderiza. */}
         {false && <MarketSection client={client} accent={accent} />}
-        {active === 'okrs'       && <OkrsSection client={client} accent={accent} />}
-        {active === 'investment' && <InvestmentSection client={client} accent={accent} />}
-        {active === 'debriefing' && <DebriefingSection client={client} accent={accent} />}
+        {active === 'okrs'       && <OkrsSection client={client} accent={accent} readOnly={readOnly} />}
+        {active === 'investment' && <InvestmentSection client={client} accent={accent} readOnly={readOnly} />}
+        {active === 'debriefing' && <DebriefingSection client={client} accent={accent} readOnly={readOnly} />}
       </motion.div>
     </div>
   );
@@ -328,7 +328,7 @@ function midOfRange(s: string): number {
    B — FUNNEL FINANCIERO + ESCENARIOS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function FunnelSection({ client, accent, currency }: { client: Client; accent: string; currency: CurrencyCode }) {
+function FunnelSection({ client, accent, currency, readOnly = false }: { client: Client; accent: string; currency: CurrencyCode; readOnly?: boolean }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const patch = useProjectionStore((s) => s.patchFunnel);
   const f = state.funnel;
@@ -369,23 +369,23 @@ function FunnelSection({ client, accent, currency }: { client: Client; accent: s
           {/* Funnel editable */}
           <div className="space-y-2">
             <FunnelRow label="Inversión mensual en ADS" unit="USD" value={f.monthlyAdsBudget}
-              onChange={(v) => patch(client.id, { monthlyAdsBudget: v })} accent={accent} />
+              onChange={(v) => patch(client.id, { monthlyAdsBudget: v })} accent={accent} disabled={readOnly} />
             <FunnelRow label="Alcance estimado" unit="personas" value={f.estimatedReach}
-              onChange={(v) => patch(client.id, { estimatedReach: v })} accent={accent} />
+              onChange={(v) => patch(client.id, { estimatedReach: v })} accent={accent} disabled={readOnly} />
             <FunnelRow label="CTR esperado" unit="%" value={f.ctr * 100}
-              onChange={(v) => patch(client.id, { ctr: v / 100 })} step="0.1" accent={accent} />
+              onChange={(v) => patch(client.id, { ctr: v / 100 })} step="0.1" accent={accent} disabled={readOnly} />
             <FunnelComputed label="Clics estimados" value={formatNumber(outputs.clicks)} accent={accent} />
             <FunnelRow label="Conversión landing" unit="%" value={f.landingConversionRate * 100}
-              onChange={(v) => patch(client.id, { landingConversionRate: v / 100 })} step="0.1" accent={accent} />
+              onChange={(v) => patch(client.id, { landingConversionRate: v / 100 })} step="0.1" accent={accent} disabled={readOnly} />
             <FunnelComputed label="Leads estimados" value={`${formatNumber(outputs.leads)}/mes`} accent={accent} />
             <FunnelRow label="Tasa de calificación (SQL)" unit="%" value={f.sqlRate * 100}
-              onChange={(v) => patch(client.id, { sqlRate: v / 100 })} step="1" accent={accent} />
+              onChange={(v) => patch(client.id, { sqlRate: v / 100 })} step="1" accent={accent} disabled={readOnly} />
             <FunnelComputed label="Leads calificados" value={`${formatNumber(outputs.sqls)} SQLs/mes`} accent={accent} />
             <FunnelRow label="Tasa de cierre" unit="%" value={f.closeRate * 100}
-              onChange={(v) => patch(client.id, { closeRate: v / 100 })} step="1" accent={accent} />
+              onChange={(v) => patch(client.id, { closeRate: v / 100 })} step="1" accent={accent} disabled={readOnly} />
             <FunnelComputed label="Ventas estimadas" value={`${formatNumber(outputs.sales)}/mes`} accent={accent} />
             <FunnelRow label="Ticket promedio" unit="USD" value={f.averageTicket}
-              onChange={(v) => patch(client.id, { averageTicket: v })} accent={accent} />
+              onChange={(v) => patch(client.id, { averageTicket: v })} accent={accent} disabled={readOnly} />
 
             <div
               className="mt-2 rounded-[10px] p-4"
@@ -497,7 +497,7 @@ function Cell2({ label, value, accent }: { label: string; value: string; accent?
 }
 
 function FunnelRow({
-  label, unit, value, onChange, step = '1', accent,
+  label, unit, value, onChange, step = '1', accent, disabled,
 }: {
   label: string;
   unit: string;
@@ -505,6 +505,7 @@ function FunnelRow({
   onChange: (v: number) => void;
   step?: string;
   accent: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="grid grid-cols-[1.4fr_auto] gap-3 items-center rounded-[8px] border border-border-subtle bg-bg-base/30 px-3 py-2">
@@ -517,7 +518,8 @@ function FunnelRow({
         value={value}
         step={step}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-32 bg-bg-elevated/60 border rounded-md px-2 py-1 text-sm text-right text-text-primary outline-none"
+        disabled={disabled}
+        className="w-32 bg-bg-elevated/60 border rounded-md px-2 py-1 text-sm text-right text-text-primary outline-none disabled:opacity-60 disabled:cursor-not-allowed"
         style={{ borderColor: withAlpha(accent, 0.3), caretColor: accent }}
       />
     </div>
@@ -558,7 +560,7 @@ const PHASE_STATUS_COLOR: Record<ProjectPhase['status'], string> = {
   blocked: '#F59E0B',
 };
 
-function PhasesSection({ client, accent }: { client: Client; accent: string }) {
+function PhasesSection({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const setPhases = useProjectionStore((s) => s.setPhases);
   const phases = state.phases;
@@ -681,9 +683,11 @@ function PhasesSection({ client, accent }: { client: Client; accent: string }) {
                         <span>· S{p.startWeek}–{p.endWeek}</span>
                       </div>
                     </div>
-                    <button onClick={() => addTaskToPhase(p.id)} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary shrink-0" title="Agregar tarea">
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
+                    {!readOnly && (
+                      <button onClick={() => addTaskToPhase(p.id)} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary shrink-0" title="Agregar tarea">
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div className="relative h-3 rounded-md bg-bg-elevated/30">
                     <div
@@ -718,9 +722,11 @@ function PhasesSection({ client, accent }: { client: Client; accent: string }) {
                               <div className="text-[9px] text-text-muted">{tDone}/{t.subtasks.length} subtareas</div>
                             )}
                           </div>
-                          <button onClick={() => addSubtaskToTask(p.id, t.id)} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary shrink-0" title="Agregar subtarea">
-                            <Plus className="h-3 w-3" />
-                          </button>
+                          {!readOnly && (
+                            <button onClick={() => addSubtaskToTask(p.id, t.id)} className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-text-primary shrink-0" title="Agregar subtarea">
+                              <Plus className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                         <div className="relative h-2 rounded-md bg-bg-elevated/30">
                           <div
@@ -744,7 +750,8 @@ function PhasesSection({ client, accent }: { client: Client; accent: string }) {
                                 type="checkbox"
                                 checked={s.done}
                                 onChange={() => toggleSubtask(p.id, t.id, s.id)}
-                                className="h-3 w-3 accent-accent-violet"
+                                disabled={readOnly}
+                                className="h-3 w-3 accent-accent-violet disabled:opacity-60 disabled:cursor-not-allowed"
                               />
                               <span className={cn('truncate', s.done && 'line-through text-text-muted')}>{s.name}</span>
                             </label>
@@ -988,7 +995,7 @@ function MarketSection({ client, accent }: { client: Client; accent: string }) {
    E — OKRs
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function OkrsSection({ client, accent }: { client: Client; accent: string }) {
+function OkrsSection({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const setOkrs = useProjectionStore((s) => s.setOkrs);
   const setSuccessIndicators = useProjectionStore((s) => s.setSuccessIndicators);
@@ -1036,10 +1043,11 @@ function OkrsSection({ client, accent }: { client: Client; accent: string }) {
                 value={okr.objective}
                 onChange={(e) => updateOkr(okr.id, { objective: e.target.value })}
                 placeholder="Objetivo principal del proyecto…"
+                disabled={readOnly}
               />
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Deadline" type="date" value={okr.deadline} onChange={(e) => updateOkr(okr.id, { deadline: e.target.value })} />
-                <Input label="Responsable" value={okr.responsible} onChange={(e) => updateOkr(okr.id, { responsible: e.target.value })} />
+                <Input label="Deadline" type="date" value={okr.deadline} onChange={(e) => updateOkr(okr.id, { deadline: e.target.value })} disabled={readOnly} />
+                <Input label="Responsable" value={okr.responsible} onChange={(e) => updateOkr(okr.id, { responsible: e.target.value })} disabled={readOnly} />
               </div>
             </div>
           </div>
@@ -1054,15 +1062,18 @@ function OkrsSection({ client, accent }: { client: Client; accent: string }) {
                 onChange={(patch) => updateKr(okr.id, kr.id, patch)}
                 onRemove={() => removeKr(okr.id, kr.id)}
                 hasAdsData={Object.values(client.adsConnected).some(Boolean)}
+                readOnly={readOnly}
               />
             ))}
-            <button
-              onClick={() => addKr(okr.id)}
-              disabled={okr.keyResults.length >= 5}
-              className="w-full rounded-[10px] border border-dashed border-border-default py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition disabled:opacity-50"
-            >
-              <Plus className="h-3.5 w-3.5 inline mr-1" /> Agregar Key Result (máx 5)
-            </button>
+            {!readOnly && (
+              <button
+                onClick={() => addKr(okr.id)}
+                disabled={okr.keyResults.length >= 5}
+                className="w-full rounded-[10px] border border-dashed border-border-default py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5 inline mr-1" /> Agregar Key Result (máx 5)
+              </button>
+            )}
           </div>
         </div>
       ))}
@@ -1082,6 +1093,7 @@ function OkrsSection({ client, accent }: { client: Client; accent: string }) {
                 next[i] = e.target.value;
                 setSuccessIndicators(client.id, next);
               }}
+              disabled={readOnly}
             />
           ))}
         </div>
@@ -1091,7 +1103,7 @@ function OkrsSection({ client, accent }: { client: Client; accent: string }) {
 }
 
 function KrCard({
-  kr, accent, duration, onChange, onRemove, hasAdsData,
+  kr, accent, duration, onChange, onRemove, hasAdsData, readOnly = false,
 }: {
   kr: KeyResult;
   accent: string;
@@ -1099,6 +1111,7 @@ function KrCard({
   onChange: (patch: Partial<KeyResult>) => void;
   onRemove: () => void;
   hasAdsData: boolean;
+  readOnly?: boolean;
 }) {
   const [linkModalOpen, setLinkModalOpen] = useState(false);
 
@@ -1134,7 +1147,8 @@ function KrCard({
             value={kr.description}
             onChange={(e) => onChange({ description: e.target.value })}
             placeholder="Descripción del Key Result"
-            className="w-full bg-bg-elevated/40 border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-violet/60"
+            disabled={readOnly}
+            className="w-full bg-bg-elevated/40 border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-violet/60 disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ caretColor: accent }}
           />
           {linkedLabel && (
@@ -1152,18 +1166,20 @@ function KrCard({
             </div>
           )}
         </div>
-        <button
-          onClick={onRemove}
-          className="h-9 w-9 rounded-md text-text-muted hover:text-status-danger hover:bg-bg-elevated"
-          aria-label="Eliminar"
-        >
-          <Trash2 className="h-4 w-4 mx-auto" />
-        </button>
+        {!readOnly && (
+          <button
+            onClick={onRemove}
+            className="h-9 w-9 rounded-md text-text-muted hover:text-status-danger hover:bg-bg-elevated"
+            aria-label="Eliminar"
+          >
+            <Trash2 className="h-4 w-4 mx-auto" />
+          </button>
+        )}
       </div>
 
       {/* Valores y acción */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-3">
-        <Input label="Inicial" type="number" value={kr.initialValue} onChange={(e) => onChange({ initialValue: Number(e.target.value) })} />
+        <Input label="Inicial" type="number" value={kr.initialValue} onChange={(e) => onChange({ initialValue: Number(e.target.value) })} disabled={readOnly} />
         <div>
           <label className="text-xs font-medium text-text-secondary mb-1.5 block">Actual</label>
           {hasRealData ? (
@@ -1179,24 +1195,27 @@ function KrCard({
               type="number"
               value={kr.currentValue}
               onChange={(e) => onChange({ currentValue: Number(e.target.value) })}
-              className="w-full h-10 rounded-md border border-border-subtle bg-bg-surface px-3 text-sm text-text-primary outline-none focus:border-accent-violet/60"
+              disabled={readOnly}
+              className="w-full h-10 rounded-md border border-border-subtle bg-bg-surface px-3 text-sm text-text-primary outline-none focus:border-accent-violet/60 disabled:opacity-60 disabled:cursor-not-allowed"
             />
           )}
         </div>
-        <Input label="Meta" type="number" value={kr.targetValue} onChange={(e) => onChange({ targetValue: Number(e.target.value) })} />
+        <Input label="Meta" type="number" value={kr.targetValue} onChange={(e) => onChange({ targetValue: Number(e.target.value) })} disabled={readOnly} />
         <Select label="Unidad" value={kr.unit} options={[
           { value: 'USD', label: 'USD' }, { value: '%', label: '%' }, { value: 'count', label: 'Conteo' }, { value: 'ROAS', label: 'ROAS' },
-        ]} onChange={(e) => onChange({ unit: e.target.value as KeyResult['unit'] })} />
-        <div>
-          <div className="text-xs font-medium text-text-secondary mb-1.5">Acción</div>
-          <button
-            onClick={() => setLinkModalOpen(true)}
-            className="w-full h-10 rounded-md border border-border-subtle text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated inline-flex items-center justify-center gap-1"
-            title="Vincular a métrica del módulo ADS"
-          >
-            <Link2 className="h-3.5 w-3.5" /> {kr.linkedToMetric ? 'Cambiar' : 'Vincular ADS'}
-          </button>
-        </div>
+        ]} onChange={(e) => onChange({ unit: e.target.value as KeyResult['unit'] })} disabled={readOnly} />
+        {!readOnly && (
+          <div>
+            <div className="text-xs font-medium text-text-secondary mb-1.5">Acción</div>
+            <button
+              onClick={() => setLinkModalOpen(true)}
+              className="w-full h-10 rounded-md border border-border-subtle text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated inline-flex items-center justify-center gap-1"
+              title="Vincular a métrica del módulo ADS"
+            >
+              <Link2 className="h-3.5 w-3.5" /> {kr.linkedToMetric ? 'Cambiar' : 'Vincular ADS'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Progreso */}
@@ -1307,7 +1326,7 @@ const AD_METRIC_LABEL: Record<AdMetricKind, string> = {
 
 const INV_COLORS = ['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#A78BFA', '#34D399', '#F97316', '#EC4899'];
 
-function InvestmentSection({ client, accent }: { client: Client; accent: string }) {
+function InvestmentSection({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const setInvestment = useProjectionStore((s) => s.setInvestment);
   const setDuration = useProjectionStore((s) => s.setDuration);
@@ -1373,29 +1392,35 @@ function InvestmentSection({ client, accent }: { client: Client; accent: string 
                 value={state.durationMonths}
                 onChange={(e) => setDuration(client.id, Math.max(1, Number(e.target.value)))}
                 className="w-32"
+                disabled={readOnly}
               />
-              <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={addLine}>
-                Agregar línea
-              </Button>
+              {!readOnly && (
+                <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={addLine}>
+                  Agregar línea
+                </Button>
+              )}
             </div>
           </header>
           <div className="space-y-2">
             {lines.map((l) => (
-              <div key={l.id} className="grid grid-cols-[1.5fr_120px_auto] gap-2 items-center">
-                <Input value={l.category} onChange={(e) => updateLine(l.id, { category: e.target.value })} />
+              <div key={l.id} className={cn('grid gap-2 items-center', readOnly ? 'grid-cols-[1.5fr_120px]' : 'grid-cols-[1.5fr_120px_auto]')}>
+                <Input value={l.category} onChange={(e) => updateLine(l.id, { category: e.target.value })} disabled={readOnly} />
                 <Input
                   type="number"
                   value={l.monthly}
                   onChange={(e) => updateLine(l.id, { monthly: Number(e.target.value) })}
                   leftAdornment="$"
+                  disabled={readOnly}
                 />
-                <button
-                  onClick={() => removeLine(l.id)}
-                  className="h-10 w-10 rounded-md text-text-muted hover:text-status-danger hover:bg-bg-elevated"
-                  aria-label="Eliminar"
-                >
-                  <Trash2 className="h-4 w-4 mx-auto" />
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => removeLine(l.id)}
+                    className="h-10 w-10 rounded-md text-text-muted hover:text-status-danger hover:bg-bg-elevated"
+                    aria-label="Eliminar"
+                  >
+                    <Trash2 className="h-4 w-4 mx-auto" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1604,7 +1629,7 @@ const DEBRIEF_SECTIONS: Array<{ id: keyof import('@/types/projection').Debriefin
   { id: 'appendices',       title: '11. Apéndices' },
 ];
 
-function DebriefingSection({ client, accent }: { client: Client; accent: string }) {
+function DebriefingSection({ client, accent, readOnly = false }: { client: Client; accent: string; readOnly?: boolean }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const patch = useProjectionStore((s) => s.patchDebriefing);
   const debrief = state.debriefing;
@@ -1657,6 +1682,7 @@ function DebriefingSection({ client, accent }: { client: Client; accent: string 
           client={client}
           value={debrief[s.id]}
           onChange={(v) => patch(client.id, { [s.id]: v } as never)}
+          readOnly={readOnly}
         />
       ))}
     </div>
@@ -1754,13 +1780,14 @@ function sectionHasContent(v: unknown): boolean {
 }
 
 function DebriefingItem({
-  title, sectionKey, client, value, onChange,
+  title, sectionKey, client, value, onChange, readOnly = false,
 }: {
   title: string;
   sectionKey: keyof import('@/types/projection').DebriefingSections;
   client: Client;
   value: unknown;
   onChange: (v: unknown) => void;
+  readOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasContent = sectionHasContent(value);
@@ -1801,28 +1828,29 @@ function DebriefingItem({
               rows={5}
               value={(value as { text?: string } | undefined)?.text ?? ''}
               onChange={(e) => onChange({ text: e.target.value, autoGenerated: false })}
+              disabled={readOnly}
             />
           ) : sectionKey === 'context' ? (
-            <ContextEditor value={value as never} onChange={onChange} />
+            <ContextEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : sectionKey === 'valueProp' ? (
-            <ValuePropEditor value={value as never} onChange={onChange} />
+            <ValuePropEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : sectionKey === 'communication' ? (
-            <CommunicationEditor value={value as never} onChange={onChange} />
+            <CommunicationEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : sectionKey === 'salesSystem' ? (
-            <SalesSystemEditor value={value as never} onChange={onChange} client={client} />
+            <SalesSystemEditor value={value as never} onChange={onChange} client={client} readOnly={readOnly} />
           ) : sectionKey === 'successMetrics' ? (
-            <SuccessMetricsEditor value={value as never} onChange={onChange} />
+            <SuccessMetricsEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : sectionKey === 'team' ? (
-            <TeamRaciEditor value={value as never} onChange={onChange} />
+            <TeamRaciEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : sectionKey === 'timeline' ? (
-            <TimelineEditor value={value as never} onChange={onChange} />
+            <TimelineEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : sectionKey === 'agreements' ? (
-            <AgreementsEditor value={value as never} onChange={onChange} />
+            <AgreementsEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : sectionKey === 'appendices' ? (
-            <AppendicesEditor value={value as never} onChange={onChange} />
+            <AppendicesEditor value={value as never} onChange={onChange} readOnly={readOnly} />
           ) : null}
 
-          {(sectionKey === 'executiveSummary' || sectionKey === 'idealClient' || sectionKey === 'valueProp') && (
+          {!readOnly && (sectionKey === 'executiveSummary' || sectionKey === 'idealClient' || sectionKey === 'valueProp') && (
             <Button size="sm" variant="secondary" leftIcon={<Sparkles className="h-3.5 w-3.5" />} onClick={generateAi}>
               Generar con IA
             </Button>
@@ -1835,66 +1863,66 @@ function DebriefingItem({
 
 /* ─── Editores por sub-sección ─── */
 
-function ContextEditor({ value, onChange }: { value?: { situation?: string; challenges?: string; opportunities?: string; swot?: { s?: string; w?: string; o?: string; t?: string } }; onChange: (v: unknown) => void }) {
+function ContextEditor({ value, onChange, readOnly = false }: { value?: { situation?: string; challenges?: string; opportunities?: string; swot?: { s?: string; w?: string; o?: string; t?: string } }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const v = value ?? {};
   const swot = v.swot ?? {};
   const set = (patch: typeof v) => onChange({ ...v, ...patch });
   return (
     <div className="space-y-3">
-      <Textarea label="Situación del cliente antes del proyecto" rows={3} value={v.situation ?? ''} onChange={(e) => set({ situation: e.target.value })} />
-      <Textarea label="Principales desafíos" rows={3} value={v.challenges ?? ''} onChange={(e) => set({ challenges: e.target.value })} />
-      <Textarea label="Oportunidades detectadas" rows={3} value={v.opportunities ?? ''} onChange={(e) => set({ opportunities: e.target.value })} />
+      <Textarea label="Situación del cliente antes del proyecto" rows={3} value={v.situation ?? ''} onChange={(e) => set({ situation: e.target.value })} disabled={readOnly} />
+      <Textarea label="Principales desafíos" rows={3} value={v.challenges ?? ''} onChange={(e) => set({ challenges: e.target.value })} disabled={readOnly} />
+      <Textarea label="Oportunidades detectadas" rows={3} value={v.opportunities ?? ''} onChange={(e) => set({ opportunities: e.target.value })} disabled={readOnly} />
       <div className="text-[10px] uppercase tracking-wider text-text-muted mt-2">Análisis FODA</div>
       <div className="grid grid-cols-2 gap-2">
-        <Textarea label="Fortalezas" rows={2} value={swot.s ?? ''} onChange={(e) => set({ swot: { ...swot, s: e.target.value } })} />
-        <Textarea label="Debilidades" rows={2} value={swot.w ?? ''} onChange={(e) => set({ swot: { ...swot, w: e.target.value } })} />
-        <Textarea label="Oportunidades" rows={2} value={swot.o ?? ''} onChange={(e) => set({ swot: { ...swot, o: e.target.value } })} />
-        <Textarea label="Amenazas" rows={2} value={swot.t ?? ''} onChange={(e) => set({ swot: { ...swot, t: e.target.value } })} />
+        <Textarea label="Fortalezas" rows={2} value={swot.s ?? ''} onChange={(e) => set({ swot: { ...swot, s: e.target.value } })} disabled={readOnly} />
+        <Textarea label="Debilidades" rows={2} value={swot.w ?? ''} onChange={(e) => set({ swot: { ...swot, w: e.target.value } })} disabled={readOnly} />
+        <Textarea label="Oportunidades" rows={2} value={swot.o ?? ''} onChange={(e) => set({ swot: { ...swot, o: e.target.value } })} disabled={readOnly} />
+        <Textarea label="Amenazas" rows={2} value={swot.t ?? ''} onChange={(e) => set({ swot: { ...swot, t: e.target.value } })} disabled={readOnly} />
       </div>
     </div>
   );
 }
 
-function ValuePropEditor({ value, onChange }: { value?: { text?: string; bigIdea?: string; guarantees?: string }; onChange: (v: unknown) => void }) {
+function ValuePropEditor({ value, onChange, readOnly = false }: { value?: { text?: string; bigIdea?: string; guarantees?: string }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const v = value ?? {};
   return (
     <div className="space-y-3">
-      <Textarea label="Oferta irresistible" rows={4} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} />
-      <Textarea label="The Big Idea (mensaje central)" rows={2} value={v.bigIdea ?? ''} onChange={(e) => onChange({ ...v, bigIdea: e.target.value })} />
-      <Textarea label="Garantías / elementos que reducen riesgo" rows={3} value={v.guarantees ?? ''} onChange={(e) => onChange({ ...v, guarantees: e.target.value })} />
+      <Textarea label="Oferta irresistible" rows={4} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} disabled={readOnly} />
+      <Textarea label="The Big Idea (mensaje central)" rows={2} value={v.bigIdea ?? ''} onChange={(e) => onChange({ ...v, bigIdea: e.target.value })} disabled={readOnly} />
+      <Textarea label="Garantías / elementos que reducen riesgo" rows={3} value={v.guarantees ?? ''} onChange={(e) => onChange({ ...v, guarantees: e.target.value })} disabled={readOnly} />
     </div>
   );
 }
 
-function CommunicationEditor({ value, onChange }: { value?: { text?: string; tone?: string; angles?: string[] }; onChange: (v: unknown) => void }) {
+function CommunicationEditor({ value, onChange, readOnly = false }: { value?: { text?: string; tone?: string; angles?: string[] }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const v = value ?? {};
   const angles = v.angles ?? [];
   return (
     <div className="space-y-3">
-      <Textarea label="Narrativa de marca resumida" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} />
-      <Input label="Tono y voz" value={v.tone ?? ''} onChange={(e) => onChange({ ...v, tone: e.target.value })} />
+      <Textarea label="Narrativa de marca resumida" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} disabled={readOnly} />
+      <Input label="Tono y voz" value={v.tone ?? ''} onChange={(e) => onChange({ ...v, tone: e.target.value })} disabled={readOnly} />
       <Textarea label="Ángulos de comunicación (uno por línea, 5-7)" rows={5}
         value={angles.join('\n')}
-        onChange={(e) => onChange({ ...v, angles: e.target.value.split('\n').filter(Boolean).slice(0, 7) })} />
+        onChange={(e) => onChange({ ...v, angles: e.target.value.split('\n').filter(Boolean).slice(0, 7) })} disabled={readOnly} />
     </div>
   );
 }
 
-function SalesSystemEditor({ value, onChange, client }: { value?: { text?: string; funnel?: string; stack?: string }; onChange: (v: unknown) => void; client: Client }) {
+function SalesSystemEditor({ value, onChange, client, readOnly = false }: { value?: { text?: string; funnel?: string; stack?: string }; onChange: (v: unknown) => void; client: Client; readOnly?: boolean }) {
   const v = value ?? {};
   return (
     <div className="space-y-3">
       <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 text-xs text-text-secondary">
         Tipo de sistema actual: <strong className="text-text-primary capitalize">{client.projectType.replace('_', ' ')}</strong>
       </div>
-      <Textarea label="Descripción del sistema de ventas" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} />
-      <Textarea label="Funnel completo (paso a paso)" rows={4} value={v.funnel ?? ''} onChange={(e) => onChange({ ...v, funnel: e.target.value })} />
-      <Textarea label="Stack de herramientas" rows={3} value={v.stack ?? ''} onChange={(e) => onChange({ ...v, stack: e.target.value })} />
+      <Textarea label="Descripción del sistema de ventas" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} disabled={readOnly} />
+      <Textarea label="Funnel completo (paso a paso)" rows={4} value={v.funnel ?? ''} onChange={(e) => onChange({ ...v, funnel: e.target.value })} disabled={readOnly} />
+      <Textarea label="Stack de herramientas" rows={3} value={v.stack ?? ''} onChange={(e) => onChange({ ...v, stack: e.target.value })} disabled={readOnly} />
     </div>
   );
 }
 
-function SuccessMetricsEditor({ value, onChange }: { value?: { kpis?: Array<{ name: string; frequency: string; owner: string; alertThreshold: string }> }; onChange: (v: unknown) => void }) {
+function SuccessMetricsEditor({ value, onChange, readOnly = false }: { value?: { kpis?: Array<{ name: string; frequency: string; owner: string; alertThreshold: string }> }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const kpis = value?.kpis ?? [];
   const update = (i: number, patch: Partial<{ name: string; frequency: string; owner: string; alertThreshold: string }>) =>
     onChange({ kpis: kpis.map((k, idx) => (idx === i ? { ...k, ...patch } : k)) });
@@ -1904,83 +1932,85 @@ function SuccessMetricsEditor({ value, onChange }: { value?: { kpis?: Array<{ na
     <div className="space-y-2">
       {kpis.map((k, i) => (
         <div key={i} className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_1.2fr_auto] gap-2 items-end">
-          <Input label="KPI" value={k.name} onChange={(e) => update(i, { name: e.target.value })} />
-          <Input label="Frecuencia" value={k.frequency} onChange={(e) => update(i, { frequency: e.target.value })} placeholder="semanal / mensual" />
-          <Input label="Responsable" value={k.owner} onChange={(e) => update(i, { owner: e.target.value })} />
-          <Input label="Umbral de alerta" value={k.alertThreshold} onChange={(e) => update(i, { alertThreshold: e.target.value })} />
-          <button onClick={() => remove(i)} className="h-10 w-10 rounded-md text-text-muted hover:text-status-danger hover:bg-bg-elevated">
-            <Trash2 className="h-4 w-4 mx-auto" />
-          </button>
+          <Input label="KPI" value={k.name} onChange={(e) => update(i, { name: e.target.value })} disabled={readOnly} />
+          <Input label="Frecuencia" value={k.frequency} onChange={(e) => update(i, { frequency: e.target.value })} placeholder="semanal / mensual" disabled={readOnly} />
+          <Input label="Responsable" value={k.owner} onChange={(e) => update(i, { owner: e.target.value })} disabled={readOnly} />
+          <Input label="Umbral de alerta" value={k.alertThreshold} onChange={(e) => update(i, { alertThreshold: e.target.value })} disabled={readOnly} />
+          {!readOnly && (
+            <button onClick={() => remove(i)} className="h-10 w-10 rounded-md text-text-muted hover:text-status-danger hover:bg-bg-elevated">
+              <Trash2 className="h-4 w-4 mx-auto" />
+            </button>
+          )}
         </div>
       ))}
-      <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={add}>Agregar KPI</Button>
+      {!readOnly && <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={add}>Agregar KPI</Button>}
     </div>
   );
 }
 
-function TeamRaciEditor({ value, onChange }: { value?: { text?: string; raci?: Array<{ task: string; responsible: string; accountable: string; consulted: string; informed: string }> }; onChange: (v: unknown) => void }) {
+function TeamRaciEditor({ value, onChange, readOnly = false }: { value?: { text?: string; raci?: Array<{ task: string; responsible: string; accountable: string; consulted: string; informed: string }> }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const v = value ?? {};
   const raci = v.raci ?? [];
   const update = (i: number, patch: Partial<typeof raci[number]>) => onChange({ ...v, raci: raci.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) });
   const add = () => onChange({ ...v, raci: [...raci, { task: '', responsible: '', accountable: '', consulted: '', informed: '' }] });
   return (
     <div className="space-y-3">
-      <Textarea label="Equipo y responsabilidades clave" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} />
+      <Textarea label="Equipo y responsabilidades clave" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} disabled={readOnly} />
       <div className="text-[10px] uppercase tracking-wider text-text-muted">Matriz RACI</div>
       {raci.map((r, i) => (
         <div key={i} className="grid grid-cols-5 gap-2">
-          <Input placeholder="Tarea / Decisión" value={r.task} onChange={(e) => update(i, { task: e.target.value })} />
-          <Input placeholder="Responsable" value={r.responsible} onChange={(e) => update(i, { responsible: e.target.value })} />
-          <Input placeholder="Aprobador" value={r.accountable} onChange={(e) => update(i, { accountable: e.target.value })} />
-          <Input placeholder="Consultado" value={r.consulted} onChange={(e) => update(i, { consulted: e.target.value })} />
-          <Input placeholder="Informado" value={r.informed} onChange={(e) => update(i, { informed: e.target.value })} />
+          <Input placeholder="Tarea / Decisión" value={r.task} onChange={(e) => update(i, { task: e.target.value })} disabled={readOnly} />
+          <Input placeholder="Responsable" value={r.responsible} onChange={(e) => update(i, { responsible: e.target.value })} disabled={readOnly} />
+          <Input placeholder="Aprobador" value={r.accountable} onChange={(e) => update(i, { accountable: e.target.value })} disabled={readOnly} />
+          <Input placeholder="Consultado" value={r.consulted} onChange={(e) => update(i, { consulted: e.target.value })} disabled={readOnly} />
+          <Input placeholder="Informado" value={r.informed} onChange={(e) => update(i, { informed: e.target.value })} disabled={readOnly} />
         </div>
       ))}
-      <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={add}>Agregar fila RACI</Button>
+      {!readOnly && <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={add}>Agregar fila RACI</Button>}
     </div>
   );
 }
 
-function TimelineEditor({ value, onChange }: { value?: { text?: string; nextMilestones?: Array<{ title: string; date: string }> }; onChange: (v: unknown) => void }) {
+function TimelineEditor({ value, onChange, readOnly = false }: { value?: { text?: string; nextMilestones?: Array<{ title: string; date: string }> }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const v = value ?? {};
   const ms = v.nextMilestones ?? [];
   const update = (i: number, patch: Partial<typeof ms[number]>) => onChange({ ...v, nextMilestones: ms.map((m, idx) => (idx === i ? { ...m, ...patch } : m)) });
   const add = () => onChange({ ...v, nextMilestones: [...ms, { title: '', date: '' }].slice(0, 3) });
   return (
     <div className="space-y-3">
-      <Textarea label="Timeline resumido" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} />
+      <Textarea label="Timeline resumido" rows={3} value={v.text ?? ''} onChange={(e) => onChange({ ...v, text: e.target.value })} disabled={readOnly} />
       <div className="text-[10px] uppercase tracking-wider text-text-muted">Próximos 3 hitos</div>
       {ms.map((m, i) => (
         <div key={i} className="grid grid-cols-[2fr_1fr] gap-2">
-          <Input placeholder="Hito" value={m.title} onChange={(e) => update(i, { title: e.target.value })} />
-          <Input type="date" value={m.date} onChange={(e) => update(i, { date: e.target.value })} />
+          <Input placeholder="Hito" value={m.title} onChange={(e) => update(i, { title: e.target.value })} disabled={readOnly} />
+          <Input type="date" value={m.date} onChange={(e) => update(i, { date: e.target.value })} disabled={readOnly} />
         </div>
       ))}
-      {ms.length < 3 && <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={add}>Agregar hito</Button>}
+      {!readOnly && ms.length < 3 && <Button size="sm" variant="secondary" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={add}>Agregar hito</Button>}
     </div>
   );
 }
 
-function AgreementsEditor({ value, onChange }: { value?: { agencyDelivers?: string; clientProvides?: string; approvalTimes?: string; conditions?: string }; onChange: (v: unknown) => void }) {
+function AgreementsEditor({ value, onChange, readOnly = false }: { value?: { agencyDelivers?: string; clientProvides?: string; approvalTimes?: string; conditions?: string }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const v = value ?? {};
   return (
     <div className="space-y-3">
-      <Textarea label="La agencia se compromete a entregar" rows={3} value={v.agencyDelivers ?? ''} onChange={(e) => onChange({ ...v, agencyDelivers: e.target.value })} />
-      <Textarea label="El cliente se compromete a proveer / aprobar" rows={3} value={v.clientProvides ?? ''} onChange={(e) => onChange({ ...v, clientProvides: e.target.value })} />
-      <Input label="Tiempos de aprobación acordados" value={v.approvalTimes ?? ''} onChange={(e) => onChange({ ...v, approvalTimes: e.target.value })} />
-      <Textarea label="Condiciones del proyecto" rows={3} value={v.conditions ?? ''} onChange={(e) => onChange({ ...v, conditions: e.target.value })} />
+      <Textarea label="La agencia se compromete a entregar" rows={3} value={v.agencyDelivers ?? ''} onChange={(e) => onChange({ ...v, agencyDelivers: e.target.value })} disabled={readOnly} />
+      <Textarea label="El cliente se compromete a proveer / aprobar" rows={3} value={v.clientProvides ?? ''} onChange={(e) => onChange({ ...v, clientProvides: e.target.value })} disabled={readOnly} />
+      <Input label="Tiempos de aprobación acordados" value={v.approvalTimes ?? ''} onChange={(e) => onChange({ ...v, approvalTimes: e.target.value })} disabled={readOnly} />
+      <Textarea label="Condiciones del proyecto" rows={3} value={v.conditions ?? ''} onChange={(e) => onChange({ ...v, conditions: e.target.value })} disabled={readOnly} />
     </div>
   );
 }
 
-function AppendicesEditor({ value, onChange }: { value?: { competitorAnalysis?: string; references?: string; techStack?: string; budget?: string }; onChange: (v: unknown) => void }) {
+function AppendicesEditor({ value, onChange, readOnly = false }: { value?: { competitorAnalysis?: string; references?: string; techStack?: string; budget?: string }; onChange: (v: unknown) => void; readOnly?: boolean }) {
   const v = value ?? {};
   return (
     <div className="space-y-3">
-      <Textarea label="Análisis de competencia detallado" rows={3} value={v.competitorAnalysis ?? ''} onChange={(e) => onChange({ ...v, competitorAnalysis: e.target.value })} />
-      <Textarea label="Referencias visuales / moodboard (URLs)" rows={2} value={v.references ?? ''} onChange={(e) => onChange({ ...v, references: e.target.value })} />
-      <Textarea label="Stack tecnológico recomendado" rows={2} value={v.techStack ?? ''} onChange={(e) => onChange({ ...v, techStack: e.target.value })} />
-      <Textarea label="Presupuesto detallado" rows={3} value={v.budget ?? ''} onChange={(e) => onChange({ ...v, budget: e.target.value })} />
+      <Textarea label="Análisis de competencia detallado" rows={3} value={v.competitorAnalysis ?? ''} onChange={(e) => onChange({ ...v, competitorAnalysis: e.target.value })} disabled={readOnly} />
+      <Textarea label="Referencias visuales / moodboard (URLs)" rows={2} value={v.references ?? ''} onChange={(e) => onChange({ ...v, references: e.target.value })} disabled={readOnly} />
+      <Textarea label="Stack tecnológico recomendado" rows={2} value={v.techStack ?? ''} onChange={(e) => onChange({ ...v, techStack: e.target.value })} disabled={readOnly} />
+      <Textarea label="Presupuesto detallado" rows={3} value={v.budget ?? ''} onChange={(e) => onChange({ ...v, budget: e.target.value })} disabled={readOnly} />
     </div>
   );
 }

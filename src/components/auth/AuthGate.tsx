@@ -1,9 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { getCurrentSession, onAuthChange, requiresAuth } from '@/services/auth';
+import { getCurrentSession, onAuthChange, requiresAuth, resolveUserContext } from '@/services/auth';
 import { useAuthStore } from '@/store/useAuthStore';
-import { supabase } from '@/services/supabase';
 
 /**
  * Guarda las rutas autenticadas. Si no hay Supabase configurado,
@@ -15,6 +14,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const loading = useAuthStore((s) => s.loading);
   const setUser = useAuthStore((s) => s.setUser);
   const setAgencyId = useAuthStore((s) => s.setAgencyId);
+  const setRole = useAuthStore((s) => s.setRole);
+  const setClientAccesses = useAuthStore((s) => s.setClientAccesses);
   const setLoading = useAuthStore((s) => s.setLoading);
   const reset = useAuthStore((s) => s.reset);
   const [ready, setReady] = useState(!requiresAuth);
@@ -32,7 +33,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email ?? '' });
-        await hydrateAgencyId(session.user.id, setAgencyId);
+        await hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
         reset();
       }
@@ -43,7 +44,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthChange((session) => {
       if (session?.user) {
         setUser({ id: session.user.id, email: session.user.email ?? '' });
-        void hydrateAgencyId(session.user.id, setAgencyId);
+        void hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
         reset();
       }
@@ -53,7 +54,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       cancelled = true;
       unsubscribe();
     };
-  }, [setUser, setAgencyId, setLoading, reset]);
+  }, [setUser, setAgencyId, setRole, setClientAccesses, setLoading, reset]);
 
   if (!ready || loading) {
     return (
@@ -72,19 +73,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-async function hydrateAgencyId(userId: string, setAgencyId: (id: string | null) => void): Promise<void> {
-  if (!supabase) return;
+async function hydrateContext(
+  userId: string,
+  setAgencyId: (id: string | null) => void,
+  setRole: (r: 'owner' | 'member' | null) => void,
+  setClientAccesses: (list: import('@/store/useAuthStore').ClientAccess[]) => void,
+): Promise<void> {
   try {
-    const { data, error } = await supabase
-      .from('agencies')
-      .select('id')
-      .eq('owner_id', userId)
-      .limit(1)
-      .maybeSingle();
-    if (error) throw error;
-    setAgencyId(data?.id ?? null);
+    const ctx = await resolveUserContext(userId);
+    setRole(ctx.role);
+    setAgencyId(ctx.agencyId);
+    setClientAccesses(ctx.clientAccesses);
   } catch (e) {
-    console.warn('[auth] No se pudo cargar agency_id', e);
+    console.warn('[auth] No se pudo resolver el contexto del usuario', e);
+    setRole('owner');
     setAgencyId(null);
+    setClientAccesses([]);
   }
 }

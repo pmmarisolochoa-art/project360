@@ -8,7 +8,10 @@ export type TeamRoleSlug =
   | 'funnel_builder'
   | 'editor'
   | 'closer'
-  | 'onboarding';
+  | 'onboarding'
+  | 'platforms'
+  | 'creative_lead'
+  | 'expert';
 
 export type KpiDirection = 'higher_better' | 'lower_better';
 
@@ -248,6 +251,57 @@ export const ROLE_DEFS: RoleDef[] = [
       { key: 'onboarding_time', label: 'Tiempo onboarding', unit: 'h', target: 24, direction: 'lower_better', redThreshold: 72, yellowThreshold: 48 },
       { key: 'activation_rate', label: 'Activación 7 días', unit: '%', target: 85, direction: 'higher_better', redThreshold: 60, yellowThreshold: 75 },
       { key: 'support_response', label: 'Tiempo respuesta soporte', unit: 'h', target: 4, direction: 'lower_better', redThreshold: 12, yellowThreshold: 8 },
+    ],
+  },
+  {
+    slug: 'platforms',
+    title: 'Plataformas',
+    fullTitle: 'Plataformas / Gestión de Herramientas',
+    functions: [
+      'Configurar y mantener las plataformas del cliente (Skool, Telegram, CRM, email, etc.)',
+      'Gestionar accesos, usuarios y permisos',
+      'Integrar herramientas entre sí y con el stack de marketing',
+      'Resolver incidencias técnicas de las plataformas',
+      'Documentar configuraciones y credenciales de forma segura',
+    ],
+    kpis: [
+      { key: 'platform_uptime', label: 'Disponibilidad plataformas', unit: '%', target: 99.5, direction: 'higher_better', redThreshold: 97, yellowThreshold: 99 },
+      { key: 'access_response', label: 'Tiempo alta de accesos', unit: 'h', target: 4, direction: 'lower_better', redThreshold: 24, yellowThreshold: 12 },
+      { key: 'incidents_open', label: 'Incidencias abiertas', target: 0, direction: 'lower_better', redThreshold: 4, yellowThreshold: 2 },
+    ],
+  },
+  {
+    slug: 'creative_lead',
+    title: 'Líder Creativo',
+    fullTitle: 'Líder Creativo / Creative Lead',
+    functions: [
+      'Definir y custodiar la línea creativa del cliente',
+      'Aprobar conceptos y piezas antes de producción',
+      'Asegurar coherencia con el manual de marca',
+      'Guiar a diseñadores, editores y copywriters',
+      'Proponer nuevos ángulos y formatos creativos',
+    ],
+    kpis: [
+      { key: 'first_approval', label: 'Piezas aprobadas en 1ª revisión', unit: '%', target: 75, direction: 'higher_better', redThreshold: 50, yellowThreshold: 65 },
+      { key: 'brand_consistency', label: 'Consistencia de marca', unit: '%', target: 95, direction: 'higher_better', redThreshold: 75, yellowThreshold: 88 },
+      { key: 'concepts_delivered', label: 'Conceptos propuestos/mes', target: 6, direction: 'higher_better', redThreshold: 2, yellowThreshold: 4 },
+    ],
+  },
+  {
+    slug: 'expert',
+    title: 'Experto',
+    fullTitle: 'Experto / Especialista de Contenido',
+    functions: [
+      'Aportar el conocimiento experto del nicho del cliente',
+      'Validar la precisión técnica de copies, guiones y materiales',
+      'Entrenar al equipo en los temas clave del producto/servicio',
+      'Revisar y aprobar contenido de alto valor',
+      'Detectar oportunidades de contenido diferenciador',
+    ],
+    kpis: [
+      { key: 'content_accuracy', label: 'Precisión del contenido', unit: '%', target: 98, direction: 'higher_better', redThreshold: 85, yellowThreshold: 94 },
+      { key: 'reviews_on_time', label: 'Revisiones a tiempo', unit: '%', target: 90, direction: 'higher_better', redThreshold: 70, yellowThreshold: 82 },
+      { key: 'expert_inputs', label: 'Aportes experto/mes', target: 4, direction: 'higher_better', redThreshold: 1, yellowThreshold: 2 },
     ],
   },
 ];

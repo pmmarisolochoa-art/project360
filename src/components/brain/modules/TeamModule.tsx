@@ -36,6 +36,9 @@ const ROLE_ICON: Record<TeamRoleSlug, typeof Briefcase> = {
   editor: Film,
   closer: PhoneCall,
   onboarding: HeartHandshake,
+  platforms: Wrench,
+  creative_lead: Palette,
+  expert: Briefcase,
 };
 
 export function TeamModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {

@@ -34,6 +34,9 @@ const NAMES_BY_ROLE: Record<TeamRoleSlug, string> = {
   editor: 'Sin asignar',
   closer: 'Sin asignar',
   onboarding: 'Sin asignar',
+  platforms: 'Sin asignar',
+  creative_lead: 'Sin asignar',
+  expert: 'Sin asignar',
 };
 
 function defaultBottleneck(role: TeamRoleSlug): string {
@@ -48,6 +51,9 @@ function defaultBottleneck(role: TeamRoleSlug): string {
     editor: '',
     closer: '',
     onboarding: '',
+    platforms: '',
+    creative_lead: '',
+    expert: '',
   } as Record<TeamRoleSlug, string>)[role];
 }
 
@@ -95,6 +101,9 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     editor: seedWeekly('editor'),
     closer: seedWeekly('closer'),
     onboarding: seedWeekly('onboarding'),
+    platforms: seedWeekly('platforms'),
+    creative_lead: seedWeekly('creative_lead'),
+    expert: seedWeekly('expert'),
   },
   ensureForClient: (clientId) => {
     const existing = get().assignments.filter((a) => a.clientId === clientId);

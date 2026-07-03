@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-07-02 — Capa 1: dashboard del miembro EN PRODUCCIÓN + fix de persistencia reuniones/ROPRE
+
+**Qué:** Se construyó, validó y **desplegó a producción** (main → Vercel) el espacio de trabajo del miembro del equipo (Capa 1, multi-cliente), y se corrigió un bug de fondo que impedía compartir datos entre owner y equipo.
+
+**Decisión de dirección:** el miembro del equipo trabaja en **varios clientes** (una persona sirve a varios) → el modelo es un **dashboard personal multi-cliente**, no scopeado a 1 cliente. Se adaptó el spec (que asumía un esquema `profiles`/columnas inexistentes) al esquema real, **reusando** la auth de Camino C. La app estaba más avanzada de lo que el spec suponía; no se reconstruyó nada.
+
+**Construido y en vivo (Slice 1 + ajustes):**
+- Auth multi-cliente (`resolveUserContext` → lista de clientes); ruta `/mi-espacio` (saludo, métricas propias, entregas urgentes, últimos links).
+- **Flujo de entregables:** el miembro sube link de Drive → `tasks.drive_link` + tabla `task_links` (migración 019/019b) → el PM lo ve.
+- Tema claro/oscuro para el miembro; sección "Mis clientes" → cronograma de tareas (Kanban/Lista/Gantt).
+- Miembro limitado a 5 módulos del cliente: **Perfil, Tareas, ROPRE, Agenda, Equipo/KPIs** (resto oculto + candado por URL).
+
+**Bug grande arreglado (afectaba también al owner):** reuniones y ROPRE **no persistían a Supabase** (se perdían al recargar; los miembros no las veían). Causas: (a) faltaban policies de lectura para miembros → **018c**; (b) `ropre_items` sin columnas `linked_task_id/last_edited_in_meeting_id/last_edited_at` → cada INSERT fallaba → **020**. Aprendizaje: la BD prod había corrido versiones previas de la 018 → varios parches (018b/018c).
+
+**Registro de personas:** flujo manual en Supabase (crear user en Auth → fila gemela en `public.users` → ligar en `team_members` con `access_level`). **1ª persona real dada de alta:** Juan Camilo Correa (funnel_builder, editor). El botón "invitar" se automatizará en Slice 2.
+
+**Próximos pasos:** registrar al resto del equipo de Ikigai; observar uso real; Slice 2 (aprobación PM, "Mis tareas" con filtros, KPIs personales, botón invitar) sobre feedback real.
+
+---
+
 ## 2026-06-30 — Capa 3: acceso de cliente/equipo a la app (Camino C) — Fase 1+2
 
 **Qué:** Se decide habilitar que usuarios externos (equipo de Ikigai) **inicien sesión y entren a la app**, no solo reciban reportes. Es Camino C (multi-tenant del lado cliente). *Nota: contradice parcialmente la decisión del 24 jun ("no construir multi-tenant hasta ≥3 paguen"); se asume conscientemente porque el dogfooding con Ikigai requiere que el equipo entre y use la app de verdad. La validación de pago sigue pendiente.*

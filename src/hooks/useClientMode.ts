@@ -19,6 +19,8 @@ export function useClientMode(clientId?: string) {
   return {
     isMember,
     accessLevel: access?.accessLevel ?? null,
+    /** Departamentos del miembro en ESTE cliente (vacío = set por defecto). */
+    departamentos: access?.departamentos ?? [],
     /** ¿Es miembro con acceso (a cualquiera de sus clientes)? */
     hasAccessToClient: !clientId || accesses.some((a) => a.clientId === clientId),
     /** Puede crear/mover/editar tareas: owner siempre; miembro solo si es editor. */

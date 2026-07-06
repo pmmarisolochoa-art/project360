@@ -6,7 +6,7 @@ import {
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
 import { useAuthStore } from '@/store/useAuthStore';
-import { moduleSlugsForDepartments } from '@/config/departments';
+import { memberAllowedSlugs } from '@/config/departments';
 
 /** Módulos que un MIEMBRO puede ver dentro de un cliente (el resto es interno del owner). */
 export const MEMBER_MODULE_SLUGS = ['profile', 'tasks', 'ropre', 'meetings', 'team'];
@@ -45,10 +45,7 @@ export function BrainNav({ accent }: { accent: string }) {
   let modules = BRAIN_MODULES;
   if (isMember) {
     const access = id ? accesses.find((a) => a.clientId === id) : accesses[0];
-    const depts = access?.departamentos ?? [];
-    const slugs = depts.length > 0
-      ? moduleSlugsForDepartments(depts)
-      : new Set(MEMBER_MODULE_SLUGS);
+    const slugs = memberAllowedSlugs(access?.departamentos ?? [], MEMBER_MODULE_SLUGS);
     modules = BRAIN_MODULES.filter((m) => slugs.has(m.slug));
   }
 

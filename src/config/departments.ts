@@ -57,3 +57,13 @@ export function moduleSlugsForDepartments(deptIds: string[]): Set<string> {
   }
   return slugs;
 }
+
+/**
+ * Slugs de módulos que un MIEMBRO puede ver Y abrir, según sus departamentos.
+ * Sin departamentos asignados → cae al set por defecto (`fallback`), que
+ * preserva el comportamiento previo. Fuente única para el menú (BrainNav) y
+ * el candado de acceso (ClientBrainPage): así nunca se desincronizan.
+ */
+export function memberAllowedSlugs(departamentos: string[], fallback: string[]): Set<string> {
+  return departamentos.length > 0 ? moduleSlugsForDepartments(departamentos) : new Set(fallback);
+}

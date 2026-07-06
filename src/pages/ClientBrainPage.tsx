@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useClientStore } from '@/store/useClientStore';
 import { BrainHeader } from '@/components/brain/BrainHeader';
 import { BrainNav, BRAIN_MODULES, MEMBER_MODULE_SLUGS } from '@/components/brain/BrainNav';
+import { memberAllowedSlugs } from '@/config/departments';
 import { ProfileModule } from '@/components/brain/modules/ProfileModule';
 import { PlaceholderModule } from '@/components/brain/modules/PlaceholderModule';
 import { MeetingsModule } from '@/components/brain/modules/MeetingsModule';
@@ -106,28 +107,35 @@ export function ClientBrainPage() {
   const location = useLocation();
   const client = useClientStore((s) => s.clients.find((c) => c.id === id));
   const setCurrentClient = useClientStore((s) => s.setCurrentClient);
-  const { isMember, canEditTasks, hasAccessToClient } = useClientMode(id);
+  const { isMember, canEditTasks, hasAccessToClient, departamentos } = useClientMode(id);
+
+  // Módulos que este miembro puede abrir, según sus departamentos (misma fuente
+  // que el menú BrainNav). El primero permitido es su landing por defecto.
+  const allowedSlugs = memberAllowedSlugs(departamentos, MEMBER_MODULE_SLUGS);
+  const firstAllowed = BRAIN_MODULES.find((m) => allowedSlugs.has(m.slug))?.slug ?? 'profile';
 
   useEffect(() => {
     if (id) setCurrentClient(id);
     return () => setCurrentClient(null);
   }, [id, setCurrentClient]);
 
-  // Redirige a /profile si no hay módulo seleccionado.
+  // Redirige al primer módulo permitido si no hay módulo seleccionado.
   useEffect(() => {
     if (id && !module) {
-      navigate(`/client/${id}/profile`, { replace: true });
+      const dest = isMember ? firstAllowed : 'profile';
+      navigate(`/client/${id}/${dest}`, { replace: true });
     }
-  }, [id, module, navigate, location.pathname]);
+  }, [id, module, isMember, firstAllowed, navigate, location.pathname]);
 
   // Blindaje: un miembro solo puede abrir clientes a los que tiene acceso.
   if (isMember && id && !hasAccessToClient) {
     return <Navigate to="/mi-espacio" replace />;
   }
 
-  // Blindaje: un miembro solo ve un subconjunto de módulos (el resto es interno).
-  if (isMember && module && !MEMBER_MODULE_SLUGS.includes(module)) {
-    return <Navigate to={`/client/${id}/tasks`} replace />;
+  // Blindaje: un miembro solo abre los módulos de sus departamentos (el resto
+  // es interno). Redirige a su primer módulo permitido (nunca a uno bloqueado).
+  if (isMember && module && !allowedSlugs.has(module)) {
+    return <Navigate to={`/client/${id}/${firstAllowed}`} replace />;
   }
 
   if (!client) {

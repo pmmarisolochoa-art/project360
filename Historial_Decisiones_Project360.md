@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-07-06 — Departamentos como "lente" de navegación (Opción A) EN PRODUCCIÓN
+
+**Qué:** Se agregó una capa de **departamentos** (PM · Finanzas · Content) que decide qué módulos del cerebro del cliente ve cada persona. Desplegado a producción (main → Vercel).
+
+**Decisión de dirección (clave):** los departamentos **no son dashboards ni módulos duplicados** — son una **lente** (un filtro) sobre el único set de módulos que ya existe (`BRAIN_MODULES`). Se rechazó explícitamente duplicar dashboards por departamento (se desincronizarían) y montar un servidor/BD aparte para Ikigai (dos copias que se separan). El aislamiento por agencia (`agencia_id` + RLS) se pospone hasta tener una **2ª agencia pagando** (Fase 3 SaaS); Ikigai corre en la instancia actual porque es el **caso de prueba**, no una venta externa.
+
+**Modelo confirmado (dos ejes independientes):**
+- **Nivel de acceso:** owner (ve todo) vs. member (ve lo asignado). *Ya existía.*
+- **Departamentos:** lista por persona (multi-departamento). Lo que ve = **unión** de los módulos de sus departamentos, sin duplicar los compartidos (Perfil/Tareas/Equipo). *Nuevo.*
+- **editor/viewer** (quién puede editar) queda intacto — es un tercer eje aparte, no se tocó.
+
+**Construido (Slice 1 — solo el filtro de navegación):**
+- Registro único `DEPARTMENTS` en `src/config/departments.ts` (fuente de verdad de qué módulos trae cada departamento).
+- `BrainNav` filtra el menú por la lista del miembro (`moduleSlugsForDepartments`, unión). **Red de seguridad:** sin departamentos asignados → cae al set de miembro previo (`MEMBER_MODULE_SLUGS`) → cero regresión.
+- Migración **021**: columna `team_members.departamentos` (jsonb, aditiva, no toca RLS ni datos). Asignación aún manual por SQL (como el alta de miembros).
+- **1ª prueba real:** Juan Camilo Correa → `['pm','finanzas','content']` = vista completa (9 módulos), sin convertirlo en owner de agencia.
+
+**Se pospuso deliberadamente (Opción B — carrocería):** la UI del mockup `departamentos-navegable.html` (pestañas de departamento arriba + menú lateral) es solo cosmética sobre el mismo motor; se hará después si al usar A se prefiere ese look. UI para asignar departamentos desde la app también queda para después.
+
+**Próximos pasos:** validar el filtro con Juan (5→9 módulos), probar el corte con `['finanzas']` (solo 3 módulos), decidir si se agrega la carrocería (B), empaquetar Fase 1 = departamento PM para Ikigai.
+
+---
+
 ## 2026-07-02 — Capa 1: dashboard del miembro EN PRODUCCIÓN + fix de persistencia reuniones/ROPRE
 
 **Qué:** Se construyó, validó y **desplegó a producción** (main → Vercel) el espacio de trabajo del miembro del equipo (Capa 1, multi-cliente), y se corrigió un bug de fondo que impedía compartir datos entre owner y equipo.

@@ -6,6 +6,7 @@ import {
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
 import { useAuthStore } from '@/store/useAuthStore';
+import { moduleSlugsForDepartments } from '@/config/departments';
 
 /** Módulos que un MIEMBRO puede ver dentro de un cliente (el resto es interno del owner). */
 export const MEMBER_MODULE_SLUGS = ['profile', 'tasks', 'ropre', 'meetings', 'team'];
@@ -36,9 +37,20 @@ export const BRAIN_MODULES: ModuleDef[] = [
 export function BrainNav({ accent }: { accent: string }) {
   const { id } = useParams();
   const isMember = useAuthStore((s) => s.role === 'member');
-  const modules = isMember
-    ? BRAIN_MODULES.filter((m) => MEMBER_MODULE_SLUGS.includes(m.slug))
-    : BRAIN_MODULES;
+  const accesses = useAuthStore((s) => s.clientAccesses);
+
+  // El owner ve todos los módulos. El miembro ve la UNIÓN de los módulos de sus
+  // departamentos en ESTE cliente. Sin departamentos asignados → set de miembro
+  // por defecto (comportamiento previo, no rompe a nadie).
+  let modules = BRAIN_MODULES;
+  if (isMember) {
+    const access = id ? accesses.find((a) => a.clientId === id) : accesses[0];
+    const depts = access?.departamentos ?? [];
+    const slugs = depts.length > 0
+      ? moduleSlugsForDepartments(depts)
+      : new Set(MEMBER_MODULE_SLUGS);
+    modules = BRAIN_MODULES.filter((m) => slugs.has(m.slug));
+  }
 
   return (
     <nav className="sticky top-0 z-20 bg-bg-base/85 backdrop-blur-md border-b border-border-subtle">

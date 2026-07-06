@@ -14,6 +14,9 @@ export interface ClientAccess {
   nombre: string;
   /** Rol de equipo (slug) en ese cliente: copywriter, strategist, etc. */
   rol: string;
+  /** Departamentos de esta persona en este cliente (ej. ['pm','content']).
+   *  Vacío = ve el set de módulos de miembro por defecto (comportamiento previo). */
+  departamentos: string[];
 }
 
 interface AuthState {

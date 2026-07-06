@@ -50,6 +50,7 @@ export interface ClientAccessCtx {
   teamMemberId: string;
   nombre: string;
   rol: string;
+  departamentos: string[];
 }
 
 /** Contexto resuelto del usuario: qué tipo es y qué puede ver. */
@@ -84,7 +85,7 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
   // 2. ¿Es miembro del equipo de uno o más clientes?
   const { data: members } = await supabase
     .from('team_members')
-    .select('id, client_id, access_level, nombre, rol')
+    .select('id, client_id, access_level, nombre, rol, departamentos')
     .eq('user_id', userId);
   if (members && members.length > 0) {
     return {
@@ -98,6 +99,7 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
           teamMemberId: m.id as string,
           nombre: (m.nombre as string) ?? '',
           rol: (m.rol as string) ?? '',
+          departamentos: Array.isArray(m.departamentos) ? (m.departamentos as string[]) : [],
         })),
     };
   }

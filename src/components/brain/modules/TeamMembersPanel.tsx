@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, X, Trash2, UserPlus, AlertTriangle, Pencil } from 'lucide-react';
+import { Plus, X, Trash2, UserPlus, AlertTriangle, Pencil, KeyRound, Copy, Check } from 'lucide-react';
 import { BarChart, Bar, Cell, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip as RTooltip } from 'recharts';
 import type { Client } from '@/types/client';
 import type { TeamRoleSlug } from '@/types/team';
@@ -8,6 +8,8 @@ import type { TeamMember, CustomKpiDef, CustomKpiType, KpiMeasure } from '@/type
 import { emptyKpis } from '@/types/teamMember';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useClientStore } from '@/store/useClientStore';
+import { DEPARTMENTS, type DepartmentId } from '@/config/departments';
+import { inviteMember } from '@/services/inviteMember';
 import { useTeamKPIs, type MemberKpiSummary } from '@/hooks/useTeamKPIs';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -17,6 +19,7 @@ import { toast } from '@/store/useToastStore';
 import { genId } from '@/utils/id';
 import { resolveRoleLabel } from '@/utils/roleResolver';
 import { generateAccentColor, withAlpha } from '@/utils/colorGenerator';
+import { cn } from '@/utils/cn';
 
 const ROLE_OPTIONS = ROLE_DEFS.map((r) => ({ value: r.slug, label: r.title }));
 const HEALTH_COLOR: Record<'green' | 'yellow' | 'red', string> = {
@@ -33,9 +36,11 @@ const BAR_COLORS = ['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EC4
 export function TeamMembersPanel({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const accent = client.primaryColor;
   const add = useTeamMembersStore((s) => s.add);
+  const addLocal = useTeamMembersStore((s) => s.addLocal);
   const summaries = useTeamKPIs(client.id);
   const allTasks = useClientStore((s) => s.tasks);
   const [addOpen, setAddOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const selected = summaries.find((s) => s.member.id === selectedId) ?? null;
@@ -84,9 +89,14 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
             <div className="kpi-number" style={{ color: accent }}>{health.globalPct}%</div>
           </div>
           {!readOnly && (
-            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
-              Agregar persona
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
+                Agregar persona
+              </Button>
+              <Button leftIcon={<KeyRound className="h-4 w-4" />} onClick={() => setInviteOpen(true)}>
+                Invitar miembro
+              </Button>
+            </div>
           )}
         </div>
       </header>
@@ -216,10 +226,201 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
         />
       )}
 
+      {inviteOpen && (
+        <InviteMemberModal
+          client={client}
+          onClose={() => setInviteOpen(false)}
+          onInvited={(member) => {
+            addLocal(member);
+            setInviteOpen(false);
+          }}
+        />
+      )}
+
       {selected && (
         <MemberDetailModal summary={selected} onClose={() => setSelectedId(null)} readOnly={readOnly} />
       )}
     </section>
+  );
+}
+
+/* ───────────────────────── Modal: invitar miembro (login + acceso) ───────────────────────── */
+
+function genTempPassword(): string {
+  // Contraseña temporal legible: 3 sílabas + 3 dígitos (fácil de dictar).
+  const syl = ['ka', 'lo', 'mi', 'ru', 'sa', 'te', 'vo', 'zi', 'ne', 'pa', 'du', 'fe'];
+  let base = '';
+  for (let i = 0; i < 3; i++) base += syl[Math.floor(Math.random() * syl.length)];
+  const num = Math.floor(100 + Math.random() * 900);
+  return base.charAt(0).toUpperCase() + base.slice(1) + num + '!';
+}
+
+const DEPT_HINT: Record<DepartmentId, string> = {
+  pm: 'Perfil, Tareas, ROPRE, Agenda, Programas, Equipo',
+  finanzas: 'Planeación, Proyección, Métricas',
+  content: 'Contenido, Perfil, Tareas, Equipo',
+};
+
+function InviteMemberModal({
+  client, onClose, onInvited,
+}: {
+  client: Client;
+  onClose: () => void;
+  onInvited: (m: TeamMember) => void;
+}) {
+  const accent = client.primaryColor;
+  const [nombre, setNombre] = useState('');
+  const [email, setEmail] = useState('');
+  const [rol, setRol] = useState<TeamRoleSlug>('project_manager');
+  const [accessLevel, setAccessLevel] = useState<'editor' | 'viewer'>('editor');
+  const [departamentos, setDepartamentos] = useState<DepartmentId[]>(['pm']);
+  const [password, setPassword] = useState(genTempPassword());
+  const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const toggleDept = (id: DepartmentId) => {
+    setDepartamentos((prev) => (prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]));
+  };
+
+  const copyPass = async () => {
+    try {
+      await navigator.clipboard.writeText(password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* ignore */ }
+  };
+
+  const submit = async () => {
+    if (!nombre.trim()) { toast.error('Escribe el nombre de la persona'); return; }
+    if (!email.trim()) { toast.error('Escribe el correo de acceso'); return; }
+    if (departamentos.length === 0) { toast.error('Elige al menos un departamento'); return; }
+    if (password.length < 8) { toast.error('La contraseña temporal debe tener al menos 8 caracteres'); return; }
+
+    setSaving(true);
+    try {
+      const roleDef = ROLE_DEFS.find((r) => r.slug === rol);
+      const avatarColor = generateAccentColor(nombre.trim());
+      const funciones = [...(roleDef?.functions ?? [])];
+      const result = await inviteMember({
+        clientId: client.id,
+        email: email.trim(),
+        nombre: nombre.trim(),
+        rol,
+        accessLevel,
+        departamentos,
+        password,
+        avatarColor,
+        funciones,
+      });
+
+      const member: TeamMember = {
+        id: result.memberId,
+        clientId: client.id,
+        nombre: nombre.trim(),
+        rol,
+        email: email.trim(),
+        avatarColor,
+        funciones,
+        kpis: emptyKpis(),
+        createdAt: new Date().toISOString(),
+      };
+      toast.success(`${member.nombre} ya puede entrar. Comparte su correo y contraseña temporal.`);
+      onInvited(member);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo invitar al miembro');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Invitar miembro"
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button size="sm" leftIcon={<KeyRound className="h-3.5 w-3.5" />} onClick={submit} disabled={saving}>
+            {saving ? 'Creando acceso…' : 'Crear acceso'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-[11px] text-text-muted">
+          Crea el login de la persona y define qué puede ver. Le compartes su correo y la contraseña temporal;
+          él la cambia al entrar.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Laura Gómez" autoFocus />
+          <Input label="Correo de acceso" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="laura@agencia.com" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Rol" value={rol} options={ROLE_OPTIONS} onChange={(e) => setRol(e.target.value as TeamRoleSlug)} />
+          <Select
+            label="Puede editar"
+            value={accessLevel}
+            options={[{ value: 'editor', label: 'Editor — ejecuta y edita' }, { value: 'viewer', label: 'Viewer — solo lectura' }]}
+            onChange={(e) => setAccessLevel(e.target.value as 'editor' | 'viewer')}
+          />
+        </div>
+
+        {/* Departamentos = qué módulos ve */}
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-text-muted mb-1.5">
+            Accesos permitidos (departamentos)
+          </label>
+          <div className="space-y-1.5">
+            {DEPARTMENTS.map((d) => {
+              const on = departamentos.includes(d.id);
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => toggleDept(d.id)}
+                  className={cn(
+                    'w-full flex items-start gap-2.5 rounded-[8px] border px-3 py-2 text-left transition',
+                    on ? 'border-transparent bg-bg-elevated' : 'border-border-subtle bg-bg-base/30 hover:bg-bg-elevated/60',
+                  )}
+                  style={on ? { boxShadow: `inset 0 0 0 1.5px ${accent}` } : undefined}
+                >
+                  <span
+                    className="mt-0.5 h-4 w-4 rounded flex items-center justify-center shrink-0"
+                    style={{ background: on ? accent : 'transparent', border: on ? 'none' : '1.5px solid var(--border-default)' }}
+                  >
+                    {on && <Check className="h-3 w-3 text-white" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="text-xs font-semibold text-text-primary">{d.label}</span>
+                    <span className="block text-[10px] text-text-muted truncate">{DEPT_HINT[d.id]}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Contraseña temporal */}
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-text-muted mb-1">Contraseña temporal</label>
+          <div className="flex items-center gap-2">
+            <input
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="flex-1 bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm font-mono text-text-primary outline-none"
+            />
+            <Button variant="ghost" size="sm" onClick={copyPass} leftIcon={copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}>
+              {copied ? 'Copiada' : 'Copiar'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setPassword(genTempPassword())}>Otra</Button>
+          </div>
+          <p className="text-[10px] text-text-muted mt-1">Cópiala antes de crear el acceso — se la pasas por WhatsApp.</p>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

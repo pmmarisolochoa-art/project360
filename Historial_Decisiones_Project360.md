@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-06 — Botón "Invitar miembro": alta de equipo self-service EN PRODUCCIÓN
+
+**Qué:** El owner ya da de alta miembros **desde la app** (módulo Equipo → "Invitar miembro"), sin crear usuarios a mano en Supabase. Cierra el pendiente "botón invitar" del Slice 2.
+
+**Decisión técnica (seguridad):** crear un login requiere la **service role key**, que jamás puede vivir en el navegador → se hizo una **Edge Function** (`api/invitar-miembro.ts`, hermana de `api/claude.ts`). La función: (1) verifica el token de quien invita, (2) confirma que **es el owner de la agencia dueña del cliente** antes de crear nada, (3) crea el usuario Auth (contraseña temporal) + `public.users` (role `'team'`, respeta el check de la tabla) + `team_members` con departamentos + editor/viewer. Si falla un paso, **rollback** del usuario Auth. La llave vive **solo en Vercel** (`SUPABASE_SERVICE_ROLE_KEY`).
+
+**Modelo de acceso reunido en el formulario:** correo, nombre, rol, **departamentos** (checkboxes PM/Finanzas/Content = qué módulos ve) y **editor/viewer** (qué puede editar). Contraseña temporal generada en la UI (se copia y se pasa por WhatsApp; el miembro la cambia). Se eligió clave temporal sobre email de invitación para no depender de deliverability de correos.
+
+**Detalle:** `addLocal` en `useTeamMembersStore` muestra al invitado sin re-insertar (la fila ya la creó el backend → evita duplicar). El botón "Agregar persona" (solo KPIs, sin login) se conserva aparte.
+
+**Validado E2E en prod** por la founder. Alta de equipo ya no es manual.
+
+**Próximos pasos:** dar de alta al equipo real de Ikigai con sus departamentos; opcional: migrar a email de invitación, UI para ver/editar departamentos de un miembro ya creado, y la "carrocería" de pestañas por departamento (Opción B) si al usar el filtro simple se extraña.
+
+---
+
 ## 2026-07-06 — Departamentos como "lente" de navegación (Opción A) EN PRODUCCIÓN
 
 **Qué:** Se agregó una capa de **departamentos** (PM · Finanzas · Content) que decide qué módulos del cerebro del cliente ve cada persona. Desplegado a producción (main → Vercel).

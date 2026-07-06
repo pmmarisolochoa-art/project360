@@ -110,17 +110,29 @@ export function MiEspacio() {
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [pending]);
 
-  // Próximas reuniones: de mis clientes, hoy o a futuro, sin completar. Las más cercanas primero.
-  const upcomingMeetings = useMemo(() => {
-    return allMeetings
-      .filter((m) => {
-        if (!myClientIds.includes(m.clientId) || m.completed || !m.scheduledAt) return false;
-        const d = new Date(m.scheduledAt);
-        return isToday(d) || !isPast(d);
+  // Reuniones agrupadas por cliente: próximas arriba (más cercana primero),
+  // luego las recientes pasadas (más nueva primero, hasta 4 por cliente).
+  const isUpcomingMeeting = (m: { scheduledAt: string; completed?: boolean }) => {
+    const d = new Date(m.scheduledAt);
+    return !m.completed && (isToday(d) || !isPast(d));
+  };
+  const meetingsByClient = useMemo(() => {
+    const mine = allMeetings.filter((m) => myClientIds.includes(m.clientId) && m.scheduledAt);
+    return myClients
+      .map((c) => {
+        const list = mine.filter((m) => m.clientId === c.id);
+        const upcoming = list
+          .filter(isUpcomingMeeting)
+          .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+        const past = list
+          .filter((m) => !isUpcomingMeeting(m))
+          .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
+          .slice(0, 4);
+        return { client: c, meetings: [...upcoming, ...past], upcomingCount: upcoming.length };
       })
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-      .slice(0, 5);
-  }, [allMeetings, myClientIds]);
+      .filter((g) => g.meetings.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allMeetings, myClientIds, myClients]);
 
   const markDone = (t: Task) => {
     updateTask(t.id, { status: 'completed', completedAt: new Date().toISOString() });
@@ -270,43 +282,56 @@ export function MiEspacio() {
         )}
       </div>
 
-      {/* 4a. Próximas reuniones de mis clientes */}
-      {upcomingMeetings.length > 0 && (
+      {/* 4a. Reuniones por cliente (próximas + recientes) */}
+      {meetingsByClient.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-            <CalendarClock className="h-4 w-4 text-text-muted" /> Próximas reuniones
+            <CalendarClock className="h-4 w-4 text-text-muted" /> Reuniones
           </h2>
-          <div className="space-y-2">
-            {upcomingMeetings.map((m) => {
-              const c = clientById[m.clientId];
-              return (
-                <div key={m.id} className="surface p-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-text-primary truncate">{m.title}</div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted flex-wrap">
-                      {c && (
-                        <span className="inline-flex items-center gap-1">
-                          <span className="h-2 w-2 rounded-full" style={{ background: c.primaryColor }} />
-                          {c.name}
-                        </span>
-                      )}
-                      {m.type && <span>· {m.type}</span>}
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-medium shrink-0 text-text-secondary">{meetingWhen(m.scheduledAt)}</span>
-                  {m.videoCallLink && (
-                    <a
-                      href={m.videoCallLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-md bg-accent-violet/15 text-accent-violet inline-flex items-center gap-1 hover:bg-accent-violet/25 transition"
-                    >
-                      <Video className="h-3.5 w-3.5" /> Unirse
-                    </a>
+          <div className="space-y-4">
+            {meetingsByClient.map((g) => (
+              <div key={g.client.id}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: g.client.primaryColor }} />
+                  <span className="text-xs font-semibold text-text-primary">{g.client.name}</span>
+                  {g.upcomingCount > 0 && (
+                    <span className="text-[10px] text-text-muted">
+                      · {g.upcomingCount} próxima{g.upcomingCount === 1 ? '' : 's'}
+                    </span>
                   )}
                 </div>
-              );
-            })}
+                <div className="space-y-2">
+                  {g.meetings.map((m) => {
+                    const past = !isUpcomingMeeting(m);
+                    return (
+                      <div key={m.id} className={cn('surface p-3 flex items-center gap-3', past && 'opacity-60')}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-text-primary truncate">{m.title}</div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted flex-wrap">
+                            {m.type && <span>{m.type}</span>}
+                            {past && <span>· realizada</span>}
+                          </div>
+                        </div>
+                        <span className={cn('text-[11px] font-medium shrink-0', past ? 'text-text-muted' : 'text-text-secondary')}>
+                          {meetingWhen(m.scheduledAt)}
+                        </span>
+                        {!past && m.videoCallLink && (
+                          <a
+                            href={m.videoCallLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-md bg-accent-violet/15 text-accent-violet inline-flex items-center gap-1 hover:bg-accent-violet/25 transition"
+                          >
+                            <Video className="h-3.5 w-3.5" /> Unirse
+                          </a>
+                        )}
+                        {past && <CheckCircle2 className="h-4 w-4 text-status-success shrink-0" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

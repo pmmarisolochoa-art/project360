@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, FolderUp, Calendar, Users, TrendingUp, ExternalLink } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FolderUp, Calendar, Users, TrendingUp, ExternalLink, CalendarClock, Video } from 'lucide-react';
 import { differenceInCalendarDays, isToday, isTomorrow, isPast } from 'date-fns';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useClientStore } from '@/store/useClientStore';
@@ -19,11 +19,23 @@ function greetingPrefix(): string {
   return 'Buenas noches';
 }
 
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** Etiqueta amigable de cuándo es una reunión: "Hoy · 15:00", "Mañana · 09:30", "12 ago · 16:00". */
+function meetingWhen(dateStr: string): string {
+  const d = new Date(dateStr);
+  const time = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  if (isToday(d)) return `Hoy · ${time}`;
+  if (isTomorrow(d)) return `Mañana · ${time}`;
+  return `${d.getDate()} ${MESES[d.getMonth()]} · ${time}`;
+}
+
 export function MiEspacio() {
   const navigate = useNavigate();
   const accesses = useAuthStore((s) => s.clientAccesses);
   const clients = useClientStore((s) => s.clients);
   const allTasks = useClientStore((s) => s.tasks);
+  const allMeetings = useClientStore((s) => s.meetings);
   const updateTask = useClientStore((s) => s.updateTask);
 
   const [links, setLinks] = useState<TaskLink[]>([]);
@@ -97,6 +109,18 @@ export function MiEspacio() {
       .filter((t) => t.dueDate && (isPast(new Date(t.dueDate)) || isToday(new Date(t.dueDate)) || isTomorrow(new Date(t.dueDate))))
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [pending]);
+
+  // Próximas reuniones: de mis clientes, hoy o a futuro, sin completar. Las más cercanas primero.
+  const upcomingMeetings = useMemo(() => {
+    return allMeetings
+      .filter((m) => {
+        if (!myClientIds.includes(m.clientId) || m.completed || !m.scheduledAt) return false;
+        const d = new Date(m.scheduledAt);
+        return isToday(d) || !isPast(d);
+      })
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+      .slice(0, 5);
+  }, [allMeetings, myClientIds]);
 
   const markDone = (t: Task) => {
     updateTask(t.id, { status: 'completed', completedAt: new Date().toISOString() });
@@ -245,6 +269,47 @@ export function MiEspacio() {
           </div>
         )}
       </div>
+
+      {/* 4a. Próximas reuniones de mis clientes */}
+      {upcomingMeetings.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+            <CalendarClock className="h-4 w-4 text-text-muted" /> Próximas reuniones
+          </h2>
+          <div className="space-y-2">
+            {upcomingMeetings.map((m) => {
+              const c = clientById[m.clientId];
+              return (
+                <div key={m.id} className="surface p-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-text-primary truncate">{m.title}</div>
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted flex-wrap">
+                      {c && (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full" style={{ background: c.primaryColor }} />
+                          {c.name}
+                        </span>
+                      )}
+                      {m.type && <span>· {m.type}</span>}
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-medium shrink-0 text-text-secondary">{meetingWhen(m.scheduledAt)}</span>
+                  {m.videoCallLink && (
+                    <a
+                      href={m.videoCallLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 text-[11px] px-2.5 py-1.5 rounded-md bg-accent-violet/15 text-accent-violet inline-flex items-center gap-1 hover:bg-accent-violet/25 transition"
+                    >
+                      <Video className="h-3.5 w-3.5" /> Unirse
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 4b. Mis clientes → cronograma de tareas */}
       {myClients.length > 0 && (

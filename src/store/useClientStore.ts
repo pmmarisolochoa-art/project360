@@ -4,6 +4,7 @@ import type { Meeting } from '@/types/meeting';
 import type { Task } from '@/types/task';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { ClientsRepo, TasksRepo, MeetingsRepo } from '@/services/repositories';
+import { toast } from '@/store/useToastStore';
 
 interface ClientState {
   clients: Client[];
@@ -71,11 +72,19 @@ export const useClientStore = create<ClientState>((set, get) => ({
   tasksByClient: (clientId) => get().tasks.filter((t) => t.clientId === clientId),
   addMeeting: (m) => {
     set((s) => ({ meetings: [m, ...s.meetings] }));
-    void MeetingsRepo.create(m).catch((e) => console.warn('[meetings.create]', e));
+    // Si el guardado falla, AVISAR (no perder datos en silencio): el equipo no
+    // vería la reunión aunque tú sí la veas en tu navegador.
+    void MeetingsRepo.create(m).catch((e) => {
+      console.warn('[meetings.create]', e);
+      toast.error('No se pudo guardar la reunión. Recarga e inténtalo de nuevo — el equipo no la verá hasta que se guarde.');
+    });
   },
   updateMeeting: (id, patch) => {
     set((s) => ({ meetings: s.meetings.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
-    void MeetingsRepo.update(id, patch).catch((e) => console.warn('[meetings.update]', e));
+    void MeetingsRepo.update(id, patch).catch((e) => {
+      console.warn('[meetings.update]', e);
+      toast.error('No se pudieron guardar los cambios de la reunión.');
+    });
   },
   deleteMeeting: (id) => {
     set((s) => ({ meetings: s.meetings.filter((m) => m.id !== id) }));

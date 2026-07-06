@@ -7,6 +7,8 @@ interface TeamMembersState {
   /** Reemplaza todo el set (usado en bootstrap). */
   hydrate: (members: TeamMember[]) => void;
   add: (member: TeamMember) => void;
+  /** Agrega solo al estado local (la fila ya la creó el backend — no re-inserta). */
+  addLocal: (member: TeamMember) => void;
   update: (id: string, patch: Partial<TeamMember>) => void;
   remove: (id: string) => void;
 }
@@ -20,6 +22,8 @@ export const useTeamMembersStore = create<TeamMembersState>((set) => ({
     set((s) => ({ members: [...s.members, member] }));
     void TeamMembersRepo.create(member).catch((e) => console.warn('[teamMembers.create]', e));
   },
+
+  addLocal: (member) => set((s) => ({ members: [...s.members, member] })),
 
   update: (id, patch) => {
     set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));

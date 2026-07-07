@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-06 — Fix: reuniones de tipo nuevo no se guardaban (+ reuniones en el espacio del miembro)
+
+**Síntoma:** las reuniones que la founder creaba no llegaban al dashboard del miembro. Se veían en el navegador del dueño pero no en la base ni para el equipo.
+
+**Dos hallazgos:**
+1. **El espacio del miembro (`/mi-espacio`) no mostraba reuniones** — nunca se construyó esa sección. Se agregó "Reuniones" agrupadas **por cliente**: próximas arriba (con "Unirse" si hay link), recientes/pasadas debajo atenuadas y marcadas "realizada" (hasta 4 por cliente). Datos ya venían por bootstrap (RLS `meetings_client_read`).
+2. **Bug raíz de persistencia:** `meetings.type` tenía un CHECK con solo 6 tipos viejos, pero la app ya ofrece 8 (agregó `weekly_planning` y `ropre_strategy`). Crear una reunión de tipo nuevo → INSERT rechazado por el CHECK → **el cliente tragaba el error en silencio** (`addMeeting` hacía `.catch(console.warn)`), así que el dueño la veía local pero nunca se guardaba.
+
+**Fix (migración 022):** se elimina el CHECK de `meetings.type` (el tipo válido lo controla el front, union `MeetingType`); no se vuelve a romper al agregar tipos. Mismo criterio que la 001. **Aprendizaje:** cada vez que se agrega un valor a un union de TS que mapea a una columna con CHECK/enum en Postgres, hay que ampliar/quitar la restricción — si no, el INSERT se rechaza en silencio.
+
+**Prevención:** `addMeeting`/`updateMeeting` ahora muestran **toast de error** si el guardado falla → nunca más pérdida silenciosa de datos. (Patrón a replicar en otros stores que hoy hacen `.catch(console.warn)`.)
+
+**Validado en prod** por la founder: reunión de tipo `ropre_strategy` se guarda y el miembro la ve.
+
+---
+
 ## 2026-07-06 — Botón "Invitar miembro": alta de equipo self-service EN PRODUCCIÓN
 
 **Qué:** El owner ya da de alta miembros **desde la app** (módulo Equipo → "Invitar miembro"), sin crear usuarios a mano en Supabase. Cierra el pendiente "botón invitar" del Slice 2.

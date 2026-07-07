@@ -33,6 +33,8 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   crisis: 'Crisis',
   weekly_planning: 'Planeación semanal',
   ropre_strategy: 'Estrategia ROPRE & Entregables',
+  daily: 'Daily del equipo',
+  sprint_cierre: 'Sprint de cierre',
 };
 
 const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' | 'neutral' | 'danger'> = {
@@ -44,6 +46,8 @@ const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' |
   crisis: 'danger',
   weekly_planning: 'info',
   ropre_strategy: 'accent',
+  daily: 'info',
+  sprint_cierre: 'neutral',
 };
 
 // Descripciones que se muestran en el modal "Nueva reunión" al seleccionar tipo.
@@ -57,6 +61,8 @@ export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
   crisis: '🚨 Diagnóstico de causa raíz, plan de mitigación inmediato con responsables y deadline.',
   weekly_planning: '📅 Coordina las tareas de la semana por día y persona. La agenda se genera con tareas pendientes y reuniones programadas.',
   ropre_strategy: '🎯 Sesión estratégica para actualizar el ROPRE y convertir entregables en tareas. El resultado se guarda directamente en el módulo ROPRE.',
+  daily: '🌅 Reunión interna del equipo (se crea desde la Agenda Global, no por cliente).',
+  sprint_cierre: '🏁 Cierre de sprint del equipo (se crea desde la Agenda Global, no por cliente).',
 };
 
 export function MeetingsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
@@ -462,7 +468,9 @@ function NewMeetingModal({ clientId, clientName, defaultType = 'weekly_metrics',
           <Select
             value={type}
             onChange={(e) => setType(e.target.value as MeetingType)}
-            options={Object.entries(TYPE_LABEL).map(([v, l]) => ({ value: v, label: l }))}
+            options={Object.entries(TYPE_LABEL)
+              .filter(([v]) => v !== 'daily' && v !== 'sprint_cierre')
+              .map(([v, l]) => ({ value: v, label: l }))}
           />
           <div className="mt-1.5 text-[11px] text-text-muted leading-relaxed">{TYPE_DESCRIPTION[type]}</div>
         </label>

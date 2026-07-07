@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Settings, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, CalendarDays, Users } from 'lucide-react';
 import {
   startOfWeek,
   endOfWeek,
@@ -18,13 +18,22 @@ import {
 import { es } from 'date-fns/locale';
 import { useClientStore } from '@/store/useClientStore';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { IntegrationsModal } from '@/components/dashboard/IntegrationsModal';
 import { MeetingDrawer } from '@/components/dashboard/MeetingDrawer';
+import { TEAM_MEETING_AGENDAS } from '@/data/teamMeetingAgendas';
+import { toast } from '@/store/useToastStore';
+import { genId } from '@/utils/id';
 import type { Meeting, MeetingType } from '@/types/meeting';
 import type { Client } from '@/types/client';
+
+const TEAM_TYPE_OPTIONS: MeetingType[] = ['daily', 'weekly_planning', 'sprint_cierre'];
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff',
@@ -35,14 +44,19 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   crisis: 'Crisis',
   weekly_planning: 'Planeación semanal',
   ropre_strategy: 'Estrategia ROPRE',
+  daily: 'Daily del equipo',
+  sprint_cierre: 'Sprint de cierre',
 };
 
 export function AgendaPage() {
   const meetings = useClientStore((s) => s.meetings);
   const clients = useClientStore((s) => s.clients);
+  const addMeeting = useClientStore((s) => s.addMeeting);
+  const agencyId = useAuthStore((s) => s.agencyId);
   const meetingId = useUIDrawerStore((s) => s.meetingId);
   const openMeeting = useUIDrawerStore((s) => s.openMeeting);
   const closeMeeting = useUIDrawerStore((s) => s.closeMeeting);
+  const [teamModalOpen, setTeamModalOpen] = useState(false);
   const clientById = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients]);
 
   const [view, setView] = useState<'week' | 'month'>('week');
@@ -94,12 +108,17 @@ export function AgendaPage() {
             {filtered.length} reuniones en el rango · click para abrir detalle
           </p>
         </div>
-        <button
-          onClick={() => setIntegrationsOpen(true)}
-          className="h-9 px-3 rounded-md border border-border-subtle bg-bg-elevated text-text-secondary hover:text-text-primary hover:bg-bg-hover transition inline-flex items-center gap-1.5 text-xs"
-        >
-          <Settings className="h-3.5 w-3.5" /> Integraciones
-        </button>
+        <div className="flex items-center gap-2">
+          <Button leftIcon={<Users className="h-4 w-4" />} onClick={() => setTeamModalOpen(true)}>
+            Nueva reunión de equipo
+          </Button>
+          <button
+            onClick={() => setIntegrationsOpen(true)}
+            className="h-9 px-3 rounded-md border border-border-subtle bg-bg-elevated text-text-secondary hover:text-text-primary hover:bg-bg-hover transition inline-flex items-center gap-1.5 text-xs"
+          >
+            <Settings className="h-3.5 w-3.5" /> Integraciones
+          </button>
+        </div>
       </header>
 
       <div className="surface p-3 flex gap-2 items-center flex-wrap">
@@ -172,7 +191,7 @@ export function AgendaPage() {
         ) : (
           <ul className="space-y-1.5">
             {filtered.map((m) => {
-              const c = clientById[m.clientId];
+              const c = clientById[m.clientId ?? ''];
               const t = parseISO(m.scheduledAt);
               return (
                 <li key={m.id}>
@@ -186,7 +205,9 @@ export function AgendaPage() {
                     <span className="h-2 w-2 rounded-full shrink-0" style={{ background: c?.primaryColor ?? '#8B5CF6' }} />
                     <span className="text-sm text-text-primary font-medium truncate flex-1">{m.title}</span>
                     <Badge tone="info">{TYPE_LABEL[m.type]}</Badge>
-                    <span className="text-xs text-text-muted truncate max-w-[140px]">{c?.name ?? '—'}</span>
+                    <span className="text-xs text-text-muted truncate max-w-[140px]">
+                      {c?.name ?? (m.agencyId ? '👥 Equipo' : '—')}
+                    </span>
                     {m.completed && <Badge tone="success">✓</Badge>}
                   </button>
                 </li>
@@ -197,10 +218,97 @@ export function AgendaPage() {
       </section>
 
       <IntegrationsModal open={integrationsOpen} onClose={() => setIntegrationsOpen(false)} />
+      {teamModalOpen && (
+        <NewTeamMeetingModal
+          onClose={() => setTeamModalOpen(false)}
+          onCreate={(m) => {
+            if (!agencyId) { toast.error('No se encontró tu agencia. Recarga e inténtalo de nuevo.'); return; }
+            addMeeting({ ...m, agencyId });
+            setTeamModalOpen(false);
+            openMeeting(m.id);
+          }}
+        />
+      )}
       <AnimatePresence>
         {activeMeeting && <MeetingDrawer meeting={activeMeeting} onClose={closeMeeting} />}
       </AnimatePresence>
     </div>
+  );
+}
+
+/* ─────────────── Modal: nueva reunión de equipo (interna) ─────────────── */
+
+function NewTeamMeetingModal({ onClose, onCreate }: { onClose: () => void; onCreate: (m: Meeting) => void }) {
+  const [type, setType] = useState<MeetingType>('daily');
+  const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [time, setTime] = useState('11:00');
+  const [link, setLink] = useState('');
+  const [titleTouched, setTitleTouched] = useState(false);
+
+  const tpl = TEAM_MEETING_AGENDAS[type];
+  const autoTitle = `${TYPE_LABEL[type]} — ${format(parseISO(`${date}T00:00:00`), "d MMM yyyy", { locale: es })}`;
+  const [title, setTitle] = useState(autoTitle);
+  if (!titleTouched && title !== autoTitle) setTitle(autoTitle);
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
+    const meeting: Meeting = {
+      id: genId(),
+      clientId: null,
+      title: title.trim(),
+      type,
+      scheduledAt,
+      durationMin: tpl?.durationMin ?? 30,
+      participants: [],
+      agenda: tpl?.agenda,
+      videoCallLink: link.trim() || undefined,
+      completed: false,
+    };
+    onCreate(meeting);
+  }
+
+  return (
+    <Modal open onClose={onClose} title={<span className="flex items-center gap-2"><Users className="h-4 w-4" /> Nueva reunión de equipo</span>}>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Ritual</span>
+          <Select
+            value={type}
+            onChange={(e) => setType(e.target.value as MeetingType)}
+            options={TEAM_TYPE_OPTIONS.map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
+          />
+          {tpl && (
+            <div className="mt-2 rounded-md border border-border-subtle bg-bg-base/40 p-2.5 text-[11px] text-text-muted whitespace-pre-line leading-relaxed">
+              {tpl.agenda}
+            </div>
+          )}
+        </label>
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Título *</span>
+          <Input value={title} onChange={(e) => { setTitle(e.target.value); setTitleTouched(true); }} required />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Fecha</span>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </label>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Hora</span>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+          </label>
+        </div>
+        <label className="block">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Link videollamada (opcional)</span>
+          <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://meet.google.com/..." />
+        </label>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button type="submit">Crear reunión</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -237,7 +345,7 @@ function WeekGrid({
                   <div className="text-[10px] text-text-muted opacity-50 italic">—</div>
                 ) : (
                   dayMeetings.map((m) => {
-                    const c = clientById[m.clientId];
+                    const c = clientById[m.clientId ?? ''];
                     const accent = c?.primaryColor ?? '#8B5CF6';
                     return (
                       <button
@@ -304,7 +412,7 @@ function MonthGrid({
               </div>
               <div className="space-y-0.5">
                 {dayMeetings.slice(0, 3).map((m) => {
-                  const accent = clientById[m.clientId]?.primaryColor ?? '#8B5CF6';
+                  const accent = clientById[m.clientId ?? '']?.primaryColor ?? '#8B5CF6';
                   return (
                     <button
                       key={m.id}

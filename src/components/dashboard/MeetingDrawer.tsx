@@ -30,6 +30,7 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Estrategia de contenido',
   ads_review: 'Revisión de ADS', monthly_closing: 'Cierre mensual', crisis: 'Crisis / Urgente',
   weekly_planning: 'Planeación semanal', ropre_strategy: 'Estrategia ROPRE & Entregables',
+  daily: 'Daily del equipo', sprint_cierre: 'Sprint de cierre',
 };
 
 export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting: Meeting; onClose: () => void; readOnly?: boolean }) {
@@ -309,7 +310,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
         for (const t of result) {
           const task: Task = {
             id: genId(),
-            clientId: meeting.clientId,
+            clientId: meeting.clientId ?? '',
             title: t.title,
             status: 'pending',
             priority: t.priority ?? 'P2',
@@ -430,7 +431,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           <section>
             <div className="flex items-center justify-between">
               <SectionTitle text="📋 Agenda" accent={accent} />
-              {!readOnly && (
+              {!readOnly && client && (
                 <Button size="sm" variant="ghost" leftIcon={<Sparkles className="h-3.5 w-3.5" />} loading={generating} onClick={generateAgenda}>
                   Generar con IA
                 </Button>
@@ -513,10 +514,14 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                     onClick={() => toast.info('Upload de audio/video disponible próximamente')}>Subir archivo</Button>
                   <Button size="sm" variant="secondary" leftIcon={<Mic className="h-3.5 w-3.5" />}
                     onClick={() => toast.info('Transcripción disponible próximamente')}>Transcribir con IA</Button>
-                  <Button size="sm" variant="secondary" leftIcon={<ListChecks className="h-3.5 w-3.5" />}
-                    loading={extracting} onClick={runExtractTasks}>Extraer tareas</Button>
-                  <Button size="sm" variant="secondary" leftIcon={<Brain className="h-3.5 w-3.5" />}
-                    loading={generatingRopre} onClick={runGenerateRopre}>Generar ROPRE</Button>
+                  {client && (
+                    <>
+                      <Button size="sm" variant="secondary" leftIcon={<ListChecks className="h-3.5 w-3.5" />}
+                        loading={extracting} onClick={runExtractTasks}>Extraer tareas</Button>
+                      <Button size="sm" variant="secondary" leftIcon={<Brain className="h-3.5 w-3.5" />}
+                        loading={generatingRopre} onClick={runGenerateRopre}>Generar ROPRE</Button>
+                    </>
+                  )}
                 </div>
                 <p className="mt-1.5 text-[10px] text-text-muted leading-relaxed">
                   <Brain className="inline h-2.5 w-2.5 mr-0.5" /> Genera Resultados · Objetivos · Primicias · Riesgos · Entregables
@@ -536,7 +541,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                   for (const t of selected) {
                     const task: Task = {
                       id: genId(),
-                      clientId: meeting.clientId,
+                      clientId: meeting.clientId ?? '',
                       title: t.title,
                       status: 'pending',
                       priority: t.priority ?? 'P2',

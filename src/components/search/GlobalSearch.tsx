@@ -76,8 +76,9 @@ export function GlobalSearch({ className }: { className?: string }) {
       .forEach((m) =>
         out.push({
           key: `m-${m.id}`, group: 'Reuniones', icon: Calendar, label: m.title,
-          sublabel: clientById[m.clientId]?.name, color: clientById[m.clientId]?.primaryColor,
-          onSelect: () => navigate(`/client/${m.clientId}/meetings`),
+          sublabel: m.clientId ? clientById[m.clientId]?.name : '👥 Equipo',
+          color: m.clientId ? clientById[m.clientId]?.primaryColor : undefined,
+          onSelect: () => navigate(m.clientId ? `/client/${m.clientId}/meetings` : '/agenda'),
         }),
       );
 

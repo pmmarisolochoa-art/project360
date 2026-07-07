@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project360 · Documentación del Proyecto</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#111726; --panel2:#0e1421; --stroke:#1f2a40;
+    --ink:#e8edf7; --mut:#8b96b3; --faint:#5a6684;
+    --arch:#4f8cff; --tree:#2dd4bf; --flow:#f4a63b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:
+      radial-gradient(1000px 560px at 15% -8%, #16203a 0%, transparent 60%),
+      radial-gradient(1000px 560px at 100% 0%, #1a1530 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink); padding:52px 20px 80px; -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+
+  .hero{text-align:center;margin-bottom:44px}
+  .brand{font-size:14px;letter-spacing:4px;color:var(--arch);font-weight:700;text-transform:uppercase}
+  h1{font-size:44px;font-weight:800;letter-spacing:-1px;margin:10px 0 6px}
+  h1 .g{background:linear-gradient(90deg,var(--arch),var(--tree));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .tag{color:var(--mut);font-size:17px}
+  .stats{display:flex;justify-content:center;gap:26px;margin-top:22px;flex-wrap:wrap}
+  .stat{text-align:center}
+  .stat b{display:block;font-size:24px;font-weight:800;color:var(--ink)}
+  .stat span{font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint)}
+
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:34px}
+  @media(max-width:820px){.cards{grid-template-columns:1fr}}
+  .card{display:flex;flex-direction:column;text-decoration:none;color:inherit;position:relative;
+    border:1px solid var(--stroke);border-radius:20px;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+  .card:hover{transform:translateY(-6px);box-shadow:0 22px 46px rgba(0,0,0,.45)}
+  .card .top{height:5px}
+  .card.arch .top{background:var(--arch)} .card.arch:hover{border-color:var(--arch)}
+  .card.tree .top{background:var(--tree)} .card.tree:hover{border-color:var(--tree)}
+  .card.flow .top{background:var(--flow)} .card.flow:hover{border-color:var(--flow)}
+  .card .body{padding:24px 22px 22px}
+  .card .n{font-family:'SF Mono',ui-monospace,monospace;font-size:12px;color:var(--faint);letter-spacing:1px}
+  .card .ico{font-size:38px;margin:6px 0 12px;display:block}
+  .card h2{font-size:21px;font-weight:700;margin-bottom:8px}
+  .card p{font-size:13.5px;color:var(--mut);line-height:1.55;min-height:62px}
+  .card ul{list-style:none;margin:14px 0 18px;display:flex;flex-wrap:wrap;gap:6px}
+  .card ul li{font-size:11px;color:var(--faint);background:#0a1120;border:1px solid var(--stroke);padding:3px 9px;border-radius:6px}
+  .card .go{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-top:auto}
+  .card.arch .go{color:var(--arch)} .card.tree .go{color:var(--tree)} .card.flow .go{color:var(--flow)}
+  .card .go .ar{transition:transform .18s}
+  .card:hover .go .ar{transform:translateX(5px)}
+
+  .flowline{border:1px solid var(--stroke);border-radius:16px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));padding:20px 24px;margin-bottom:20px}
+  .flowline h3{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:14px}
+  .chain{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+  .chip{font-family:'SF Mono',ui-monospace,monospace;font-size:12.5px;padding:6px 12px;border-radius:9px;
+    border:1px solid var(--stroke);background:#0d1424}
+  .c-front{color:#7fb4ff} .c-state{color:#b0a4ff} .c-svc{color:#6fe3c4} .c-data{color:#5eead4}
+  .arr{color:var(--faint)}
+
+  .foot2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:820px){.foot2{grid-template-columns:1fr}}
+  .mini{border:1px solid var(--stroke);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));padding:18px 20px}
+  .mini h3{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .mini .row{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed #232b45;font-size:13px;color:var(--mut)}
+  .mini .row:last-child{border-bottom:0}
+  .mini .row b{color:var(--ink);font-weight:600}
+  .mini .row .k{flex:0 0 20px}
+  .phasebar{display:flex;gap:8px;margin-top:4px}
+  .ph{flex:1;border:1px solid var(--stroke);border-radius:10px;padding:11px 10px;text-align:center;font-size:12px;color:var(--faint)}
+  .ph.on{border-color:var(--tree);background:rgba(45,212,191,.08);color:var(--ink)}
+  .ph b{display:block;font-size:11px;letter-spacing:.5px}
+  .ph.on b{color:var(--tree)}
+  .ph small{font-size:10.5px}
+
+  footer{text-align:center;color:var(--faint);font-size:12px;margin-top:34px;
+    border-top:1px solid var(--stroke);padding-top:18px}
+  footer code{color:#7fb4ff;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="brand">Project360</div>
+    <h1>Documentación <span class="g">Visual</span></h1>
+    <p class="tag">Cómo está construida la app · arquitectura, estructura y workflow</p>
+    <div class="stats">
+      <div class="stat"><b>66</b><span>Componentes</span></div>
+      <div class="stat"><b>17</b><span>Stores</span></div>
+      <div class="stat"><b>17</b><span>Servicios</span></div>
+      <div class="stat"><b>18</b><span>Tablas</span></div>
+      <div class="stat"><b>25</b><span>Migraciones</span></div>
+    </div>
+  </div>
+
+  <div class="cards">
+
+    <a class="card arch" href="arquitectura-sistema.html">
+      <div class="top"></div>
+      <div class="body">
+        <span class="n">01 · SISTEMA</span>
+        <span class="ico">🏛️</span>
+        <h2>Arquitectura</h2>
+        <p>Las capas del sistema y cómo viajan los datos: usuarios, frontend, servicios, Supabase e IA.</p>
+        <ul><li>5 capas</li><li>roles &amp; RLS</li><li>Edge Function</li></ul>
+        <span class="go">Abrir diagrama <span class="ar">→</span></span>
+      </div>
+    </a>
+
+    <a class="card tree" href="estructura-carpetas.html">
+      <div class="top"></div>
+      <div class="body">
+        <span class="n">02 · REPOSITORIO</span>
+        <span class="ico">🌳</span>
+        <h2>Estructura</h2>
+        <p>El árbol de carpetas detallado: qué hay en <code style="font-family:monospace;color:#5eead4">src/</code>, <code style="font-family:monospace;color:#5eead4">supabase/</code> y la raíz.</p>
+        <ul><li>árbol real</li><li>por capa</li><li>conteos</li></ul>
+        <span class="go">Abrir diagrama <span class="ar">→</span></span>
+      </div>
+    </a>
+
+    <a class="card flow" href="workflow-desarrollo.html">
+      <div class="top"></div>
+      <div class="body">
+        <span class="n">03 · PROCESO</span>
+        <span class="ico">🔄</span>
+        <h2>Workflow</h2>
+        <p>El pipeline de 7 pasos para construir una feature: de la idea al deploy, con guardrails.</p>
+        <ul><li>7 pasos</li><li>guardrails</li><li>ciclo semanal</li></ul>
+        <span class="go">Abrir diagrama <span class="ar">→</span></span>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="flowline">
+    <h3>El patrón que une todo · flujo de datos</h3>
+    <div class="chain">
+      <span class="chip c-front">componente</span><span class="arr">→</span>
+      <span class="chip c-state">store</span><span class="arr">→</span>
+      <span class="chip c-svc">service</span><span class="arr">→</span>
+      <span class="chip c-data">Supabase</span><span class="arr">→</span>
+      <span class="chip c-front">UI</span>
+    </div>
+  </div>
+
+  <div class="foot2">
+    <div class="mini">
+      <h3>🧭 Stack</h3>
+      <div class="row"><span class="k">🖥️</span><div><b>Frontend</b> · React · TypeScript · Vite · Tailwind</div></div>
+      <div class="row"><span class="k">🛢️</span><div><b>Backend</b> · Supabase (Postgres · Auth · RLS)</div></div>
+      <div class="row"><span class="k">🤖</span><div><b>IA</b> · Anthropic Claude vía Edge Function</div></div>
+      <div class="row"><span class="k">☁️</span><div><b>Deploy</b> · Vercel · rama <code style="font-family:monospace;color:#7fb4ff">main</code></div></div>
+    </div>
+    <div class="mini">
+      <h3>🛣️ Fase del producto</h3>
+      <div class="phasebar">
+        <div class="ph on"><b>FASE 1</b><small>MVP</small></div>
+        <div class="ph"><b>FASE 2</b><small>Estabilizar</small></div>
+        <div class="ph"><b>FASE 3</b><small>SaaS</small></div>
+      </div>
+      <p style="font-size:12px;color:var(--mut);margin-top:12px;line-height:1.5">
+        Terminar el MVP y usarlo con el equipo en clientes reales. Estabilizar antes de sumar features. Pagos y multi-cuenta van después.</p>
+    </div>
+  </div>
+
+  <footer>
+    Project360 · documentación generada desde el código real · 2026-07-03 · complemento de <code>ARQUITECTURA.md</code>
+  </footer>
+
+</div>
+</body>
+</html>

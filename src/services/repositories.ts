@@ -620,7 +620,8 @@ function rowToMeeting(row: Record<string, unknown>): Meeting {
   const r = row as any;
   return {
     id: r.id,
-    clientId: r.client_id,
+    clientId: r.client_id ?? null,
+    agencyId: r.agency_id ?? null,
     title: r.title,
     type: r.type,
     scheduledAt: r.scheduled_at,
@@ -642,6 +643,7 @@ function meetingToRow(m: Partial<Meeting>, partial = false): Record<string, unkn
   const map: Record<keyof Meeting, string> = {
     id: 'id',
     clientId: 'client_id',
+    agencyId: 'agency_id',
     title: 'title',
     type: 'type',
     scheduledAt: 'scheduled_at',

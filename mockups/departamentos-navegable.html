@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project360 · Cerebro del Cliente por Departamento</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#111726; --panel2:#0e1421; --stroke:#1f2a40;
+    --ink:#e8edf7; --mut:#8b96b3; --faint:#5a6684;
+    --pm:#4f8cff; --fin:#37c9a6; --content:#e065c9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:
+      radial-gradient(1000px 560px at 12% -8%, #16203a 0%, transparent 60%),
+      radial-gradient(1000px 560px at 100% 0%, #1a1530 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink); padding:32px 20px 70px; -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  .wrap{max-width:1120px;margin:0 auto}
+
+  /* ---- header ---- */
+  .head{text-align:center;margin-bottom:26px}
+  .brand{font-size:12px;letter-spacing:4px;color:var(--pm);font-weight:700;text-transform:uppercase}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.5px;margin:8px 0 4px}
+  .sub{color:var(--mut);font-size:15px}
+
+  /* ---- browser frame ---- */
+  .app{border:1px solid var(--stroke);border-radius:18px;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));box-shadow:0 30px 70px rgba(0,0,0,.5)}
+
+  /* top bar: client + role */
+  .topbar{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--stroke);
+    background:#0d1424}
+  .client{display:flex;align-items:center;gap:11px}
+  .avatar{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-weight:800;font-size:15px;
+    background:linear-gradient(135deg,#4f8cff,#37c9a6);color:#06121f}
+  .client .nm{font-weight:700;font-size:15px;line-height:1.2}
+  .client .mt{font-size:11.5px;color:var(--faint)}
+  .spacer{flex:1}
+  .whoami{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--mut);
+    border:1px solid var(--stroke);border-radius:999px;padding:6px 13px;background:#0b111f}
+  .whoami .dot{width:8px;height:8px;border-radius:50%}
+
+  /* department tabs */
+  .depts{display:flex;gap:8px;padding:14px 20px 0}
+  .dept{cursor:pointer;border:1px solid var(--stroke);border-top-left-radius:12px;border-top-right-radius:12px;
+    border-bottom:0;padding:11px 18px 13px;display:flex;align-items:center;gap:9px;background:#0b111f;
+    color:var(--mut);font-size:13.5px;font-weight:600;transition:.16s;position:relative;top:1px}
+  .dept .ic{font-size:16px}
+  .dept small{display:block;font-size:10.5px;font-weight:500;color:var(--faint);margin-top:1px}
+  .dept .lbl{line-height:1.15}
+  .dept:hover{color:var(--ink)}
+  .dept.on{background:var(--panel);color:var(--ink)}
+  .dept.on[data-d="pm"]{box-shadow:inset 0 3px 0 var(--pm)} .dept.on[data-d="pm"] .ic{color:var(--pm)}
+  .dept.on[data-d="fin"]{box-shadow:inset 0 3px 0 var(--fin)} .dept.on[data-d="fin"] .ic{color:var(--fin)}
+  .dept.on[data-d="content"]{box-shadow:inset 0 3px 0 var(--content)} .dept.on[data-d="content"] .ic{color:var(--content)}
+
+  /* body: nav + canvas */
+  .body{display:grid;grid-template-columns:236px 1fr;border-top:1px solid var(--stroke);min-height:430px}
+  .nav{border-right:1px solid var(--stroke);padding:16px 12px;background:#0c1220}
+  .nav .ttl{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--faint);font-weight:700;
+    padding:4px 10px 10px}
+  .mod{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;
+    font-size:13.5px;color:var(--mut);font-weight:500;transition:.13s;margin-bottom:2px}
+  .mod .mic{font-size:16px;width:20px;text-align:center}
+  .mod:hover{background:#131b2c;color:var(--ink)}
+  .mod.on{background:#16213a;color:var(--ink);font-weight:600}
+  .mod .shared{margin-left:auto;font-size:9px;letter-spacing:.5px;color:var(--faint);
+    border:1px solid var(--stroke);border-radius:5px;padding:1px 5px}
+  .mod.on .shared{border-color:#2b3d63;color:var(--mut)}
+
+  /* canvas (fake module content) */
+  .canvas{padding:26px 30px}
+  .crumb{font-size:12px;color:var(--faint);margin-bottom:6px}
+  .crumb b{color:var(--mut);font-weight:600}
+  .canvas h2{font-size:22px;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+  .canvas h2 .em{font-size:24px}
+  .canvas .desc{color:var(--mut);font-size:14px;margin-bottom:20px;max-width:560px;line-height:1.55}
+  .skel{display:grid;gap:12px}
+  .skel .card{border:1px solid var(--stroke);border-radius:13px;padding:16px 18px;background:#0d1424}
+  .skel .card .l1{height:10px;width:32%;border-radius:6px;background:#1c2740;margin-bottom:11px}
+  .skel .card .l2{height:8px;width:70%;border-radius:6px;background:#151f34;margin-bottom:7px}
+  .skel .card .l3{height:8px;width:52%;border-radius:6px;background:#151f34}
+  .skel .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--faint);
+    border:1px solid var(--stroke);border-radius:999px;padding:4px 11px;margin-top:2px}
+
+  /* note about shared data */
+  .note{margin-top:20px;border:1px solid var(--stroke);border-radius:16px;padding:16px 20px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));display:flex;gap:14px;align-items:flex-start}
+  .note .k{font-size:22px}
+  .note h4{font-size:13.5px;margin-bottom:5px}
+  .note p{font-size:13px;color:var(--mut);line-height:1.6}
+  .note code{font-family:'SF Mono',ui-monospace,monospace;font-size:12px;color:#7fb4ff;
+    background:#0a1120;border:1px solid var(--stroke);padding:1px 6px;border-radius:5px}
+  .pill{color:#5eead4}
+
+  footer{text-align:center;color:var(--faint);font-size:12px;margin-top:26px;
+    border-top:1px solid var(--stroke);padding-top:16px}
+  footer code{color:#7fb4ff;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="brand">Project360 · Prototipo</div>
+    <h1>El cerebro del cliente, por departamento</h1>
+    <p class="sub">Un solo dashboard · cambia la <b>lente</b> según quién entra. Haz clic en los departamentos y módulos.</p>
+  </div>
+
+  <div class="app">
+
+    <!-- top bar -->
+    <div class="topbar">
+      <div class="client">
+        <div class="avatar">MD</div>
+        <div>
+          <div class="nm">Marcelo Duarte</div>
+          <div class="mt">Cliente · Webinar GOBERNA · 29 jul</div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <div class="whoami"><span class="dot" id="whoDot"></span><span id="whoTxt">Entrando como…</span></div>
+    </div>
+
+    <!-- department tabs -->
+    <div class="depts">
+      <div class="dept on" data-d="pm" onclick="setDept('pm')">
+        <span class="ic">🗂️</span>
+        <span class="lbl"><span class="lblnm">Project Manager</span><small>gestión y seguimiento</small></span>
+      </div>
+      <div class="dept" data-d="fin" onclick="setDept('fin')">
+        <span class="ic">📊</span>
+        <span class="lbl"><span class="lblnm">Planeación & Finanzas</span><small>números del cliente</small></span>
+      </div>
+      <div class="dept" data-d="content" onclick="setDept('content')">
+        <span class="ic">🎨</span>
+        <span class="lbl"><span class="lblnm">Content Manager</span><small>contenido y marca</small></span>
+      </div>
+    </div>
+
+    <!-- body -->
+    <div class="body">
+      <div class="nav">
+        <div class="ttl" id="navTtl">Módulos · Project Manager</div>
+        <div id="navList"></div>
+      </div>
+      <div class="canvas" id="canvas"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    Project360 · prototipo navegable · una sola base de módulos, filtrada por departamento · complemento de <code>ARQUITECTURA.md</code>
+  </footer>
+
+</div>
+
+<script>
+  // ---- la ÚNICA base: todos los módulos existen una vez ----
+  const MODULES = {
+    profile:     {ic:'👤', nm:'Perfil',        desc:'La ficha del cliente: quién es, su marca, objetivos y contexto. La misma para todos.'},
+    tasks:       {ic:'✅', nm:'Tareas',        desc:'Todo lo que hay que hacer para este cliente, con responsable, estado y resultado.'},
+    ropre:       {ic:'📋', nm:'ROPRE',         desc:'Informes de resultados y pendientes que se revisan en cada reunión.'},
+    meetings:    {ic:'🗓️', nm:'Agenda',        desc:'Reuniones del cliente y los compromisos que salen de cada una.'},
+    programs:    {ic:'🎯', nm:'Programas',     desc:'Los programas o campañas activas del cliente y su avance.'},
+    team:        {ic:'👥', nm:'Equipo / KPIs', desc:'Quién trabaja para este cliente y cómo va su desempeño.'},
+    planning:    {ic:'🧭', nm:'Planeación',    desc:'El plan estratégico del cliente: qué se va a hacer y en qué orden.'},
+    projections: {ic:'📈', nm:'Proyección',    desc:'Hacia dónde van los números: metas y escenarios a futuro.'},
+    metrics:     {ic:'📊', nm:'Métricas',      desc:'Los resultados reales medidos: tráfico, conversión, ingresos.'},
+    content:     {ic:'✍️', nm:'Contenido',     desc:'Copies, anuncios y piezas generadas con IA para la marca del cliente.'},
+  };
+
+  // ---- los departamentos son sólo listas de módulos (una lente) ----
+  const DEPTS = {
+    pm:      {nm:'Project Manager',        color:'var(--pm)',      mods:['profile','tasks','ropre','meetings','programs','team']},
+    fin:     {nm:'Planeación & Finanzas',  color:'var(--fin)',     mods:['planning','projections','metrics']},
+    content: {nm:'Content Manager',        color:'var(--content)', mods:['content','profile','tasks','team']},
+  };
+
+  // qué módulos son compartidos (aparecen en más de un depto = misma data)
+  const SHARED = ['profile','tasks','team'];
+
+  let curDept = 'pm', curMod = 'profile';
+
+  function setDept(d){
+    curDept = d;
+    curMod = DEPTS[d].mods[0];
+    document.querySelectorAll('.dept').forEach(el=>el.classList.toggle('on', el.dataset.d===d));
+    // whoami
+    const map = {pm:'Ana · Project Manager', fin:'Luis · Finanzas', content:'Sofi · Content Manager'};
+    document.getElementById('whoTxt').textContent = 'Entrando como ' + map[d];
+    document.getElementById('whoDot').style.background = getComputedStyle(document.documentElement).getPropertyValue(d==='pm'?'--pm':d==='fin'?'--fin':'--content');
+    render();
+  }
+
+  function render(){
+    const dep = DEPTS[curDept];
+    document.getElementById('navTtl').textContent = 'Módulos · ' + dep.nm;
+    // nav
+    const nav = document.getElementById('navList');
+    nav.innerHTML = dep.mods.map(m=>{
+      const mod = MODULES[m];
+      const sh = SHARED.includes(m) ? '<span class="shared">compartido</span>' : '';
+      return `<div class="mod ${m===curMod?'on':''}" onclick="setMod('${m}')">
+        <span class="mic">${mod.ic}</span><span>${mod.nm}</span>${sh}</div>`;
+    }).join('');
+    // canvas
+    const mod = MODULES[curMod];
+    const shared = SHARED.includes(curMod);
+    document.getElementById('canvas').innerHTML = `
+      <div class="crumb">Marcelo Duarte &nbsp;/&nbsp; <b>${dep.nm}</b> &nbsp;/&nbsp; <b>${mod.nm}</b></div>
+      <h2><span class="em">${mod.ic}</span> ${mod.nm}</h2>
+      <div class="desc">${mod.desc}</div>
+      ${shared ? `<span class="badge">🔗 Módulo compartido — la misma data que ven otros departamentos</span>` : ''}
+      <div class="skel" style="margin-top:16px">
+        <div class="row">
+          <div class="card"><div class="l1"></div><div class="l2"></div><div class="l3"></div></div>
+          <div class="card"><div class="l1"></div><div class="l2"></div><div class="l3"></div></div>
+        </div>
+        <div class="card"><div class="l1"></div><div class="l2"></div><div class="l3"></div></div>
+      </div>
+      <div class="note">
+        <div class="k">💡</div>
+        <div>
+          <h4>Por qué no se duplica nada</h4>
+          <p>Este módulo <b>${mod.nm}</b> vive <b>una sola vez</b> en <code>BRAIN_MODULES</code>. El departamento <b>${dep.nm}</b> sólo decide <span class="pill">cuáles</span> módulos mostrar${shared?` — y <b>${mod.nm}</b> lo comparte con otros departamentos, así que si Ana edita algo, Sofi lo ve al instante.`:'.'}</p>
+        </div>
+      </div>`;
+  }
+
+  setDept('pm');
+</script>
+</body>
+</html>

@@ -86,7 +86,7 @@ export function WeeklyCalendar() {
                   <div className="text-[10px] text-text-muted opacity-50 italic">Sin reuniones</div>
                 ) : (
                   dayMeetings.map((m) => {
-                    const client = clientById[m.clientId];
+                    const client = clientById[m.clientId ?? ''];
                     const accent = client?.primaryColor ?? '#8B5CF6';
                     const t = parseISO(m.scheduledAt);
                     const hour = t.getHours() + t.getMinutes() / 60;

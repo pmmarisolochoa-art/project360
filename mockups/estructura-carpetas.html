@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project360 · Estructura de Carpetas</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#111726; --panel2:#0e1421; --stroke:#1f2a40;
+    --ink:#e8edf7; --mut:#8b96b3; --faint:#5a6684;
+    --root:#94a3b8; --front:#4f8cff; --state:#8b7cff; --svc:#37c9a6; --data:#2dd4bf; --ai:#e065c9; --infra:#64748b; --cfg:#f4a63b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:
+      radial-gradient(900px 500px at 12% -5%, #16203a 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #1a1530 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink); padding:34px 20px 70px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  header{display:flex;align-items:flex-end;justify-content:space-between;
+    border-bottom:1px solid var(--stroke);padding-bottom:20px;flex-wrap:wrap;gap:16px}
+  .brand{font-size:14px;letter-spacing:3px;color:var(--front);font-weight:700;text-transform:uppercase}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.5px;margin-top:6px}
+  h1 span{color:var(--mut);font-weight:500}
+  .meta{text-align:right;color:var(--faint);font-size:12.5px;line-height:1.7}
+  .meta b{color:var(--mut);font-weight:600}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:22px 0 26px}
+  .lg{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut)}
+  .sw{width:12px;height:12px;border-radius:3px;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+
+  .cols{display:grid;grid-template-columns:1.3fr .7fr;gap:16px;align-items:start}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+
+  .panel{border:1px solid var(--stroke);border-radius:16px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));padding:18px 20px;margin-bottom:16px}
+  .panel > h2{font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+    color:var(--faint);margin-bottom:14px;display:flex;align-items:center;gap:9px}
+  .panel > h2 .c{width:9px;height:9px;border-radius:50%}
+
+  /* tree */
+  .tree{font-family:'SF Mono',ui-monospace,Consolas,monospace;font-size:13px;line-height:1.9}
+  .t{display:flex;align-items:baseline;gap:0;padding:1px 0;border-radius:6px}
+  .t:hover{background:rgba(79,140,255,.06)}
+  .stick{color:#33406a;white-space:pre;flex:0 0 auto}
+  .dir{font-weight:700}
+  .file{color:var(--ink)}
+  .cmt{color:var(--faint);font-family:'Inter',sans-serif;font-size:12px;margin-left:10px;font-weight:400}
+  .badge{font-family:'Inter',sans-serif;font-size:10px;font-weight:700;margin-left:8px;
+    padding:1px 7px;border-radius:999px;color:#0a0e18}
+
+  .c-front{color:var(--front)} .bg-front{background:var(--front)}
+  .c-state{color:var(--state)} .bg-state{background:var(--state)}
+  .c-svc{color:var(--svc)}     .bg-svc{background:var(--svc)}
+  .c-data{color:var(--data)}   .bg-data{background:var(--data)}
+  .c-ai{color:var(--ai)}       .bg-ai{background:var(--ai)}
+  .c-infra{color:var(--infra)} .bg-infra{background:var(--infra)}
+  .c-cfg{color:var(--cfg)}     .bg-cfg{background:var(--cfg)}
+  .c-root{color:var(--root)}
+
+  /* side cards */
+  .card{border:1px solid var(--stroke);border-radius:12px;background:#0d1424;padding:14px 15px;margin-bottom:12px}
+  .card h3{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .card h3 .n{margin-left:auto;font-family:monospace;font-size:12px;color:var(--faint);
+    background:#0a1120;border:1px solid var(--stroke);padding:1px 8px;border-radius:6px}
+  .card p{font-size:12px;color:var(--mut);line-height:1.5}
+  .card .bar{width:34px;height:3px;border-radius:3px;margin-bottom:10px}
+
+  .flowbox{border:1px dashed var(--stroke);border-radius:12px;padding:14px 16px;margin-top:4px;
+    background:rgba(79,140,255,.04)}
+  .flowbox h3{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .chain{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px}
+  .chip{font-family:monospace;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--stroke);background:#0d1424}
+  .arr{color:var(--faint)}
+
+  footer{margin-top:22px;display:flex;justify-content:space-between;color:var(--faint);
+    font-size:12px;border-top:1px solid var(--stroke);padding-top:16px;flex-wrap:wrap;gap:10px}
+  footer code{color:#7fb4ff;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="brand">Project360</div>
+      <h1>Estructura de Carpetas <span>· árbol del repositorio</span></h1>
+    </div>
+    <div class="meta">
+      <div><b>Frontend</b> · 66 componentes · 14 páginas</div>
+      <div><b>Estado</b> · 17 stores · <b>Servicios</b> · 17</div>
+      <div><b>Backend</b> · 18 tablas · 25 migraciones</div>
+    </div>
+  </header>
+
+  <div class="legend">
+    <div class="lg"><span class="sw bg-front"></span> Presentación (UI)</div>
+    <div class="lg"><span class="sw bg-state"></span> Estado &amp; lógica</div>
+    <div class="lg"><span class="sw bg-svc"></span> Servicios</div>
+    <div class="lg"><span class="sw bg-data"></span> Backend / datos</div>
+    <div class="lg"><span class="sw bg-ai"></span> IA</div>
+    <div class="lg"><span class="sw bg-cfg"></span> Configuración</div>
+    <div class="lg"><span class="sw bg-infra"></span> Infra / raíz</div>
+  </div>
+
+  <div class="cols">
+
+    <!-- ======= COLUMNA IZQUIERDA · ÁRBOL ======= -->
+    <div>
+      <div class="panel">
+        <h2><span class="c bg-front"></span> src/ — código de la aplicación</h2>
+        <div class="tree">
+
+          <div class="t"><span class="stick">📦 </span><span class="dir c-root">src/</span></div>
+
+          <div class="t"><span class="stick">├─ </span><span class="file">main.tsx</span><span class="cmt">arranca React + Router</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="file">App.tsx</span><span class="cmt">carga inicial / sesión</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="file">index.css</span><span class="cmt">estilos base (Tailwind)</span></div>
+
+          <div class="t"><span class="stick">│</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="dir c-front">routes/</span><span class="badge bg-front">1</span><span class="cmt">mapa URL → pantalla + rol</span></div>
+          <div class="t"><span class="stick">│   └─ </span><span class="file">AppRouter.tsx</span></div>
+
+          <div class="t"><span class="stick">│</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="dir c-front">pages/</span><span class="badge bg-front">14</span><span class="cmt">pantallas completas</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">DashboardMacro.tsx</span><span class="cmt">home agencia</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">ClientBrainPage.tsx</span><span class="cmt">cerebro del cliente</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">MiEspacio.tsx</span><span class="cmt">espacio del miembro</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">ClientsPage · TeamPage · AgendaPage</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">AllTasksPage · OnboardingPage · SettingsPage</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">SopAgentPage · Deliverables/LinksRepoPage</span></div>
+          <div class="t"><span class="stick">│   └─ </span><span class="file">LoginPage · ClientPortalFunnelPage</span><span class="cmt">público</span></div>
+
+          <div class="t"><span class="stick">│</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="dir c-front">components/</span><span class="badge bg-front">66</span><span class="cmt">piezas de UI</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="dir c-front">brain/</span><span class="cmt">el cerebro del cliente</span></div>
+          <div class="t"><span class="stick">│   │   ├─ </span><span class="file">BrainHeader · BrainNav · ReportsMenu</span></div>
+          <div class="t"><span class="stick">│   │   └─ </span><span class="dir c-front">modules/</span><span class="badge bg-front">17</span><span class="cmt">Tareas · ROPRE · Reuniones ·</span></div>
+          <div class="t"><span class="stick">│   │        </span><span class="cmt" style="margin-left:0">Métricas · Contenido · Programas · Proyecciones · Embudos · Ads</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="dir c-front">dashboard/</span><span class="badge bg-front">10</span><span class="cmt">tarjetas, calendario, ROPRE inline</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="dir c-front">onboarding/</span><span class="badge bg-front">13</span><span class="cmt">wizard 8 pasos + steps/</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="dir c-ai">agent/</span><span class="badge bg-ai">3</span><span class="cmt">Agente PM (chat + acciones)</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="dir c-front">layout/</span><span class="badge bg-front">4</span><span class="cmt">Layout · MemberLayout · Sidebar · Header</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="dir c-front">ui/</span><span class="badge bg-front">13</span><span class="cmt">Button · Modal · Toast · Input…</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="dir c-front">member/</span><span class="cmt">DeliverableDrawer</span></div>
+          <div class="t"><span class="stick">│   └─ </span><span class="dir c-front">auth/</span><span class="cmt">AuthGate</span></div>
+
+          <div class="t"><span class="stick">│</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="dir c-state">store/</span><span class="badge bg-state">17</span><span class="cmt">memoria global (Zustand)</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">useAuthStore · useClientStore · useTeamStore</span></div>
+          <div class="t"><span class="stick">│   └─ </span><span class="file">useRopreStore · useFunnelStore · +11 más</span></div>
+
+          <div class="t"><span class="stick">├─ </span><span class="dir c-state">hooks/</span><span class="badge bg-state">4</span><span class="cmt">useTeamKPIs · useRopreSync · useTaskMonitor · useClientMode</span></div>
+
+          <div class="t"><span class="stick">├─ </span><span class="dir c-svc">services/</span><span class="badge bg-svc">17</span><span class="cmt">única frontera al exterior</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file c-data">supabase · repositories · auth</span><span class="cmt">datos</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file c-ai">claudeApi · claudeInsights</span><span class="cmt">IA</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file c-ai">agentService · agentActions · agentTools</span><span class="cmt">Agente PM</span></div>
+          <div class="t"><span class="stick">│   └─ </span><span class="file">htmlReport · reportsPdf · sopPdf · projectionPdf</span><span class="cmt">PDF</span></div>
+
+          <div class="t"><span class="stick">├─ </span><span class="dir c-state">types/</span><span class="badge bg-state">15</span><span class="cmt">contratos de datos (client, task, ropre…)</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="dir c-state">onboarding/</span><span class="badge bg-state">2</span><span class="cmt">schema.ts + store.ts del wizard</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="dir c-cfg">data/</span><span class="badge bg-cfg">3</span><span class="cmt">plantillas de embudo · seed · keywords</span></div>
+          <div class="t"><span class="stick">└─ </span><span class="dir c-state">utils/</span><span class="badge bg-state">6</span><span class="cmt">cn · fechas · id · colores · métricas · roles</span></div>
+
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="c bg-data"></span> supabase/ &amp; api/ — backend</h2>
+        <div class="tree">
+          <div class="t"><span class="stick">📦 </span><span class="dir c-root">supabase/</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="file">schema.sql</span><span class="cmt">esquema base de tablas</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="file">setup_all.sql</span><span class="cmt">corre todo de una</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="dir c-data">migrations/</span><span class="badge bg-data">25</span><span class="cmt">cambios versionados 001 → 020</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">013_team_members · 014_programs · 015_task_kpi</span></div>
+          <div class="t"><span class="stick">│   ├─ </span><span class="file">016_agent_prompts · 017_agent_conversations</span></div>
+          <div class="t"><span class="stick">│   └─ </span><span class="file">018_client_access · 019_task_links · 020_ropre…</span></div>
+          <div class="t"><span class="stick">└─ </span><span class="dir c-cfg">seeds/</span><span class="badge bg-cfg">4</span><span class="cmt">datos: beta · Marcelo · equipo</span></div>
+          <div class="t"><span class="stick">&nbsp;</span></div>
+          <div class="t"><span class="stick">📦 </span><span class="dir c-root">api/</span></div>
+          <div class="t"><span class="stick">└─ </span><span class="file c-ai">claude.ts</span><span class="cmt">Vercel Edge · proxy seguro a Anthropic</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2><span class="c bg-infra"></span> raíz — configuración &amp; cerebro</h2>
+        <div class="tree">
+          <div class="t"><span class="stick">├─ </span><span class="file c-cfg">package.json · vite.config · tsconfig · tailwind.config</span><span class="cmt">config del build</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="file c-cfg">vercel.json · .env.local · postcss.config</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="file c-infra">index.html</span><span class="cmt">punto de entrada HTML</span></div>
+          <div class="t"><span class="stick">├─ </span><span class="file c-infra">dist/</span><span class="cmt">build de producción — NO editar</span></div>
+          <div class="t"><span class="stick">└─ </span><span class="file">CLAUDE.md · Contexto.md · Historial_Decisiones · mockups/</span><span class="cmt">cerebro del proyecto</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======= COLUMNA DERECHA · GUÍA ======= -->
+    <div>
+      <div class="card">
+        <div class="bar bg-front"></div>
+        <h3>🖥️ Presentación <span class="n">pages · components</span></h3>
+        <p>Todo lo visible. <b>pages/</b> = pantallas; <b>components/</b> = piezas que se reusan. El corazón es <b>brain/modules/</b>: los 17 módulos del cliente.</p>
+      </div>
+      <div class="card">
+        <div class="bar bg-state"></div>
+        <h3>🧠 Estado &amp; lógica <span class="n">store · hooks · types</span></h3>
+        <p><b>store/</b> guarda el estado vivo. <b>hooks/</b> lógica reutilizable. <b>types/</b> define qué es cada dato. Sin backend aquí — solo memoria.</p>
+      </div>
+      <div class="card">
+        <div class="bar bg-svc"></div>
+        <h3>🔌 Servicios <span class="n">services/</span></h3>
+        <p>La <b>única</b> puerta al exterior. Datos (Supabase), IA (Claude), Agente PM y generación de PDF. Ningún componente salta esta capa.</p>
+      </div>
+      <div class="card">
+        <div class="bar bg-data"></div>
+        <h3>🛢️ Backend <span class="n">supabase/</span></h3>
+        <p>18 tablas en Postgres. Cada cambio de esquema = una <b>migración numerada</b>. RLS controla permisos. Los <b>seeds</b> cargan datos reales.</p>
+      </div>
+      <div class="card">
+        <div class="bar bg-ai"></div>
+        <h3>🤖 IA <span class="n">api/claude.ts</span></h3>
+        <p>Única función de servidor. Esconde la API key y reenvía a Anthropic. La usan claudeApi + el Agente PM.</p>
+      </div>
+
+      <div class="flowbox">
+        <h3>Regla de oro del flujo</h3>
+        <div class="chain">
+          <span class="chip c-front">componente</span><span class="arr">→</span>
+          <span class="chip c-state">store</span><span class="arr">→</span>
+          <span class="chip c-svc">service</span><span class="arr">→</span>
+          <span class="chip c-data">Supabase</span><span class="arr">→</span>
+          <span class="chip c-front">UI</span>
+        </div>
+        <p style="font-size:11.5px;color:var(--faint);margin-top:10px">
+          Los datos siempre viajan por este carril. Si entiendes una función, entiendes todas.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <div>Convención · <code>1 carpeta = 1 responsabilidad</code> · imports con alias <code>@/</code></div>
+    <div>Project360 · árbol generado desde el repositorio real · 2026-07-03</div>
+  </footer>
+
+</div>
+</body>
+</html>

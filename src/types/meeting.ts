@@ -6,11 +6,20 @@ export type MeetingType =
   | 'monthly_closing'
   | 'crisis'
   | 'weekly_planning'
-  | 'ropre_strategy';
+  | 'ropre_strategy'
+  // Reuniones internas del equipo (no de un cliente):
+  | 'daily'
+  | 'sprint_cierre';
+
+/** Tipos de reunión INTERNA del equipo (agencyId en vez de clientId). */
+export const TEAM_MEETING_TYPES: MeetingType[] = ['daily', 'weekly_planning', 'sprint_cierre'];
 
 export interface Meeting {
   id: string;
-  clientId: string;
+  /** Cliente dueño de la reunión. null = reunión interna del equipo (usa agencyId). */
+  clientId: string | null;
+  /** Agencia dueña de la reunión, para reuniones internas del equipo. */
+  agencyId?: string | null;
   title: string;
   type: MeetingType;
   scheduledAt: string;

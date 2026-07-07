@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project360 · Workflow de Desarrollo</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#111726; --panel2:#0e1421; --stroke:#1f2a40;
+    --ink:#e8edf7; --mut:#8b96b3; --faint:#5a6684;
+    --plan:#f4a63b; --data:#2dd4bf; --state:#8b7cff; --svc:#37c9a6; --front:#4f8cff; --test:#e065c9; --ship:#22c55e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:
+      radial-gradient(900px 500px at 12% -5%, #16203a 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #1a1530 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink); padding:34px 20px 70px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  header{display:flex;align-items:flex-end;justify-content:space-between;
+    border-bottom:1px solid var(--stroke);padding-bottom:20px;flex-wrap:wrap;gap:16px}
+  .brand{font-size:14px;letter-spacing:3px;color:var(--front);font-weight:700;text-transform:uppercase}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.5px;margin-top:6px}
+  h1 span{color:var(--mut);font-weight:500}
+  .meta{text-align:right;color:var(--faint);font-size:12.5px;line-height:1.7}
+  .meta b{color:var(--mut);font-weight:600}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:22px 0 8px}
+  .lg{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut)}
+  .sw{width:12px;height:12px;border-radius:3px;box-shadow:0 0 0 1px rgba(255,255,255,.06)}
+  .sect{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--faint);
+    font-weight:700;margin:30px 0 14px;display:flex;align-items:center;gap:10px}
+  .sect::after{content:'';flex:1;height:1px;background:var(--stroke)}
+
+  /* PIPELINE */
+  .pipe{position:relative;padding-left:6px}
+  .step{display:grid;grid-template-columns:52px 1fr;gap:16px;padding-bottom:14px;position:relative}
+  .step:last-child{padding-bottom:0}
+  .rail{display:flex;flex-direction:column;align-items:center}
+  .num{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;
+    font-weight:800;font-size:17px;color:#0a0e18;z-index:2;box-shadow:0 6px 16px rgba(0,0,0,.4)}
+  .line{flex:1;width:2px;background:linear-gradient(var(--from,#333),var(--to,#333));margin:4px 0;min-height:14px}
+  .box{border:1px solid var(--stroke);border-radius:14px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));padding:15px 17px;margin-top:0}
+  .box .top{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+  .box h3{font-size:16px;font-weight:700}
+  .box .where{margin-left:auto;font-family:'SF Mono',ui-monospace,Consolas,monospace;font-size:11px;
+    color:var(--faint);background:#0a1120;border:1px solid var(--stroke);padding:2px 9px;border-radius:6px}
+  .box p{font-size:13px;color:var(--mut);line-height:1.5}
+  .box .q{font-size:12.5px;color:var(--ink);background:rgba(244,166,59,.08);
+    border-left:3px solid var(--plan);padding:7px 11px;border-radius:6px;margin-top:9px}
+  .cmd{font-family:'SF Mono',ui-monospace,Consolas,monospace;font-size:12px;color:#7fb4ff;
+    background:#0a1120;border:1px solid #172239;padding:3px 8px;border-radius:6px;display:inline-block;margin:8px 6px 0 0}
+  .tagline{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;color:#0a0e18}
+
+  /* branch condicional */
+  .branch{margin-top:9px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .bcell{font-size:12px;border:1px solid var(--stroke);border-radius:9px;padding:8px 10px;background:#0d1424}
+  .bcell b{font-size:11px}
+  .yes b{color:var(--data)} .no b{color:var(--faint)}
+
+  /* colores por paso */
+  .n1{background:var(--plan)} .n2{background:var(--data)} .n3{background:var(--state)}
+  .n4{background:var(--svc)} .n5{background:var(--front)} .n6{background:var(--test)} .n7{background:var(--ship)}
+  .t-plan{background:var(--plan)} .t-data{background:var(--data)} .t-state{background:var(--state)}
+  .t-svc{background:var(--svc)} .t-front{background:var(--front)} .t-test{background:var(--test)} .t-ship{background:var(--ship)}
+
+  /* bottom: guardrails + loop */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--stroke);border-radius:16px;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));padding:18px 20px}
+  .panel h2{font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+    color:var(--faint);margin-bottom:13px}
+  .rule{display:flex;gap:11px;padding:9px 0;border-bottom:1px dashed #232b45;font-size:13px;color:var(--mut)}
+  .rule:last-child{border-bottom:0}
+  .rule .k{font-size:16px;flex:0 0 auto}
+  .rule b{color:var(--ink);font-weight:600}
+  .loopwrap{display:flex;flex-direction:column;gap:9px}
+  .looprow{display:flex;align-items:center;gap:10px;font-size:13px}
+  .looprow .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+  .looprow .cm{font-family:monospace;font-size:12px;color:#7fb4ff}
+  .looprow .tx{color:var(--mut)}
+
+  footer{margin-top:22px;display:flex;justify-content:space-between;color:var(--faint);
+    font-size:12px;border-top:1px solid var(--stroke);padding-top:16px;flex-wrap:wrap;gap:10px}
+  footer code{color:#7fb4ff;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="brand">Project360</div>
+      <h1>Workflow de Desarrollo <span>· de la idea al deploy</span></h1>
+    </div>
+    <div class="meta">
+      <div><b>Ciclo</b> · 7 pasos · commit atómico por paso</div>
+      <div><b>Deploy</b> · push a <code style="color:#7fb4ff;font-family:monospace">main</code> → Vercel automático</div>
+      <div><b>Regla</b> · reversible = hazlo · irreversible = confirma</div>
+    </div>
+  </header>
+
+  <div class="legend">
+    <div class="lg"><span class="sw t-plan"></span> Definir</div>
+    <div class="lg"><span class="sw t-data"></span> Datos / BD</div>
+    <div class="lg"><span class="sw t-state"></span> Tipos</div>
+    <div class="lg"><span class="sw t-svc"></span> Service</div>
+    <div class="lg"><span class="sw t-front"></span> Estado + UI</div>
+    <div class="lg"><span class="sw t-test"></span> Probar</div>
+    <div class="lg"><span class="sw t-ship"></span> Publicar</div>
+  </div>
+
+  <div class="sect">El pipeline · construir una feature de punta a punta</div>
+
+  <div class="pipe">
+
+    <!-- 1 -->
+    <div class="step">
+      <div class="rail"><div class="num n1">1</div><div class="line" style="--from:var(--plan);--to:var(--data)"></div></div>
+      <div class="box">
+        <div class="top"><span class="tagline t-plan">DEFINIR</span><h3>¿Qué problema resuelve?</h3><span class="where">conversación · Contexto.md</span></div>
+        <p>Antes de tocar código: definir el resultado esperado y confirmarlo. Frenar scope creep — si no acerca el MVP, no va ahora.</p>
+        <div class="q">✋ Confirmar el <b>qué</b> antes del <b>cómo</b>. No inventar datos: lo que no esté en Contexto.md o Datos_Entrada, se pregunta.</div>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="step">
+      <div class="rail"><div class="num n2">2</div><div class="line" style="--from:var(--data);--to:var(--state)"></div></div>
+      <div class="box">
+        <div class="top"><span class="tagline t-data">DATOS</span><h3>¿Necesita guardar algo nuevo?</h3><span class="where">supabase/migrations/</span></div>
+        <p>Si la feature guarda datos que aún no existen, se crea una migración numerada y su regla de permisos (RLS).</p>
+        <div class="branch">
+          <div class="bcell yes"><b>SÍ →</b> crear <code style="font-family:monospace;color:#7fb4ff">0NN_descripcion.sql</code> + RLS · correr en Supabase</div>
+          <div class="bcell no"><b>NO →</b> saltar al paso 3</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="step">
+      <div class="rail"><div class="num n3">3</div><div class="line" style="--from:var(--state);--to:var(--svc)"></div></div>
+      <div class="box">
+        <div class="top"><span class="tagline t-state">TIPOS</span><h3>Definir el contrato del dato</h3><span class="where">src/types/</span></div>
+        <p>Crear o actualizar el tipo TypeScript (qué campos tiene el dato). Esto guía todo lo demás y evita errores.</p>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="step">
+      <div class="rail"><div class="num n4">4</div><div class="line" style="--from:var(--svc);--to:var(--front)"></div></div>
+      <div class="box">
+        <div class="top"><span class="tagline t-svc">SERVICE</span><h3>El puente a los datos</h3><span class="where">src/services/repositories.ts</span></div>
+        <p>Función que lee/escribe en Supabase. <b>Ningún componente accede a la BD directo</b> — todo pasa por aquí.</p>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="step">
+      <div class="rail"><div class="num n5">5</div><div class="line" style="--from:var(--front);--to:var(--test)"></div></div>
+      <div class="box">
+        <div class="top"><span class="tagline t-front">ESTADO + UI</span><h3>Memoria y pantalla</h3><span class="where">src/store/ · src/components/</span></div>
+        <p>Acción + estado en el <b>store</b> (Zustand); luego el <b>componente/módulo</b> que lee del store y se dibuja. La UI se actualiza sola.</p>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="step">
+      <div class="rail"><div class="num n6">6</div><div class="line" style="--from:var(--test);--to:var(--ship)"></div></div>
+      <div class="box">
+        <div class="top"><span class="tagline t-test">PROBAR</span><h3>Verificar antes de guardar</h3><span class="where">local</span></div>
+        <p>Correr local y revisar que no haya errores de tipos. Revisar seguridad si se tocó auth o pagos.</p>
+        <span class="cmd">npm run dev</span><span class="cmd">npm run typecheck</span>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="step">
+      <div class="rail"><div class="num n7">7</div></div>
+      <div class="box" style="border-color:rgba(34,197,94,.4)">
+        <div class="top"><span class="tagline t-ship">PUBLICAR</span><h3>Commit y deploy</h3><span class="where">git · Vercel</span></div>
+        <p>Commit atómico con mensaje descriptivo → push a <code style="font-family:monospace;color:#7fb4ff">main</code>. Vercel compila y publica solo. 🚀</p>
+        <span class="cmd">git commit -m "feat(x): …"</span><span class="cmd">git push origin main</span>
+        <div class="q" style="background:rgba(34,197,94,.08);border-color:var(--ship);border-left-color:var(--ship)">
+          📌 Decisión importante → registrarla en <b>Historial_Decisiones_Project360.md</b>. Al cerrar sesión → <b>/guardar</b>.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- GUARDRAILS + LOOP -->
+  <div class="sect">Reglas que protegen el proyecto &amp; ciclo largo</div>
+  <div class="grid2">
+    <div class="panel">
+      <h2>🛡️ Guardrails (siempre)</h2>
+      <div class="rule"><span class="k">🚫</span><div><b>No inventar datos.</b> Lo que falte, se pregunta.</div></div>
+      <div class="rule"><span class="k">🔢</span><div><b>Migraciones en orden.</b> Nunca cambiar la BD a mano en prod.</div></div>
+      <div class="rule"><span class="k">🔌</span><div><b>Un service por cosa externa.</b> Componentes no tocan la BD directo.</div></div>
+      <div class="rule"><span class="k">⚛️</span><div><b>Commits atómicos</b> + typecheck antes de merge.</div></div>
+      <div class="rule"><span class="k">🔐</span><div><b>Revisar seguridad</b> en auth / pagos / RLS.</div></div>
+      <div class="rule"><span class="k">📦</span><div><b>No editar <code style="font-family:monospace;color:#7fb4ff">dist/</code></b> — es el build.</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>🔄 El ciclo grande (semanal)</h2>
+      <div class="loopwrap">
+        <div class="looprow"><span class="dot t-plan"></span><span class="cm">/semana</span><span class="tx">— review ejecutivo: estado, prioridades, decisiones</span></div>
+        <div class="looprow"><span class="dot t-data"></span><span class="cm">/build</span><span class="tx">— construir una feature con garantías de calidad</span></div>
+        <div class="looprow"><span class="dot t-svc"></span><span class="cm">/cliente</span><span class="tx">— briefing antes de una reunión de cliente</span></div>
+        <div class="looprow"><span class="dot t-test"></span><span class="cm">/code-review</span><span class="tx">— revisar el diff antes de publicar</span></div>
+        <div class="looprow"><span class="dot t-ship"></span><span class="cm">/guardar</span><span class="tx">— cerrar sesión documentando avances</span></div>
+      </div>
+      <p style="font-size:12px;color:var(--faint);margin-top:14px;line-height:1.55">
+        <b style="color:var(--mut)">Fase actual:</b> terminar el MVP y usarlo con el equipo en clientes reales.
+        Estabilizar antes de sumar features. SaaS (pagos, multi-cuenta) va después.</p>
+    </div>
+  </div>
+
+  <footer>
+    <div>Patrón de datos · <code>componente → store → service → Supabase → UI</code></div>
+    <div>Project360 · workflow · 2026-07-03</div>
+  </footer>
+
+</div>
+</body>
+</html>

@@ -117,7 +117,7 @@ export function MiEspacio() {
     return !m.completed && (isToday(d) || !isPast(d));
   };
   const meetingsByClient = useMemo(() => {
-    const mine = allMeetings.filter((m) => myClientIds.includes(m.clientId) && m.scheduledAt);
+    const mine = allMeetings.filter((m) => m.clientId != null && myClientIds.includes(m.clientId) && m.scheduledAt);
     return myClients
       .map((c) => {
         const list = mine.filter((m) => m.clientId === c.id);

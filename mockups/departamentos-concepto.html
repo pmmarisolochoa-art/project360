@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project360 · Departamentos como lentes</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#111726; --panel2:#0e1421; --stroke:#1f2a40;
+    --ink:#e8edf7; --mut:#8b96b3; --faint:#5a6684;
+    --pm:#4f8cff; --fin:#2dd4bf; --cont:#e065c9; --shared:#f4a63b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Inter','Segoe UI',system-ui,sans-serif;
+    background:
+      radial-gradient(1000px 560px at 15% -8%, #16203a 0%, transparent 60%),
+      radial-gradient(1000px 560px at 100% 0%, #1a1530 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink); padding:40px 20px 70px; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1100px;margin:0 auto}
+  header{border-bottom:1px solid var(--stroke);padding-bottom:20px;margin-bottom:26px}
+  .brand{font-size:14px;letter-spacing:3px;color:var(--pm);font-weight:700;text-transform:uppercase}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.5px;margin-top:6px}
+  h1 span{color:var(--mut);font-weight:500}
+  .sub{color:var(--mut);font-size:15px;margin-top:8px;max-width:720px;line-height:1.5}
+
+  .sect{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--faint);
+    font-weight:700;margin:30px 0 14px;display:flex;align-items:center;gap:10px}
+  .sect::after{content:'';flex:1;height:1px;background:var(--stroke)}
+
+  /* pool de módulos */
+  .pool{border:1px solid var(--stroke);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));
+    padding:18px 20px}
+  .pool .lbl{font-size:12px;color:var(--faint);margin-bottom:12px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:13px;padding:7px 13px;border-radius:9px;border:1px solid var(--stroke);
+    background:#0d1424;display:flex;align-items:center;gap:7px}
+  .chip .s{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .chip.sh .s{background:var(--shared)}
+  .chip.sh{border-color:rgba(244,166,59,.4)}
+  .hint{font-size:12px;color:var(--faint);margin-top:12px;display:flex;align-items:center;gap:7px}
+  .hint b{color:var(--shared)}
+
+  /* departamentos */
+  .depts{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:860px){.depts{grid-template-columns:1fr}}
+  .dept{border:1px solid var(--stroke);border-radius:18px;overflow:hidden;
+    background:linear-gradient(180deg,var(--panel),var(--panel2));display:flex;flex-direction:column}
+  .dept .bar{height:5px}
+  .dept.pm .bar{background:var(--pm)} .dept.fin .bar{background:var(--fin)} .dept.cont .bar{background:var(--cont)}
+  .dept .body{padding:18px 18px 20px}
+  .dept .role{font-family:'SF Mono',monospace;font-size:11px;color:var(--faint);letter-spacing:.5px}
+  .dept h2{font-size:19px;font-weight:700;margin:5px 0 3px;display:flex;align-items:center;gap:9px}
+  .dept .who{font-size:12.5px;color:var(--mut);margin-bottom:14px}
+  .mods{display:flex;flex-direction:column;gap:6px}
+  .mod{display:flex;align-items:center;gap:9px;font-size:13.5px;padding:8px 11px;border-radius:9px;
+    background:#0d1424;border:1px solid var(--stroke)}
+  .mod .d{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+  .dept.pm .mod .d{background:var(--pm)} .dept.fin .mod .d{background:var(--fin)} .dept.cont .mod .d{background:var(--cont)}
+  .mod .tag{margin-left:auto;font-size:9.5px;font-weight:700;color:#0a0e18;background:var(--shared);
+    padding:1px 7px;border-radius:999px}
+  .mod.shared{border-color:rgba(244,166,59,.35)}
+
+  /* como funciona */
+  .how{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;align-items:start}
+  @media(max-width:860px){.how{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--stroke);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--panel2));padding:20px 22px}
+  .panel h3{font-size:15px;font-weight:700;margin-bottom:6px}
+  .panel p{font-size:13px;color:var(--mut);line-height:1.55;margin-bottom:12px}
+  pre{font-family:'SF Mono',ui-monospace,Consolas,monospace;font-size:12px;line-height:1.7;
+    background:#080c16;border:1px solid var(--stroke);border-radius:11px;padding:14px 15px;overflow-x:auto;color:#c9d4ee}
+  .k{color:#e065c9} .str{color:#6fe3c4} .cm{color:#5a6684} .fn{color:#7fb4ff}
+
+  .flow2{display:flex;flex-direction:column;gap:10px}
+  .frow{display:flex;align-items:center;gap:11px;font-size:13px}
+  .frow .b{font-family:monospace;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--stroke);background:#0d1424;white-space:nowrap}
+  .frow .arr{color:var(--faint)}
+  .frow .tx{color:var(--mut)}
+
+  footer{margin-top:28px;color:var(--faint);font-size:12px;border-top:1px solid var(--stroke);padding-top:16px}
+  footer code{color:#7fb4ff;font-family:monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">Project360</div>
+    <h1>Departamentos = lentes, no copias <span>· organización por áreas</span></h1>
+    <p class="sub">Un solo set de módulos (piezas). Cada departamento es una <b>vista filtrada</b> de esos mismos módulos según quién los mira. El dato vive una vez; se muestra donde haga falta.</p>
+  </header>
+
+  <!-- POOL -->
+  <div class="sect">1 · Los módulos existen una sola vez</div>
+  <div class="pool">
+    <div class="lbl">Registro único · <code style="font-family:monospace;color:#7fb4ff">BRAIN_MODULES</code> en BrainNav.tsx</div>
+    <div class="chips">
+      <span class="chip sh"><span class="s"></span>Perfil</span>
+      <span class="chip"><span class="s"></span>Planeación</span>
+      <span class="chip"><span class="s"></span>Programas</span>
+      <span class="chip"><span class="s"></span>Proyección</span>
+      <span class="chip"><span class="s"></span>Métricas</span>
+      <span class="chip sh"><span class="s"></span>Tareas</span>
+      <span class="chip"><span class="s"></span>ROPRE</span>
+      <span class="chip"><span class="s"></span>Agenda</span>
+      <span class="chip sh"><span class="s"></span>Equipo / KPIs</span>
+      <span class="chip"><span class="s"></span>Contenido</span>
+    </div>
+    <div class="hint">🔸 <b>Naranja</b> = módulo compartido: aparece en más de un área, pero es <b>el mismo módulo y el mismo dato</b>.</div>
+  </div>
+
+  <!-- DEPARTAMENTOS -->
+  <div class="sect">2 · Cada área agrupa los módulos que le sirven</div>
+  <div class="depts">
+
+    <div class="dept pm">
+      <div class="bar"></div>
+      <div class="body">
+        <div class="role">role: project_manager</div>
+        <h2>🗂️ Project Manager</h2>
+        <div class="who">Ejecuta y da seguimiento a la operación.</div>
+        <div class="mods">
+          <div class="mod"><span class="d"></span>Perfil<span class="tag">compartido</span></div>
+          <div class="mod"><span class="d"></span>Tareas & Seguimiento<span class="tag">compartido</span></div>
+          <div class="mod"><span class="d"></span>ROPRE</div>
+          <div class="mod"><span class="d"></span>Agenda & Reuniones</div>
+          <div class="mod"><span class="d"></span>Programas</div>
+          <div class="mod"><span class="d"></span>Equipo / KPIs<span class="tag">compartido</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dept fin">
+      <div class="bar"></div>
+      <div class="body">
+        <div class="role">role: finanzas</div>
+        <h2>📊 Planeación & Finanzas</h2>
+        <div class="who">Diseña el plan y cuida los números.</div>
+        <div class="mods">
+          <div class="mod"><span class="d"></span>Planeación del proyecto</div>
+          <div class="mod"><span class="d"></span>Proyección financiera</div>
+          <div class="mod"><span class="d"></span>Métricas & Campañas</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dept cont">
+      <div class="bar"></div>
+      <div class="body">
+        <div class="role">role: content_manager</div>
+        <h2>🎬 Content Manager</h2>
+        <div class="who">Produce y publica el contenido.</div>
+        <div class="mods">
+          <div class="mod"><span class="d"></span>Contenido & Redes</div>
+          <div class="mod"><span class="d"></span>Perfil del cliente<span class="tag">compartido</span></div>
+          <div class="mod"><span class="d"></span>Tareas<span class="tag">compartido</span></div>
+          <div class="mod"><span class="d"></span>Equipo<span class="tag">compartido</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- COMO FUNCIONA -->
+  <div class="sect">3 · Cómo se implementa (un solo cambio)</div>
+  <div class="how">
+    <div class="panel">
+      <h3>Un registro nuevo: <code style="font-family:monospace;color:#7fb4ff">DEPARTMENTS</code></h3>
+      <p>Al lado de <code style="font-family:monospace;color:#7fb4ff">BRAIN_MODULES</code> defines qué módulos ve cada área y qué rol la abre. La navegación lee de aquí — <b>cero código nuevo por módulo</b>.</p>
+      <pre><span class="k">export const</span> DEPARTMENTS = [
+  {
+    id: <span class="str">'pm'</span>,
+    name: <span class="str">'Project Manager'</span>,
+    roles: [<span class="str">'project_manager'</span>],
+    modules: [<span class="str">'profile'</span>,<span class="str">'tasks'</span>,<span class="str">'ropre'</span>,
+              <span class="str">'meetings'</span>,<span class="str">'programs'</span>,<span class="str">'team'</span>],
+  },
+  {
+    id: <span class="str">'finanzas'</span>,
+    name: <span class="str">'Planeación & Finanzas'</span>,
+    roles: [<span class="str">'finanzas'</span>],
+    modules: [<span class="str">'planning'</span>,<span class="str">'projections'</span>,<span class="str">'metrics'</span>],
+  },
+  {
+    id: <span class="str">'content'</span>,
+    name: <span class="str">'Content Manager'</span>,
+    roles: [<span class="str">'content_manager'</span>],
+    modules: [<span class="str">'content'</span>,<span class="str">'profile'</span>,<span class="str">'tasks'</span>,<span class="str">'team'</span>],
+  },
+]
+
+<span class="cm">// El nav ya no muestra 10 módulos sueltos;</span>
+<span class="cm">// muestra los del área activa. Un módulo</span>
+<span class="cm">// puede estar en varias áreas — es el mismo.</span></pre>
+    </div>
+
+    <div class="panel">
+      <h3>El recorrido del usuario</h3>
+      <p>El rol define en qué área aterriza. Puede cambiar de área si tiene permiso.</p>
+      <div class="flow2">
+        <div class="frow"><span class="b">login</span><span class="arr">→</span><span class="tx">se lee su <b>rol</b></span></div>
+        <div class="frow"><span class="b">rol</span><span class="arr">→</span><span class="tx">aterriza en su <b>departamento</b></span></div>
+        <div class="frow"><span class="b">departamento</span><span class="arr">→</span><span class="tx">ve solo <b>sus módulos</b></span></div>
+        <div class="frow"><span class="b">módulo</span><span class="arr">→</span><span class="tx">el <b>mismo dato</b> de siempre</span></div>
+      </div>
+      <p style="margin-top:16px;font-size:12.5px;color:var(--faint)">
+        Los permisos (RLS) siguen siendo la seguridad real: el departamento decide <b>qué se ve</b>; RLS decide <b>qué se puede tocar</b> (editor / viewer).</p>
+    </div>
+  </div>
+
+  <footer>
+    Patrón · <code>1 módulo = 1 lugar</code> · los departamentos lo agrupan, no lo copian · Project360 · 2026-07-05
+  </footer>
+
+</div>
+</body>
+</html>

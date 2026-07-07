@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project360 — Design System Preview</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+:root{
+  --color-primary:#6366F1;--color-on-primary:#FFFFFF;--color-secondary:#818CF8;
+  --color-accent:#059669;--color-background:#F5F3FF;--color-foreground:#1E1B4B;
+  --color-muted:#EBEFF9;--color-border:#E0E7FF;--color-destructive:#DC2626;--color-ring:#6366F1;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Fira Sans',sans-serif;background:var(--color-background);color:var(--color-foreground);line-height:1.5;padding:40px 24px}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-family:'Fira Code',monospace;font-weight:700;font-size:2rem;margin-bottom:4px}
+.sub{color:var(--color-secondary);font-family:'Fira Code',monospace;font-size:.85rem;margin-bottom:32px}
+h2{font-family:'Fira Code',monospace;font-size:1.05rem;margin:32px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--color-border)}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.sw{border:1px solid var(--color-border);border-radius:10px;overflow:hidden;background:#fff}
+.sw .chip{height:70px}
+.sw .meta{padding:8px 10px;font-family:'Fira Code',monospace;font-size:.72rem}
+.sw .meta b{display:block;font-size:.78rem;font-family:'Fira Sans',sans-serif;font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-top:8px}
+.kpi{background:#fff;border:1px solid var(--color-border);border-radius:12px;padding:18px;transition:box-shadow .2s}
+.kpi:hover{box-shadow:0 8px 24px rgba(99,102,241,.15)}
+.kpi .label{font-size:.75rem;color:var(--color-secondary);text-transform:uppercase;letter-spacing:.04em}
+.kpi .val{font-family:'Fira Code',monospace;font-size:1.8rem;font-weight:700;margin:6px 0}
+.kpi .delta{font-size:.8rem;font-weight:600}
+.up{color:var(--color-accent)}.down{color:var(--color-destructive)}
+.btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px}
+button{font-family:'Fira Sans',sans-serif;font-weight:600;border:none;border-radius:8px;padding:11px 20px;cursor:pointer;transition:all .2s;font-size:.9rem}
+.b-primary{background:var(--color-primary);color:var(--color-on-primary)}
+.b-primary:hover{background:#4f46e5}
+.b-accent{background:var(--color-accent);color:#fff}
+.b-accent:hover{background:#047857}
+.b-ghost{background:transparent;color:var(--color-primary);border:1px solid var(--color-border)}
+.b-ghost:hover{background:var(--color-muted)}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid var(--color-border);font-size:.85rem}
+th{text-align:left;font-family:'Fira Code',monospace;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--color-secondary);padding:12px 14px;background:var(--color-muted)}
+td{padding:12px 14px;border-top:1px solid var(--color-border)}
+tr:hover td{background:var(--color-muted)}
+.badge{font-family:'Fira Code',monospace;font-size:.7rem;padding:3px 8px;border-radius:20px;font-weight:600}
+.b-green{background:#D1FAE5;color:#059669}.b-amber{background:#FEF3C7;color:#B45309}.b-red{background:#FEE2E2;color:#DC2626}
+.type-row{display:flex;gap:32px;flex-wrap:wrap;background:#fff;border:1px solid var(--color-border);border-radius:12px;padding:20px}
+.foot{margin-top:40px;font-family:'Fira Code',monospace;font-size:.72rem;color:var(--color-secondary)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Project360</h1>
+  <div class="sub">Data-Dense Dashboard · generado por ui-ux-pro-max · WCAG AA</div>
+
+  <h2>// Paleta de color</h2>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#6366F1"></div><div class="meta"><b>Primary</b>#6366F1</div></div>
+    <div class="sw"><div class="chip" style="background:#818CF8"></div><div class="meta"><b>Secondary</b>#818CF8</div></div>
+    <div class="sw"><div class="chip" style="background:#059669"></div><div class="meta"><b>Accent / CTA</b>#059669</div></div>
+    <div class="sw"><div class="chip" style="background:#DC2626"></div><div class="meta"><b>Destructive</b>#DC2626</div></div>
+    <div class="sw"><div class="chip" style="background:#F5F3FF;border-bottom:1px solid #E0E7FF"></div><div class="meta"><b>Background</b>#F5F3FF</div></div>
+    <div class="sw"><div class="chip" style="background:#1E1B4B"></div><div class="meta"><b>Foreground</b>#1E1B4B</div></div>
+  </div>
+
+  <h2>// Tipografía</h2>
+  <div class="type-row">
+    <div>
+      <div style="font-family:'Fira Code';font-weight:700;font-size:1.6rem">Fira Code</div>
+      <div style="color:var(--color-secondary);font-size:.8rem">Headings · datos · métricas</div>
+      <div style="font-family:'Fira Code';margin-top:8px">1234567890 · $ % +</div>
+    </div>
+    <div>
+      <div style="font-weight:600;font-size:1.6rem">Fira Sans</div>
+      <div style="color:var(--color-secondary);font-size:.8rem">Body · UI · descripciones</div>
+      <div style="margin-top:8px">The quick brown fox jumps over.</div>
+    </div>
+  </div>
+
+  <h2>// KPI Cards</h2>
+  <div class="cards">
+    <div class="kpi"><div class="label">Proyectos activos</div><div class="val">24</div><div class="delta up">▲ 12% vs mes ant.</div></div>
+    <div class="kpi"><div class="label">Horas facturables</div><div class="val">1,840</div><div class="delta up">▲ 8%</div></div>
+    <div class="kpi"><div class="label">Margen promedio</div><div class="val">32%</div><div class="delta down">▼ 3%</div></div>
+    <div class="kpi"><div class="label">Clientes en riesgo</div><div class="val">3</div><div class="delta down">▲ 1</div></div>
+  </div>
+
+  <h2>// Botones</h2>
+  <div class="btns">
+    <button class="b-primary">Nuevo proyecto</button>
+    <button class="b-accent">Iniciar trial</button>
+    <button class="b-ghost">Filtrar</button>
+  </div>
+
+  <h2>// Tabla de datos</h2>
+  <table>
+    <thead><tr><th>Cliente</th><th>Proyecto</th><th>Deadline</th><th>Estado</th></tr></thead>
+    <tbody>
+      <tr><td>Mared</td><td>Reset Nervioso™</td><td>2026-07-15</td><td><span class="badge b-green">On track</span></td></tr>
+      <tr><td>Ikigai</td><td>Growth Sprint Q3</td><td>2026-07-08</td><td><span class="badge b-amber">At risk</span></td></tr>
+      <tr><td>Acme Co</td><td>Rebrand</td><td>2026-07-04</td><td><span class="badge b-red">Overdue</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="foot">Efectos: hover tooltips · row highlighting · filtros animados 150-300ms · prefers-reduced-motion respetado<br>
+  Anti-patterns evitados: diseño ornamentado · falta de filtros</div>
+</div>
+</body>
+</html>

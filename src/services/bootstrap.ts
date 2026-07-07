@@ -36,9 +36,12 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
     const tasksQuery = supabase.from('tasks').select('*');
     const meetingsQuery = supabase.from('meetings').select('*');
 
-    const [tasksRes, meetingsRes] = await Promise.all([
+    const [tasksRes, meetingsRes, teamMeetingsRes] = await Promise.all([
       clientIds.length > 0 ? tasksQuery.in('client_id', clientIds) : tasksQuery,
       clientIds.length > 0 ? meetingsQuery.in('client_id', clientIds) : meetingsQuery,
+      // Reuniones internas del equipo (sin cliente). RLS las acota a la agencia
+      // del usuario (owner o miembro). Query aparte porque no filtran por client_id.
+      supabase.from('meetings').select('*').is('client_id', null),
     ]);
 
     if (tasksRes.error) throw tasksRes.error;
@@ -46,7 +49,12 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
 
     const clients: Client[] = (clientsRaw ?? []).map(rowToClient);
     const tasks: Task[] = (tasksRes.data ?? []).map(rowToTask);
-    const meetings: Meeting[] = (meetingsRes.data ?? []).map(rowToMeeting);
+    const clientMeetings: Meeting[] = (meetingsRes.data ?? []).map(rowToMeeting);
+    const teamMeetings: Meeting[] = (teamMeetingsRes.data ?? []).map(rowToMeeting);
+    // Merge sin duplicar por id.
+    const meetingsById = new Map<string, Meeting>();
+    [...clientMeetings, ...teamMeetings].forEach((m) => meetingsById.set(m.id, m));
+    const meetings: Meeting[] = [...meetingsById.values()];
 
     if (clients.length > 0) {
       useClientStore.setState({ clients, tasks, meetings });
@@ -147,7 +155,8 @@ function rowToMeeting(r: Record<string, unknown>): Meeting {
   const x = r as Record<string, any>;
   return {
     id: x.id,
-    clientId: x.client_id,
+    clientId: x.client_id ?? null,
+    agencyId: x.agency_id ?? null,
     title: x.title,
     type: x.type,
     scheduledAt: x.scheduled_at,

@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-07-07 — Barra de búsqueda global (owner + miembro) EN PRODUCCIÓN
+
+**Qué:** La barra de búsqueda del header (que era un input muerto, sin handler) ahora funciona, y el miembro también la tiene en su cabecera.
+
+**Diseño (Opción A — desplegable al instante):** busca del store ya cargado (sin backend → instantáneo) en **Clientes · Tareas · Reuniones · Entregables/links · Personas del equipo**. Resultados agrupados, teclado (↑↓/Enter/Esc), clic para navegar (cliente / tareas / agenda / equipo; los entregables abren su URL). **Se filtra sola por permisos:** el miembro solo tiene en memoria los datos de sus clientes. Se descartaron ⌘K (paleta) y página de resultados por ahora.
+
+**Piezas:** componente reutilizable `GlobalSearch` (en header del owner y del miembro); nuevo `useLinksStore` + carga de `task_links` en el bootstrap (antes solo se cargaban on-demand en /mi-espacio). Validado en preview de Vercel por la founder antes del merge (flujo: rama → preview → revisar → merge).
+
+**Estado del equipo Ikigai:** 2 personas de alta vía botón Invitar; por ahora no se agregan más.
+
+---
+
 ## 2026-07-06 — Fix: reuniones de tipo nuevo no se guardaban (+ reuniones en el espacio del miembro)
 
 **Síntoma:** las reuniones que la founder creaba no llegaban al dashboard del miembro. Se veían en el navegador del dueño pero no en la base ni para el equipo.

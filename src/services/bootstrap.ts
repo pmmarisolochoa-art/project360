@@ -8,7 +8,9 @@ import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useProgramsStore } from '@/store/useProgramsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
+import { useLinksStore } from '@/store/useLinksStore';
 import { ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo } from './repositories';
+import { TaskLinksRepo } from './taskLinks';
 import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
@@ -51,7 +53,7 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
 
       // Hidratar content_pieces y projections en paralelo
       try {
-        const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData] = await Promise.all([
+        const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData, links] = await Promise.all([
           ContentRepo.listByClientIds(clientIds),
           ProjectionsRepo.listByClientIds(clientIds),
           RopreRepo.listByClientIds(clientIds),
@@ -59,6 +61,7 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
           TeamMembersRepo.listByClientIds(clientIds),
           ProgramsRepo.listByClientIds(clientIds),
           FunnelLaunchRepo.listByClientIds(clientIds),
+          TaskLinksRepo.listByClientIds(clientIds),
         ]);
         if (contentPieces.length > 0) useContentStore.setState({ pieces: contentPieces });
         if (Object.keys(projections).length > 0) useProjectionStore.setState({ states: projections });
@@ -67,6 +70,7 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
         if (teamMembers.length > 0) useTeamMembersStore.getState().hydrate(teamMembers);
         if (programs.length > 0) useProgramsStore.getState().hydrate(programs);
         if (funnelData.funnels.length > 0) useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
+        if (links.length > 0) useLinksStore.getState().hydrate(links);
         // eslint-disable-next-line no-console
         console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
       } catch (e) {

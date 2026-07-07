@@ -1,8 +1,9 @@
-import { Bell, Search, Plus } from 'lucide-react';
+import { Bell, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '@/store/useAppStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { Button } from '@/components/ui/Button';
+import { GlobalSearch } from '@/components/search/GlobalSearch';
 
 export function Header() {
   const user = useAppStore((s) => s.currentUser);
@@ -14,18 +15,7 @@ export function Header() {
       style={{ background: 'var(--header-bg)', borderColor: 'var(--header-border)' }}
     >
       <div className="flex items-center gap-3 flex-1 max-w-md">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
-          <input
-            type="search"
-            placeholder="Buscar cliente, tarea, reunión…"
-            className="w-full h-10 pl-10 pr-3 rounded-[10px] border text-sm text-text-primary focus-ring"
-            style={{
-              background: 'var(--header-search-bg)',
-              borderColor: 'var(--header-search-border)',
-            }}
-          />
-        </div>
+        <GlobalSearch className="flex-1" />
       </div>
 
       <div className="flex items-center gap-3">

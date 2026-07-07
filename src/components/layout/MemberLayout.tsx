@@ -3,6 +3,7 @@ import { Sparkles, LogOut, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { signOut } from '@/services/auth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useAppStore } from '@/store/useAppStore';
+import { GlobalSearch } from '@/components/search/GlobalSearch';
 
 /**
  * Layout para usuarios tipo MIEMBRO (equipo — Capa 1, multi-cliente).
@@ -48,6 +49,7 @@ export function MemberLayout() {
             <LayoutGrid className="h-3.5 w-3.5" /> Mi espacio
           </NavLink>
         </div>
+        <GlobalSearch className="hidden md:block flex-1 max-w-md" />
         <div className="flex items-center gap-3 min-w-0">
           <div className="text-right min-w-0 hidden sm:block">
             <div className="text-xs text-text-primary truncate max-w-[180px]">{name || email}</div>

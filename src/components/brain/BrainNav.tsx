@@ -74,8 +74,9 @@ export function BrainNav({ accent }: { accent: string }) {
                     : undefined
                 }
               >
-                <m.icon className="h-3 w-3 shrink-0" />
-                <span className="font-medium truncate">{m.label}</span>
+                <m.icon className="h-4 w-4 shrink-0 md:h-3 md:w-3" />
+                {/* Móvil: solo íconos (parejos). Nombres desde md+. */}
+                <span className="font-medium truncate hidden md:inline">{m.label}</span>
               </NavLink>
             </li>
           ))}

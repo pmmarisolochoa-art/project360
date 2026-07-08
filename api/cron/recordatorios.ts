@@ -91,29 +91,44 @@ export default async function handler(req: Request): Promise<Response> {
 
   if (relevant.length === 0) return json({ ok: true, sent: 0, note: 'Sin tareas que venzan hoy o en 2 días.' });
 
-  // 2. Mapa nombre→email por cliente (para saber a quién avisar).
+  // 2. Resolver responsable → email(s). Las tareas se asignan por NOMBRE de
+  //    persona O por ROL (slug: strategist, copywriter…). Soportamos ambos.
+  //    Un rol puede tener varias personas → se les avisa a todas.
   const clientIds = [...new Set(relevant.map((r) => r.t.client_id))];
   const { data: members } = await admin
     .from('team_members')
-    .select('client_id, nombre, email')
+    .select('client_id, nombre, rol, email')
     .in('client_id', clientIds);
-  const emailByKey = new Map<string, string>(); // `${client_id}::${nombre_lower}` -> email
+  const byName = new Map<string, { email: string; nombre: string }>();          // client::nombre_lower
+  const byRole = new Map<string, Array<{ email: string; nombre: string }>>();    // client::rol_lower
   for (const m of members ?? []) {
-    if (m.email && m.nombre) emailByKey.set(`${m.client_id}::${String(m.nombre).trim().toLowerCase()}`, m.email as string);
+    const email = m.email ? String(m.email) : '';
+    const nombre = m.nombre ? String(m.nombre) : '';
+    if (!email || !nombre) continue;
+    byName.set(`${m.client_id}::${nombre.trim().toLowerCase()}`, { email, nombre });
+    if (m.rol) {
+      const rk = `${m.client_id}::${String(m.rol).trim().toLowerCase()}`;
+      const arr = byRole.get(rk) ?? [];
+      arr.push({ email, nombre });
+      byRole.set(rk, arr);
+    }
   }
 
-  // 3. Agrupar tareas por email de la persona.
+  // 3. Agrupar tareas por email de cada persona (match por nombre, si no, por rol).
   interface Item { title: string; when: 'hoy' | 'en 2 días'; clientId: string; taskId: string }
   const byEmail = new Map<string, { nombre: string; items: Item[] }>();
   for (const { t, due } of relevant) {
-    const nombre = (t.assigned_to ?? '').trim();
-    if (!nombre) continue;
-    const email = emailByKey.get(`${t.client_id}::${nombre.toLowerCase()}`);
-    if (!email) continue; // sin email no podemos avisar
+    const key = (t.assigned_to ?? '').trim().toLowerCase();
+    if (!key) continue;
+    const nameMatch = byName.get(`${t.client_id}::${key}`);
+    const recipients = nameMatch ? [nameMatch] : (byRole.get(`${t.client_id}::${key}`) ?? []);
+    if (recipients.length === 0) continue; // nadie a quién avisar
     const when: Item['when'] = due === today ? 'hoy' : 'en 2 días';
-    const bucket = byEmail.get(email) ?? { nombre, items: [] };
-    bucket.items.push({ title: t.title, when, clientId: t.client_id, taskId: t.id });
-    byEmail.set(email, bucket);
+    for (const r of recipients) {
+      const bucket = byEmail.get(r.email) ?? { nombre: r.nombre, items: [] };
+      bucket.items.push({ title: t.title, when, clientId: t.client_id, taskId: t.id });
+      byEmail.set(r.email, bucket);
+    }
   }
 
   if (byEmail.size === 0) {

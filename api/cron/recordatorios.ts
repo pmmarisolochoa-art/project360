@@ -1,0 +1,162 @@
+/**
+ * Vercel Cron — Recordatorios de tareas por email.
+ *
+ * Corre 1x al día (ver vercel.json). Por cada persona con tareas pendientes que
+ * vencen HOY o EN 2 DÍAS, envía UN solo correo con el resumen (no un correo por
+ * tarea → sin spam). Usa Resend vía HTTP (sin dependencias).
+ *
+ * Requiere en Vercel:
+ *   - SUPABASE_SERVICE_ROLE_KEY (ya configurada para el botón invitar)
+ *   - VITE_SUPABASE_URL
+ *   - RESEND_API_KEY        (de resend.com)
+ *   - RESEND_FROM           (ej. "Project360 <recordatorios@tudominio.com>")
+ *   - CRON_SECRET           (string aleatorio; Vercel lo manda como Bearer)
+ *   - APP_URL               (opcional, para el botón del correo; default prod)
+ */
+
+import { createClient } from '@supabase/supabase-js';
+
+export const config = { runtime: 'edge' };
+
+const CO_OFFSET_MS = -5 * 60 * 60 * 1000; // Colombia GMT-5
+
+/** Fecha calendario en Colombia (YYYY-MM-DD) de un instante dado. */
+function coDate(d: Date): string {
+  return new Date(d.getTime() + CO_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+interface TaskRow {
+  id: string;
+  client_id: string;
+  title: string;
+  status: string;
+  due_date: string | null;
+  assigned_to: string | null;
+}
+
+export default async function handler(req: Request): Promise<Response> {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const resendKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM || 'Project360 <onboarding@resend.dev>';
+  const appUrl = process.env.APP_URL || 'https://project360-pearl.vercel.app';
+  const cronSecret = process.env.CRON_SECRET;
+
+  // Protección: si hay CRON_SECRET, el llamado debe traerlo (Vercel Cron lo hace).
+  if (cronSecret) {
+    const auth = req.headers.get('authorization') || '';
+    if (auth !== `Bearer ${cronSecret}`) {
+      return json({ error: 'No autorizado.' }, 401);
+    }
+  }
+  if (!url || !serviceKey) return json({ error: 'Falta config Supabase.' }, 500);
+  if (!resendKey) return json({ error: 'Falta RESEND_API_KEY.' }, 500);
+
+  const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+  const now = new Date();
+  const today = coDate(now);
+  const inTwo = coDate(new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000));
+
+  // 1. Tareas pendientes con fecha de vencimiento.
+  const { data: tasksRaw, error: tErr } = await admin
+    .from('tasks')
+    .select('id, client_id, title, status, due_date, assigned_to')
+    .neq('status', 'completed')
+    .not('due_date', 'is', null);
+  if (tErr) return json({ error: `tasks: ${tErr.message}` }, 500);
+
+  const tasks = (tasksRaw ?? []) as TaskRow[];
+  // Solo las que vencen hoy o en 2 días (por fecha calendario en Colombia).
+  const relevant = tasks
+    .map((t) => ({ t, due: t.due_date ? coDate(new Date(t.due_date)) : null }))
+    .filter(({ due }) => due === today || due === inTwo);
+
+  if (relevant.length === 0) return json({ ok: true, sent: 0, note: 'Sin tareas que venzan hoy o en 2 días.' });
+
+  // 2. Mapa nombre→email por cliente (para saber a quién avisar).
+  const clientIds = [...new Set(relevant.map((r) => r.t.client_id))];
+  const { data: members } = await admin
+    .from('team_members')
+    .select('client_id, nombre, email')
+    .in('client_id', clientIds);
+  const emailByKey = new Map<string, string>(); // `${client_id}::${nombre_lower}` -> email
+  for (const m of members ?? []) {
+    if (m.email && m.nombre) emailByKey.set(`${m.client_id}::${String(m.nombre).trim().toLowerCase()}`, m.email as string);
+  }
+
+  // 3. Agrupar tareas por email de la persona.
+  interface Item { title: string; when: 'hoy' | 'en 2 días' }
+  const byEmail = new Map<string, { nombre: string; items: Item[] }>();
+  for (const { t, due } of relevant) {
+    const nombre = (t.assigned_to ?? '').trim();
+    if (!nombre) continue;
+    const email = emailByKey.get(`${t.client_id}::${nombre.toLowerCase()}`);
+    if (!email) continue; // sin email no podemos avisar
+    const when: Item['when'] = due === today ? 'hoy' : 'en 2 días';
+    const bucket = byEmail.get(email) ?? { nombre, items: [] };
+    bucket.items.push({ title: t.title, when });
+    byEmail.set(email, bucket);
+  }
+
+  if (byEmail.size === 0) {
+    return json({ ok: true, sent: 0, note: 'Hay tareas por vencer, pero sin email de responsable para avisar.' });
+  }
+
+  // 4. Enviar un correo por persona.
+  let sent = 0;
+  const errors: string[] = [];
+  for (const [email, { nombre, items }] of byEmail) {
+    const html = renderEmail(nombre, items, appUrl);
+    const subject = `⏰ Tienes ${items.length} entrega${items.length === 1 ? '' : 's'} próxima${items.length === 1 ? '' : 's'} — Project360`;
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to: [email], subject, html }),
+      });
+      if (res.ok) sent++;
+      else errors.push(`${email}: ${res.status} ${await res.text().catch(() => '')}`.slice(0, 200));
+    } catch (e) {
+      errors.push(`${email}: ${e instanceof Error ? e.message : 'error'}`);
+    }
+  }
+
+  return json({ ok: true, sent, people: byEmail.size, errors: errors.length ? errors : undefined });
+}
+
+function renderEmail(nombre: string, items: Array<{ title: string; when: string }>, appUrl: string): string {
+  const first = (nombre.split(' ')[0] || '').trim();
+  const rows = items
+    .map(
+      (i) => `<tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;color:#111">${escapeHtml(i.title)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:13px;color:${i.when === 'hoy' ? '#dc2626' : '#d97706'};white-space:nowrap;font-weight:600">${i.when === 'hoy' ? 'Vence hoy' : 'En 2 días'}</td>
+      </tr>`,
+    )
+    .join('');
+  return `<!doctype html><html><body style="margin:0;background:#f5f6f8;font-family:Inter,Arial,sans-serif">
+    <div style="max-width:520px;margin:0 auto;padding:28px 16px">
+      <div style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e8eaee">
+        <div style="background:linear-gradient(135deg,#4f8cff,#37c9a6);padding:20px 24px;color:#fff">
+          <div style="font-size:12px;letter-spacing:2px;opacity:.9;text-transform:uppercase">Project360</div>
+          <div style="font-size:20px;font-weight:800;margin-top:4px">Hola ${escapeHtml(first)} 👋</div>
+        </div>
+        <div style="padding:22px 24px">
+          <p style="font-size:14px;color:#444;margin:0 0 14px">Estas entregas tuyas están por vencer:</p>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden">${rows}</table>
+          <a href="${appUrl}/mi-espacio" style="display:inline-block;margin-top:18px;background:#4f8cff;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">Ver mis tareas →</a>
+          <p style="font-size:12px;color:#999;margin:18px 0 0">Recordatorio automático de Project360.</p>
+        </div>
+      </div>
+    </div>
+  </body></html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+}

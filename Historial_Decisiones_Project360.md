@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-08 — Fase de SISTEMATIZACIÓN de procesos: arranque + PM aprobado + móvil + recordatorios
+
+**Contexto:** se abrió la fase de sistematizar y ejecutar procesos (objetivo: que el equipo esté al tanto de sus procesos, KPIs, objetivos, resultados, tareas y reuniones; simple y replicable para cualquier agencia). Investigación (3 agentes) confirmó: la app YA tiene el **motor** (agente PM con proponer→aprobar→ejecutar, plantillas de embudo que generan 20-40 tareas, loop reunión→tareas→ROPRE, catálogo KPIs por rol) y los procesos de Ikigai están **documentados pero fragmentados** en Notion/Drive (Ventas 8/10, Onboarding 7/10, método Ikigai; Ads/contenido/RRHH flojos). El "Agente SOP" del menú NO sistematiza — es un cuestionario de viabilidad.
+
+**Roadmap acordado (bloques):** A) Fundación (proceso PM, cómo se conecta la info) · B) Inteligencia de reuniones (no duplicar tareas, recuento enlazado, tiempos) · C) Vista del equipo · D) Recordatorios email+WhatsApp · E) Móvil. Orden: A+E primero, luego B/C, D al final (WhatsApp gasta plata → se pospone).
+
+**Proceso PM APROBADO (fundación):** Inicio (revisar urgente) → 11:00 Daily (wins→números→ronda por área→bloqueos→compromisos) → Estrategia por cliente → Post-reunión (compromisos→tareas con responsable Y fecha) → Seguimiento durante el día → Cierre. Columna vertebral de datos: todo cuelga de CLIENTE (reuniones→tareas+ROPRE→KPIs→reporte) y de PERSONA (ve solo lo suyo).
+
+**Móvil EN PRODUCCIÓN:** sidebar colapsable (cajón + hamburguesa) + header responsive; menú del cerebro del cliente = solo íconos en móvil. La app ya se ve bien en celular.
+
+**Recordatorios por email CONSTRUIDO (rama `feat/recordatorios-email`, pendiente encender):** Vercel Cron 1x/día (8am CO) → `api/cron/recordatorios.ts` (Edge, Resend vía HTTP). A cada persona UN correo con sus tareas que vencen hoy o en 2 días (agrupado, sin spam). Decisión: **email primero** (gratis/rápido) sobre WhatsApp (cuesta por mensaje + setup Meta). Requiere que la founder cree cuenta Resend + agregue `RESEND_API_KEY`/`CRON_SECRET`/`RESEND_FROM` en Vercel; luego merge a main (el cron solo corre en prod) + prueba manual. OJO: `onboarding@resend.dev` solo entrega al correo propio; para el equipo hay que verificar dominio.
+
+**Pendiente de la fase:** encender recordatorios (tras Resend); post-reunión (enviar tareas al terminar); no-duplicar tareas + recuento enlazado entre reuniones; dónde guardar informes de reunión en la nube; WhatsApp + registrar tareas por WhatsApp (decisión de $$); reuniones de equipo (rama `feat/reuniones-equipo` parqueada — la founder prefirió no cambiarlo por ahora).
+
+---
+
 ## 2026-07-07 — Barra de búsqueda global (owner + miembro) EN PRODUCCIÓN
 
 **Qué:** La barra de búsqueda del header (que era un input muerto, sin handler) ahora funciona, y el miembro también la tiene en su cabecera.

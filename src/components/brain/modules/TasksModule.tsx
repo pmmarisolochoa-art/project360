@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -129,23 +129,21 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     clearSelection();
   };
 
-  // Auto-abrir el detalle de una tarea si la URL trae ?task=<id>.
-  // Lo usa "Resolver →" del AlertsPanel para navegar directo al origen del problema.
-  const [searchParams, setSearchParams] = useSearchParams();
+  // Auto-abrir el detalle de una tarea si la URL trae ?task=<id> (ej. link de
+  // un correo de recordatorio). Se abre UNA vez por taskId (ref), sin tocar la
+  // URL — así el modal se queda abierto de forma confiable aunque los datos
+  // terminen de cargar después.
+  const [searchParams] = useSearchParams();
+  const openedTaskRef = useRef<string | null>(null);
   useEffect(() => {
     const taskId = searchParams.get('task');
-    if (!taskId) return;
-    // Busca en TODAS las tareas (no solo las del cliente filtrado) por si el
-    // link viene de un correo y las tareas aún se están cargando.
+    if (!taskId || openedTaskRef.current === taskId) return;
     const target = allTasks.find((t) => t.id === taskId);
     if (target) {
+      openedTaskRef.current = taskId;
       setEditing(target);
-      // Limpia el query param para que cerrar/reabrir no re-abra el modal.
-      const next = new URLSearchParams(searchParams);
-      next.delete('task');
-      setSearchParams(next, { replace: true });
     }
-  }, [searchParams, allTasks, setSearchParams]);
+  }, [searchParams, allTasks]);
 
   // Filtro de responsable: SOLO por rol. Una tarea matchea un rol si:
   //  - su assignedTo es ese slug, o

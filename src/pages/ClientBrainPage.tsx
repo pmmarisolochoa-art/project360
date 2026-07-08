@@ -1,5 +1,6 @@
 import { useParams, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useClientStore } from '@/store/useClientStore';
 import { BrainHeader } from '@/components/brain/BrainHeader';
 import { BrainNav, BRAIN_MODULES, MEMBER_MODULE_SLUGS } from '@/components/brain/BrainNav';
@@ -106,6 +107,7 @@ export function ClientBrainPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const client = useClientStore((s) => s.clients.find((c) => c.id === id));
+  const hydrated = useClientStore((s) => s.hydrated);
   const setCurrentClient = useClientStore((s) => s.setCurrentClient);
   const { isMember, canEditTasks, hasAccessToClient, departamentos } = useClientMode(id);
 
@@ -136,6 +138,16 @@ export function ClientBrainPage() {
   // es interno). Redirige a su primer módulo permitido (nunca a uno bloqueado).
   if (isMember && module && !allowedSlugs.has(module)) {
     return <Navigate to={`/client/${id}/${firstAllowed}`} replace />;
+  }
+
+  // Aún cargando datos (enlace directo desde un correo): esperar, no rebotar.
+  // Antes de hidratar, `clients` es el seed → buscar un cliente real fallaría.
+  if (!client && !hydrated) {
+    return (
+      <div className="min-h-full flex items-center justify-center py-24">
+        <Loader2 className="h-5 w-5 animate-spin text-text-muted" />
+      </div>
+    );
   }
 
   if (!client) {

@@ -10,6 +10,10 @@ interface ClientState {
   clients: Client[];
   meetings: Meeting[];
   tasks: Task[];
+  /** true cuando el bootstrap ya cargó (o falló). Antes de eso `clients` es el
+   *  seed, así que buscar un cliente real fallaría — hay que esperar. */
+  hydrated: boolean;
+  setHydrated: (v: boolean) => void;
   currentClientId: string | null;
   setCurrentClient: (id: string | null) => void;
   addClient: (c: Client) => void;
@@ -32,6 +36,8 @@ export const useClientStore = create<ClientState>((set, get) => ({
   clients: seedClients,
   meetings: seedMeetings,
   tasks: seedTasks,
+  hydrated: false,
+  setHydrated: (v) => set({ hydrated: v }),
   currentClientId: null,
   setCurrentClient: (id) => set({ currentClientId: id }),
   addClient: (c) => {

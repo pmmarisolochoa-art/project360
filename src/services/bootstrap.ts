@@ -21,7 +21,10 @@ import type { Meeting } from '@/types/meeting';
  * filtrados por agency_id. Si no, deja el seed in-memory.
  */
 export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local' }> {
-  if (!usingRemote || !supabase) return { source: 'local' };
+  if (!usingRemote || !supabase) {
+    useClientStore.getState().setHydrated(true); // modo local: el seed ES la data
+    return { source: 'local' };
+  }
   const agencyId = useAuthStore.getState().agencyId;
 
   try {
@@ -80,9 +83,11 @@ export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local
       // eslint-disable-next-line no-console
       console.info('[bootstrap] Sin clientes en esta agencia — usando seed in-memory.');
     }
+    useClientStore.getState().setHydrated(true);
     return { source: 'remote' };
   } catch (e) {
     console.warn('[bootstrap] Supabase fetch falló — usando seed local.', e);
+    useClientStore.getState().setHydrated(true);
     return { source: 'local' };
   }
 }

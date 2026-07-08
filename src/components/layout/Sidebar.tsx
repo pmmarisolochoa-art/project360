@@ -29,7 +29,7 @@ const globalNav = [
   { to: '/agente-sop',              label: 'Agente SOP',  icon: ClipboardCheck },
 ];
 
-export function Sidebar() {
+export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const clients = useClientStore((s) => s.clients);
   // Salud global del portafolio: peor estado entre clientes activos
   const worstHealth = clients.reduce<'green' | 'yellow' | 'red'>((acc, c) => {
@@ -52,10 +52,20 @@ export function Sidebar() {
   }[worstHealth];
 
   return (
-    <aside
-      className="flex w-64 flex-col border-r"
-      style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--sidebar-border)' }}
-    >
+    <>
+      {/* Backdrop — solo móvil, cuando el menú está abierto */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" onClick={onClose} aria-hidden />
+      )}
+      <aside
+        className={cn(
+          'flex w-64 flex-col border-r z-50',
+          // Móvil: cajón deslizable fijo. Escritorio (lg+): columna fija normal.
+          'fixed inset-y-0 left-0 transform transition-transform duration-200 lg:static lg:transform-none',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        )}
+        style={{ background: 'var(--sidebar-bg)', borderColor: 'var(--sidebar-border)' }}
+      >
       <div className="flex items-center gap-3 px-5 py-5 border-b" style={{ borderColor: 'var(--sidebar-border)' }}>
         <motion.div
           animate={{ scale: [1, 1.06, 1], opacity: [0.85, 1, 0.85] }}
@@ -79,6 +89,7 @@ export function Sidebar() {
             key={item.to}
             to={item.to}
             end={item.end}
+            onClick={onClose}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm transition-all focus-ring',
@@ -104,6 +115,7 @@ export function Sidebar() {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={onClose}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-[10px] px-3 py-2 text-xs transition-all focus-ring',
@@ -131,6 +143,7 @@ export function Sidebar() {
         <div className="text-sm text-text-primary">{healthLabel}</div>
         <div className="text-[11px] text-text-muted mt-1">{clients.length} clientes activos</div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

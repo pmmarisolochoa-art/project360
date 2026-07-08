@@ -42,10 +42,27 @@ export default async function handler(req: Request): Promise<Response> {
   const appUrl = process.env.APP_URL || 'https://project360-pearl.vercel.app';
   const cronSecret = process.env.CRON_SECRET;
 
+  // Diagnóstico seguro (no revela valores): /api/cron/recordatorios?debug=1
+  const debug = new URL(req.url).searchParams.get('debug') === '1';
+  if (debug) {
+    const authRaw = req.headers.get('authorization') || '';
+    const received = authRaw.replace(/^Bearer\s+/i, '').trim();
+    return json({
+      cronSecretSet: !!cronSecret,
+      cronSecretLen: (cronSecret ?? '').length,
+      receivedLen: received.length,
+      match: !!cronSecret && received === cronSecret.trim(),
+      resendSet: !!resendKey,
+      fromSet: !!process.env.RESEND_FROM,
+      supabaseSet: !!(url && serviceKey),
+    });
+  }
+
   // Protección: si hay CRON_SECRET, el llamado debe traerlo (Vercel Cron lo hace).
+  // Tolerante a espacios/nueva-línea al copiar la variable en Vercel.
   if (cronSecret) {
-    const auth = req.headers.get('authorization') || '';
-    if (auth !== `Bearer ${cronSecret}`) {
+    const auth = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    if (auth !== cronSecret.trim()) {
       return json({ error: 'No autorizado.' }, 401);
     }
   }

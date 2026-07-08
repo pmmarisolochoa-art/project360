@@ -103,7 +103,7 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // 3. Agrupar tareas por email de la persona.
-  interface Item { title: string; when: 'hoy' | 'en 2 días' }
+  interface Item { title: string; when: 'hoy' | 'en 2 días'; clientId: string; taskId: string }
   const byEmail = new Map<string, { nombre: string; items: Item[] }>();
   for (const { t, due } of relevant) {
     const nombre = (t.assigned_to ?? '').trim();
@@ -112,7 +112,7 @@ export default async function handler(req: Request): Promise<Response> {
     if (!email) continue; // sin email no podemos avisar
     const when: Item['when'] = due === today ? 'hoy' : 'en 2 días';
     const bucket = byEmail.get(email) ?? { nombre, items: [] };
-    bucket.items.push({ title: t.title, when });
+    bucket.items.push({ title: t.title, when, clientId: t.client_id, taskId: t.id });
     byEmail.set(email, bucket);
   }
 
@@ -142,16 +142,24 @@ export default async function handler(req: Request): Promise<Response> {
   return json({ ok: true, sent, people: byEmail.size, errors: errors.length ? errors : undefined });
 }
 
-function renderEmail(nombre: string, items: Array<{ title: string; when: string }>, appUrl: string): string {
+function renderEmail(nombre: string, items: Array<{ title: string; when: string; clientId: string; taskId: string }>, appUrl: string): string {
   const first = (nombre.split(' ')[0] || '').trim();
+  // Cada fila enlaza DIRECTO a su tarea (?task=<id> abre el detalle en la app).
+  const taskUrl = (i: { clientId: string; taskId: string }) =>
+    `${appUrl}/client/${i.clientId}/tasks?task=${i.taskId}`;
   const rows = items
     .map(
       (i) => `<tr>
-        <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:14px;color:#111">${escapeHtml(i.title)}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:13px;color:${i.when === 'hoy' ? '#dc2626' : '#d97706'};white-space:nowrap;font-weight:600">${i.when === 'hoy' ? 'Vence hoy' : 'En 2 días'}</td>
+        <td style="padding:0;border-bottom:1px solid #eee">
+          <a href="${taskUrl(i)}" style="display:block;padding:12px 12px;font-size:14px;color:#111;text-decoration:none">${escapeHtml(i.title)} <span style="color:#4f8cff">→</span></a>
+        </td>
+        <td style="padding:12px 12px;border-bottom:1px solid #eee;font-size:13px;color:${i.when === 'hoy' ? '#dc2626' : '#d97706'};white-space:nowrap;font-weight:600">${i.when === 'hoy' ? 'Vence hoy' : 'En 2 días'}</td>
       </tr>`,
     )
     .join('');
+  // Botón principal: si es una sola tarea, va directo a ella; si son varias, al listado.
+  const mainHref = items.length === 1 ? taskUrl(items[0]) : `${appUrl}/mi-espacio`;
+  const mainLabel = items.length === 1 ? 'Abrir la tarea →' : 'Ver mis tareas →';
   return `<!doctype html><html><body style="margin:0;background:#f5f6f8;font-family:Inter,Arial,sans-serif">
     <div style="max-width:520px;margin:0 auto;padding:28px 16px">
       <div style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e8eaee">
@@ -160,9 +168,9 @@ function renderEmail(nombre: string, items: Array<{ title: string; when: string 
           <div style="font-size:20px;font-weight:800;margin-top:4px">Hola ${escapeHtml(first)} 👋</div>
         </div>
         <div style="padding:22px 24px">
-          <p style="font-size:14px;color:#444;margin:0 0 14px">Estas entregas tuyas están por vencer:</p>
+          <p style="font-size:14px;color:#444;margin:0 0 14px">Estas entregas tuyas están por vencer — <b>toca cada una para abrirla</b>:</p>
           <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden">${rows}</table>
-          <a href="${appUrl}/mi-espacio" style="display:inline-block;margin-top:18px;background:#4f8cff;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">Ver mis tareas →</a>
+          <a href="${mainHref}" style="display:inline-block;margin-top:18px;background:#4f8cff;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">${mainLabel}</a>
           <p style="font-size:12px;color:#999;margin:18px 0 0">Recordatorio automático de Project360.</p>
         </div>
       </div>

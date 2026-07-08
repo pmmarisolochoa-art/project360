@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -7,6 +7,11 @@ import { useToastStore } from '@/store/useToastStore';
 
 export function Layout() {
   const user = useAuthStore((s) => s.user);
+  const location = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Cierra el menú móvil al cambiar de ruta.
+  useEffect(() => { setNavOpen(false); }, [location.pathname]);
 
   // Saludo de bienvenida — solo la primera vez por sesión del navegador.
   // Usamos sessionStorage para que vuelva a aparecer al día siguiente.
@@ -30,9 +35,9 @@ export function Layout() {
 
   return (
     <div className="flex h-full bg-bg-base text-text-primary">
-      <Sidebar />
+      <Sidebar mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex-1 flex flex-col min-w-0">
-        <Header />
+        <Header onMenuClick={() => setNavOpen(true)} />
         <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>

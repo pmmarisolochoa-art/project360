@@ -135,7 +135,9 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   useEffect(() => {
     const taskId = searchParams.get('task');
     if (!taskId) return;
-    const target = tasks.find((t) => t.id === taskId);
+    // Busca en TODAS las tareas (no solo las del cliente filtrado) por si el
+    // link viene de un correo y las tareas aún se están cargando.
+    const target = allTasks.find((t) => t.id === taskId);
     if (target) {
       setEditing(target);
       // Limpia el query param para que cerrar/reabrir no re-abra el modal.
@@ -143,7 +145,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
       next.delete('task');
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, tasks, setSearchParams]);
+  }, [searchParams, allTasks, setSearchParams]);
 
   // Filtro de responsable: SOLO por rol. Una tarea matchea un rol si:
   //  - su assignedTo es ese slug, o

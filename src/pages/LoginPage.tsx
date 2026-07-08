@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LogIn, Loader2 } from 'lucide-react';
 import { signIn } from '@/services/auth';
@@ -10,6 +10,7 @@ import { toast } from '@/store/useToastStore';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const setUser = useAuthStore((s) => s.setUser);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +29,10 @@ export function LoginPage() {
       const u = await signIn(email, password);
       setUser(u);
       toast.success(`Bienvenida, ${u.email}`);
-      navigate('/', { replace: true });
+      // Respeta el destino al que iba (ej. link de la tarea desde un correo).
+      const from = (location.state as { from?: { pathname: string; search?: string; hash?: string } } | null)?.from;
+      const dest = from ? `${from.pathname}${from.search ?? ''}${from.hash ?? ''}` : '/';
+      navigate(dest, { replace: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al iniciar sesión';
       setError(msg);

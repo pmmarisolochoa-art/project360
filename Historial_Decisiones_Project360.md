@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-07-08 (noche) — Recordatorios por email EN PRODUCCIÓN + fixes de deep-link
+
+**Recordatorios por email VIVOS y validados E2E.** Vercel Cron diario (8am CO) → `api/cron/recordatorios.ts` (Edge, Resend HTTP). A cada persona UN correo con sus tareas que vencen hoy o en 2 días; cada tarea **enlaza directo a su detalle** (`?task=id`). Correo con `CRON_SECRET` (secret simple `probar123456` tras líos con el valor original) — se puede disparar manual con `curl -H "Authorization: Bearer <secret>" .../api/cron/recordatorios`; `?debug=1` da diagnóstico seguro (sin revelar valores).
+
+**Aprendizaje clave — las tareas se asignan por ROL, no por nombre:** el matcheo responsable→email debe resolver por `nombre` y, si no, por `rol` (slug: strategist, copywriter, project_manager…); un rol puede tener varias personas → se avisa a todas. Al principio fallaba con "sin email de responsable" por esto.
+
+**3 bugs de deep-link corregidos (afectaban toda la app, no solo el correo):**
+1. **LoginPage** ignoraba el destino → tras entrar iba siempre a `/`. Ahora respeta `state.from` (con search) → el link de la tarea sobrevive al login.
+2. **Auto-abrir `?task=`** borraba el query param al abrir → el modal no se quedaba. Ahora abre una vez por taskId con un ref, sin tocar la URL.
+3. **RAÍZ:** `ClientBrainPage` se montaba antes de que el bootstrap cargara los clientes reales → buscaba el id en el seed → no lo hallaba → `Navigate('/')` (caía al dashboard). Fix: `useClientStore.hydrated` (true tras bootstrap) + loader hasta cargar; solo rebota si el cliente no existe de verdad.
+
+**Resend en modo prueba:** sin dominio verificado solo entrega al correo de la cuenta (`pmmarisolochoa@gmail.com`). **Pendiente:** verificar un dominio en Resend + actualizar `RESEND_FROM` → los recordatorios llegan a todo el equipo con su email real.
+
+**Decisión de canal:** email (Resend) para recordatorios disparados por la app (ligados a tareas, con deep-link). Para WhatsApp cuando se entre a ese bloque: usar **GoHighLevel** (Ikigai ya lo paga y hace WhatsApp) en vez de montar Meta/Twilio.
+
+**Siguiente:** verificar dominio Resend (equipo); luego elegir WhatsApp vía GHL, o post-reunión (enviar tareas al terminar) + no-duplicar-tareas.
+
+---
+
 ## 2026-07-08 — Fase de SISTEMATIZACIÓN de procesos: arranque + PM aprobado + móvil + recordatorios
 
 **Contexto:** se abrió la fase de sistematizar y ejecutar procesos (objetivo: que el equipo esté al tanto de sus procesos, KPIs, objetivos, resultados, tareas y reuniones; simple y replicable para cualquier agencia). Investigación (3 agentes) confirmó: la app YA tiene el **motor** (agente PM con proponer→aprobar→ejecutar, plantillas de embudo que generan 20-40 tareas, loop reunión→tareas→ROPRE, catálogo KPIs por rol) y los procesos de Ikigai están **documentados pero fragmentados** en Notion/Drive (Ventas 8/10, Onboarding 7/10, método Ikigai; Ads/contenido/RRHH flojos). El "Agente SOP" del menú NO sistematiza — es un cuestionario de viabilidad.

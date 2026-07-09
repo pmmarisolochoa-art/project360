@@ -539,8 +539,9 @@ async function extractTasks(apiKey: string, ctx: ExtractTasksCtx): Promise<Array
   ...
 ]
 Reglas:
-- Máximo 8 tareas, mínimo 0.
+- Extrae TODAS las tareas accionables que se acordaron o mencionaron en la reunión. Sé exhaustiva: no te limites a un número fijo. Si se hablaron 15 tareas, devuelve 15.
 - Si no hay tareas claras, devuelve [].
+- No inventes tareas que no se mencionaron.
 - Cada title empieza con verbo en infinitivo.
 - Asigna el rol más apropiado de la lista disponible.
 - dueInDays: urgente=2, normal=7, baja=14.`;
@@ -554,11 +555,12 @@ ${ctx.notes}
 
 Extrae las tareas accionables.`;
 
-  const txt = await callAnthropic(apiKey, system, user, 1200);
+  const txt = await callAnthropic(apiKey, system, user, 4000);
   try {
     const parsed = JSON.parse(extractJson(txt));
     if (!Array.isArray(parsed)) return [];
-    return parsed.slice(0, 8).map((t: { title?: string; responsibleRole?: string; dueInDays?: number }) => ({
+    // Tope de seguridad amplio (antes 8): permite reuniones con muchas tareas.
+    return parsed.slice(0, 40).map((t: { title?: string; responsibleRole?: string; dueInDays?: number }) => ({
       title: String(t.title ?? '').slice(0, 200),
       responsibleRole: String(t.responsibleRole ?? ctx.availableRoles[0] ?? 'estratega'),
       dueInDays: Math.max(1, Math.min(30, Number(t.dueInDays) || 7)),

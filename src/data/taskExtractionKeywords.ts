@@ -151,7 +151,7 @@ export const PRIORITY_KEYWORDS: PriorityKeywordRule[] = [
 
 /* ─────────────── Configuración general ─────────────── */
 export const EXTRACTION_CONFIG = {
-  maxTasks: 8,
+  maxTasks: 40,
   minLineLength: 8,
   maxLineLength: 220,
   defaultDueInDays: 7,

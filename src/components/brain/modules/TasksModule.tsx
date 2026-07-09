@@ -818,19 +818,41 @@ function TaskModal({
   const [kpiResultado, setKpiResultado] = useState(task?.kpiResultado ?? '');
   const [dependsOn, setDependsOn] = useState<string[]>(task?.dependsOn ?? []);
   const [showDepsEditor, setShowDepsEditor] = useState((task?.dependsOn?.length ?? 0) > 0);
-  const [subtasks, setSubtasks] = useState(task?.subtasks ?? []);
+  const [subtasks] = useState(task?.subtasks ?? []); // checklist legacy: se conserva, ya no se edita
   const [comments, setComments] = useState(task?.comments ?? []);
   const [newComment, setNewComment] = useState('');
-  const [newSubtask, setNewSubtask] = useState('');
   const dependents = task ? allTasks.filter((t) => t.dependsOn?.includes(task.id)) : [];
 
-  const addSubtask = () => {
-    if (!newSubtask.trim() || subtasks.length >= 5) return;
-    setSubtasks([...subtasks, { id: genId(), title: newSubtask.trim(), done: false }]);
-    setNewSubtask('');
+  // ── Subtareas = TAREAS HIJAS reales, asignadas a una persona (suman a sus KPIs) ──
+  const storeAddTask = useClientStore((s) => s.addTask);
+  const storeDeleteTask = useClientStore((s) => s.deleteTask);
+  const childTasks = task ? allTasks.filter((t) => t.parentTaskId === task.id) : [];
+  const [childTitle, setChildTitle] = useState('');
+  const [childAssignee, setChildAssignee] = useState('');
+  const [childDue, setChildDue] = useState(new Date().toISOString().slice(0, 10));
+  const [childEntregable, setChildEntregable] = useState('');
+  const createChildTask = () => {
+    if (!task?.id || !childTitle.trim()) return;
+    storeAddTask({
+      id: genId(),
+      clientId,
+      parentTaskId: task.id,
+      title: childTitle.trim(),
+      status: 'pending',
+      priority: 'P2',
+      assignedTo: childAssignee,
+      dueDate: new Date(`${childDue}T10:00:00`).toISOString(),
+      isDelayed: false,
+      delayDays: 0,
+      output: childEntregable.trim() || undefined,
+      subtasks: [],
+      comments: [],
+      createdAt: new Date().toISOString(),
+    });
+    setChildTitle('');
+    setChildEntregable('');
+    toast.success('Subtarea creada y asignada ✓');
   };
-  const toggleSubtask = (id: string) => setSubtasks(subtasks.map((s) => s.id === id ? { ...s, done: !s.done } : s));
-  const removeSubtask = (id: string) => setSubtasks(subtasks.filter((s) => s.id !== id));
   const addComment = () => {
     if (!newComment.trim()) return;
     setComments([...comments, { id: genId(), author: 'Yo', text: newComment.trim(), createdAt: new Date().toISOString() }]);
@@ -1086,52 +1108,74 @@ function TaskModal({
           )}
         </div>
 
-        {/* Subtareas */}
+        {/* Subtareas = tareas hijas asignadas a una persona */}
         <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-text-secondary">Subtareas ({subtasks.length}/5)</label>
-            {subtasks.length > 0 && (
+            <label className="text-xs font-medium text-text-secondary">Subtareas ({childTasks.length})</label>
+            {childTasks.length > 0 && (
               <span className="text-[10px] text-text-muted">
-                {subtasks.filter((s) => s.done).length}/{subtasks.length} hechas
+                {childTasks.filter((t) => t.status === 'completed').length}/{childTasks.length} hechas
               </span>
             )}
           </div>
-          {subtasks.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 group">
-              <input
-                type="checkbox"
-                checked={s.done}
-                onChange={() => toggleSubtask(s.id)}
-                className="h-3.5 w-3.5 accent-accent-violet shrink-0"
-              />
-              <span className={cn('flex-1 text-xs', s.done && 'line-through text-text-muted')}>{s.title}</span>
-              <button
-                onClick={() => removeSubtask(s.id)}
-                className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-status-danger transition"
-                aria-label="Eliminar subtarea"
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
+
+          {childTasks.map((ct) => (
+            <div key={ct.id} className="flex items-center gap-2 group text-xs">
+              <span className={cn('h-2 w-2 rounded-full shrink-0', ct.status === 'completed' ? 'bg-status-success' : 'bg-text-muted/40')} />
+              <span className={cn('flex-1 truncate', ct.status === 'completed' && 'line-through text-text-muted')}>{ct.title}</span>
+              {ct.assignedTo && (
+                <span className="text-[10px] text-text-muted shrink-0 hidden sm:inline">👤 {resolveRoleLabel(ct.assignedTo, ct.clientId) ?? ct.assignedTo}</span>
+              )}
+              <span className="text-[10px] text-text-muted shrink-0">
+                {new Date(ct.dueDate).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
+              </span>
+              {!readOnly && (
+                <button
+                  onClick={() => storeDeleteTask(ct.id)}
+                  className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-status-danger transition"
+                  aria-label="Eliminar subtarea"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
             </div>
           ))}
-          {subtasks.length < 5 && (
-            <div className="flex gap-2">
+
+          {!readOnly && (task ? (
+            <div className="space-y-1.5 pt-1">
               <input
-                value={newSubtask}
-                onChange={(e) => setNewSubtask(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubtask(); } }}
+                value={childTitle}
+                onChange={(e) => setChildTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); createChildTask(); } }}
                 placeholder="Nueva subtarea…"
-                className="flex-1 bg-bg-surface border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent-violet/60"
+                className="w-full bg-bg-surface border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent-violet/60"
+              />
+              <div className="grid grid-cols-2 gap-1.5">
+                <Select value={childAssignee} onChange={(e) => setChildAssignee(e.target.value)} options={responsibleOptions} />
+                <input
+                  type="date"
+                  value={childDue}
+                  onChange={(e) => setChildDue(e.target.value)}
+                  className="bg-bg-surface border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent-violet/60"
+                />
+              </div>
+              <input
+                value={childEntregable}
+                onChange={(e) => setChildEntregable(e.target.value)}
+                placeholder="Entregable (opcional) — qué produce"
+                className="w-full bg-bg-surface border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary outline-none focus:border-accent-violet/60"
               />
               <button
-                onClick={addSubtask}
-                disabled={!newSubtask.trim()}
-                className="px-2 py-1 rounded-md bg-accent-violet/15 text-accent-violet text-xs hover:bg-accent-violet/25 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={createChildTask}
+                disabled={!childTitle.trim()}
+                className="w-full px-2 py-1.5 rounded-md bg-accent-violet/15 text-accent-violet text-xs font-medium hover:bg-accent-violet/25 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Agregar
+                + Agregar subtarea (se crea como tarea asignada)
               </button>
             </div>
-          )}
+          ) : (
+            <div className="text-[11px] text-text-muted italic pt-1">Guarda la tarea primero para poder agregarle subtareas.</div>
+          ))}
         </div>
 
         {/* Comentarios */}

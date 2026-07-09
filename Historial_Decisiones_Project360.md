@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-07-09 — Recuento enlazado entre reuniones
+
+Al abrir una reunión, el MeetingDrawer muestra arriba un **"Recuento de la reunión anterior"** (mismo cliente): los compromisos de la reunión previa con su estado actual — **cumplida / vencida / pendiente / sin registro** — resuelto contra las tareas vivas por coincidencia de título. Resumen "X/Y cumplidos · N por revisar" y aviso para dar seguimiento a los abiertos. **Sin tokens** (data que ya teníamos: `meeting.extractedTasks` + estado de `tasks`). Componente `MeetingRecap.tsx`, visible también en modo lectura (equipo). Así cada reunión arranca revisando lo que quedó pendiente. Commit `d52571b`.
+
+---
+
 ## 2026-07-09 — Post-reunión: enviar a cada responsable sus tareas por correo
 
 Al confirmar las tareas extraídas de una reunión (MeetingDrawer), aparece un botón **"Enviar a responsables"** que manda **un correo por persona** con SUS tareas de esa reunión y enlace directo a cada una. Reusa el motor Resend de los recordatorios y resuelve el responsable por **nombre O rol** (mismo criterio del cron). Es **botón manual, no automático**: da control y evita envíos duplicados al reabrir la reunión. Endpoint nuevo `api/enviar-tareas-reunion.ts` (Edge) con auth: owner de la agencia O miembro del cliente. Servicio `src/services/sendMeetingTasks.ts`. **OJO:** hasta verificar el dominio en Resend, los correos solo llegan al correo propio (modo test) — igual que los recordatorios. Commit `8ae89ed`.

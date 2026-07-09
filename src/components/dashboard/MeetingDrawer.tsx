@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { motion } from 'framer-motion';
 import {
-  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain,
+  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain, Send,
 } from 'lucide-react';
 import { exportMeetingReportHTML } from '@/services/htmlReport';
 import { marked } from 'marked';
@@ -26,6 +26,7 @@ import { WeeklyPlanningGrid } from './WeeklyPlanningGrid';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
+import { sendMeetingTasks, type MeetingTaskToSend } from '@/services/sendMeetingTasks';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Estrategia de contenido',
@@ -58,6 +59,9 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
   // a mostrarlo como borrador re-crearía tareas duplicadas al reabrir.
   const [extractedDraft, setExtractedDraft] = useState<ExtractedTask[]>([]);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  // Tareas recién creadas desde esta reunión, listas para avisar a sus responsables.
+  const [tasksToNotify, setTasksToNotify] = useState<MeetingTaskToSend[]>([]);
+  const [sendingTasks, setSendingTasks] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveIndicator, setSaveIndicator] = useState<string>('');
   const initialNotes = useRef(meeting.notes ?? '');
@@ -316,6 +320,31 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     }
   };
 
+  const notifyResponsibles = async () => {
+    if (!client || tasksToNotify.length === 0) return;
+    setSendingTasks(true);
+    try {
+      const r = await sendMeetingTasks({
+        clientId: client.id,
+        meetingTitle: meeting.title,
+        tasks: tasksToNotify,
+      });
+      if (r.sent > 0) {
+        toast.success(
+          `Enviado a ${r.people} persona${r.people === 1 ? '' : 's'} ✓` +
+            (r.unassigned > 0 ? ` · ${r.unassigned} sin correo de responsable` : ''),
+        );
+        setTasksToNotify([]);
+      } else {
+        toast.info(r.note || 'No se envió ningún correo (revisa que los responsables tengan correo).');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudieron enviar las tareas');
+    } finally {
+      setSendingTasks(false);
+    }
+  };
+
   const markDone = async () => {
     // Si hay notas significativas, auto-extraer tareas y crearlas SIN confirmación manual.
     // El usuario puede borrarlas después si alguna no le sirve. Trade-off: velocidad > control.
@@ -560,6 +589,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
               <ExtractedTasksList
                 tasks={extractedDraft}
                 onConfirm={(selected) => {
+                  const created: MeetingTaskToSend[] = [];
                   for (const t of selected) {
                     const task: Task = {
                       id: genId(),
@@ -577,14 +607,39 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                       createdAt: new Date().toISOString(),
                     };
                     addTask(task);
+                    created.push({ id: task.id, title: task.title, assignedTo: task.assignedTo, dueDate: task.dueDate });
                   }
                   setExtractedDraft([]);
+                  // Deja listas las tareas para avisar a cada responsable por correo.
+                  setTasksToNotify(created);
                   // Conserva los compromisos confirmados como registro de la reunión
                   // (esto es lo que hace aparecer las "Decisiones" en el reporte).
                   updateMeeting(meeting.id, { extractedTasks: selected });
                   toast.success(`${selected.length} tarea${selected.length === 1 ? '' : 's'} creada${selected.length === 1 ? '' : 's'} en el módulo Tareas`);
                 }}
               />
+            </section>
+          )}
+
+          {/* Post-reunión: avisar a cada responsable por correo */}
+          {!readOnly && tasksToNotify.length > 0 && (
+            <section>
+              <SectionTitle text="📤 Enviar tareas al equipo" accent={accent} />
+              <div className="mt-2 rounded-lg border border-border-subtle bg-bg-base/30 p-3">
+                <p className="text-xs text-text-secondary leading-relaxed">
+                  Manda a cada responsable un correo con <b>sus</b> tareas de esta reunión y un enlace directo.
+                  Se envía uno por persona (sin spam).
+                </p>
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  leftIcon={<Send className="h-3.5 w-3.5" />}
+                  loading={sendingTasks}
+                  onClick={notifyResponsibles}
+                >
+                  Enviar a responsables ({tasksToNotify.length})
+                </Button>
+              </div>
             </section>
           )}
         </div>

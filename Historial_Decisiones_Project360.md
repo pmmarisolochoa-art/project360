@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-07-09 — Post-reunión: enviar a cada responsable sus tareas por correo
+
+Al confirmar las tareas extraídas de una reunión (MeetingDrawer), aparece un botón **"Enviar a responsables"** que manda **un correo por persona** con SUS tareas de esa reunión y enlace directo a cada una. Reusa el motor Resend de los recordatorios y resuelve el responsable por **nombre O rol** (mismo criterio del cron). Es **botón manual, no automático**: da control y evita envíos duplicados al reabrir la reunión. Endpoint nuevo `api/enviar-tareas-reunion.ts` (Edge) con auth: owner de la agencia O miembro del cliente. Servicio `src/services/sendMeetingTasks.ts`. **OJO:** hasta verificar el dominio en Resend, los correos solo llegan al correo propio (modo test) — igual que los recordatorios. Commit `8ae89ed`.
+
+---
+
 ## 2026-07-08 (noche) — Recordatorios por email EN PRODUCCIÓN + fixes de deep-link
 
 **Recordatorios por email VIVOS y validados E2E.** Vercel Cron diario (8am CO) → `api/cron/recordatorios.ts` (Edge, Resend HTTP). A cada persona UN correo con sus tareas que vencen hoy o en 2 días; cada tarea **enlaza directo a su detalle** (`?task=id`). Correo con `CRON_SECRET` (secret simple `probar123456` tras líos con el valor original) — se puede disparar manual con `curl -H "Authorization: Bearer <secret>" .../api/cron/recordatorios`; `?debug=1` da diagnóstico seguro (sin revelar valores).

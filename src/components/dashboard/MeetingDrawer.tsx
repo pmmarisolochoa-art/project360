@@ -27,6 +27,7 @@ import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
 import { sendMeetingTasks, type MeetingTaskToSend } from '@/services/sendMeetingTasks';
+import { MeetingRecap } from './MeetingRecap';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Estrategia de contenido',
@@ -433,6 +434,14 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
         </header>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Recuento enlazado — seguimiento de compromisos de la reunión anterior */}
+          <MeetingRecap
+            meeting={meeting}
+            allMeetings={allMeetings}
+            tasks={tasksByClient}
+            accent={accent}
+          />
+
           {/* Detalles */}
           <section>
             <SectionTitle text="📅 Detalles" accent={accent} />

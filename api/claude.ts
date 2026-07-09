@@ -79,6 +79,8 @@ interface ExtractTasksCtx {
   availableRoles: string[];
   /** Títulos de tareas YA existentes y pendientes del cliente (para no duplicar). */
   existingTasks?: string[];
+  /** Equipo real del cliente (para asignar a la PERSONA por nombre). */
+  teamMembers?: Array<{ nombre: string; rol: string }>;
 }
 
 interface RopreFromTranscriptionCtx {
@@ -537,7 +539,7 @@ Genera el cerebro estratégico completo.`;
 async function extractTasks(apiKey: string, ctx: ExtractTasksCtx): Promise<Array<{ title: string; responsibleRole: string; dueInDays: number }>> {
   const system = `Eres una PM senior. Extraes tareas accionables de las notas de una reunión. Devuelve SOLO un array JSON válido (sin texto antes ni después) con esta forma:
 [
-  {"title": "Tarea clara y accionable (verbo + objeto)", "responsibleRole": "uno de los roles disponibles", "dueInDays": número entre 1 y 30},
+  {"title": "Tarea clara y accionable (verbo + objeto)", "responsibleRole": "NOMBRE de la persona del equipo (o el rol si no hay persona clara)", "dueInDays": número entre 1 y 30},
   ...
 ]
 Reglas:
@@ -546,18 +548,22 @@ Reglas:
 - No inventes tareas que no se mencionaron.
 - NO DUPLICAR: si se te dan "Tareas ya existentes y pendientes", NO generes una tarea que ya esté cubierta por una de ellas (aunque esté redactada distinto). Si un tema de la reunión es continuación o seguimiento de una tarea existente, NO crees una nueva. Solo extrae tareas NUEVAS.
 - Cada title empieza con verbo en infinitivo.
-- Asigna el rol más apropiado de la lista disponible.
+- responsibleRole: pon el NOMBRE EXACTO de la persona del equipo responsable, según su rol y quién se mencione en la reunión. Solo si NINGUNA persona del equipo encaja con ese trabajo, usa el slug del rol.
 - dueInDays: urgente=2, normal=7, baja=14.`;
 
   const existing = ctx.existingTasks && ctx.existingTasks.length
     ? `Tareas YA existentes y pendientes de este cliente (NO las vuelvas a crear; si un tema de la reunión es continuación o seguimiento de una de estas, NO generes una tarea nueva):\n${ctx.existingTasks.map((t) => `- ${t}`).join('\n')}\n\n`
     : '';
 
+  const roster = ctx.teamMembers && ctx.teamMembers.length
+    ? `Equipo del cliente — asigna cada tarea a la PERSONA por su NOMBRE EXACTO según su rol y quién se mencione:\n${ctx.teamMembers.map((m) => `- ${m.nombre} (${m.rol})`).join('\n')}\n\n`
+    : '';
+
   const user = `Cliente: ${ctx.clientName} (${ctx.industry})
 Tipo de reunión: ${ctx.meetingType}
 Roles disponibles: ${ctx.availableRoles.join(', ')}
 
-${existing}${ctx.agenda ? `Agenda:\n${ctx.agenda}\n\n` : ''}Notas de la reunión:
+${roster}${existing}${ctx.agenda ? `Agenda:\n${ctx.agenda}\n\n` : ''}Notas de la reunión:
 ${ctx.notes}
 
 Extrae SOLO las tareas accionables NUEVAS (que no estén ya en la lista de existentes).`;

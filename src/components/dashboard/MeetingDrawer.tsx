@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { generateMeetingAgenda, extractTasksFromNotes, generateRopreFromTranscription, type ExtractedTask } from '@/services/claudeApi';
 import { useRopreStore } from '@/store/useRopreStore';
+import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import type { RopreItem } from '@/types/ropre';
 import { ROLE_DEFS } from '@/types/team';
 import { RopreInlineEditor } from './RopreInlineEditor';
@@ -39,6 +40,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
   const tasksByClient = useClientStore((s) => s.tasks);
   const allMeetings = useClientStore((s) => s.meetings);
   const addTask = useClientStore((s) => s.addTask);
+  const allMembers = useTeamMembersStore((s) => s.members);
   const autoGenAgenda = useUIDrawerStore((s) => s.autoGenAgenda);
   const consumeAutoGen = useUIDrawerStore((s) => s.consumeAutoGen);
   const accent = client?.primaryColor ?? '#8B5CF6';
@@ -232,6 +234,9 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
         agenda,
         availableRoles: ROLE_DEFS.map((r) => r.slug),
         existingTasks: openTitles, // la IA no debe repetir estas
+        teamMembers: allMembers
+          .filter((m) => m.clientId === client.id)
+          .map((m) => ({ nombre: m.nombre, rol: m.rol })), // asignar a la persona
       });
 
       // Red de seguridad: descarta las que igual quedaron idénticas a una existente.

@@ -126,6 +126,8 @@ export async function extractTasksFromNotes(args: {
   availableRoles: string[];
   /** Títulos de tareas ya existentes y pendientes, para que la IA no las duplique. */
   existingTasks?: string[];
+  /** Equipo real del cliente, para asignar a la PERSONA por nombre. */
+  teamMembers?: Array<{ nombre: string; rol: string }>;
 }): Promise<ExtractedTask[]> {
   try {
     const { tasks } = await callBackend<{ tasks: ExtractedTask[] }>('extract_tasks', args);

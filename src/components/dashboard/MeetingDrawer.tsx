@@ -216,6 +216,14 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     }
     setExtracting(true);
     try {
+      // Tareas ya existentes y pendientes de este cliente → para no duplicar.
+      const norm = (s: string) =>
+        s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+      const openTitles = tasksByClient
+        .filter((t) => t.clientId === client.id && t.status !== 'completed')
+        .map((t) => t.title);
+      const existingNorm = new Set(openTitles.map(norm));
+
       const result = await extractTasksFromNotes({
         clientName: client.name,
         industry: client.industry,
@@ -223,14 +231,28 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
         notes,
         agenda,
         availableRoles: ROLE_DEFS.map((r) => r.slug),
+        existingTasks: openTitles, // la IA no debe repetir estas
       });
-      if (result.length === 0) {
-        toast.info('No se detectaron tareas accionables en las notas');
+
+      // Red de seguridad: descarta las que igual quedaron idénticas a una existente.
+      const deduped = result.filter((t) => !existingNorm.has(norm(t.title)));
+      const omitted = result.length - deduped.length;
+
+      if (deduped.length === 0) {
+        toast.info(
+          omitted > 0
+            ? 'No hay tareas nuevas — las mencionadas ya existen.'
+            : 'No se detectaron tareas accionables en las notas',
+        );
         return;
       }
-      setExtractedDraft(result);
-      updateMeeting(meeting.id, { extractedTasks: result });
-      toast.success(`${result.length} tarea${result.length === 1 ? '' : 's'} extraída${result.length === 1 ? '' : 's'} — revisa y confirma`);
+      setExtractedDraft(deduped);
+      updateMeeting(meeting.id, { extractedTasks: deduped });
+      toast.success(
+        `${deduped.length} tarea${deduped.length === 1 ? '' : 's'} nueva${deduped.length === 1 ? '' : 's'}` +
+          (omitted > 0 ? ` · ${omitted} ya existía${omitted === 1 ? '' : 'n'} (omitida${omitted === 1 ? '' : 's'})` : '') +
+          ' — revisa y confirma',
+      );
     } finally {
       setExtracting(false);
     }

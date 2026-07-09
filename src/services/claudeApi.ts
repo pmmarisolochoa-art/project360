@@ -124,6 +124,8 @@ export async function extractTasksFromNotes(args: {
   notes: string;
   agenda?: string;
   availableRoles: string[];
+  /** Títulos de tareas ya existentes y pendientes, para que la IA no las duplique. */
+  existingTasks?: string[];
 }): Promise<ExtractedTask[]> {
   try {
     const { tasks } = await callBackend<{ tasks: ExtractedTask[] }>('extract_tasks', args);

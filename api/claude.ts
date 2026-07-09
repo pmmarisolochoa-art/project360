@@ -77,6 +77,8 @@ interface ExtractTasksCtx {
   notes: string;
   agenda?: string;
   availableRoles: string[];
+  /** Títulos de tareas YA existentes y pendientes del cliente (para no duplicar). */
+  existingTasks?: string[];
 }
 
 interface RopreFromTranscriptionCtx {
@@ -542,18 +544,23 @@ Reglas:
 - Extrae TODAS las tareas accionables que se acordaron o mencionaron en la reunión. Sé exhaustiva: no te limites a un número fijo. Si se hablaron 15 tareas, devuelve 15.
 - Si no hay tareas claras, devuelve [].
 - No inventes tareas que no se mencionaron.
+- NO DUPLICAR: si se te dan "Tareas ya existentes y pendientes", NO generes una tarea que ya esté cubierta por una de ellas (aunque esté redactada distinto). Si un tema de la reunión es continuación o seguimiento de una tarea existente, NO crees una nueva. Solo extrae tareas NUEVAS.
 - Cada title empieza con verbo en infinitivo.
 - Asigna el rol más apropiado de la lista disponible.
 - dueInDays: urgente=2, normal=7, baja=14.`;
+
+  const existing = ctx.existingTasks && ctx.existingTasks.length
+    ? `Tareas YA existentes y pendientes de este cliente (NO las vuelvas a crear; si un tema de la reunión es continuación o seguimiento de una de estas, NO generes una tarea nueva):\n${ctx.existingTasks.map((t) => `- ${t}`).join('\n')}\n\n`
+    : '';
 
   const user = `Cliente: ${ctx.clientName} (${ctx.industry})
 Tipo de reunión: ${ctx.meetingType}
 Roles disponibles: ${ctx.availableRoles.join(', ')}
 
-${ctx.agenda ? `Agenda:\n${ctx.agenda}\n\n` : ''}Notas de la reunión:
+${existing}${ctx.agenda ? `Agenda:\n${ctx.agenda}\n\n` : ''}Notas de la reunión:
 ${ctx.notes}
 
-Extrae las tareas accionables.`;
+Extrae SOLO las tareas accionables NUEVAS (que no estén ya en la lista de existentes).`;
 
   const txt = await callAnthropic(apiKey, system, user, 4000);
   try {

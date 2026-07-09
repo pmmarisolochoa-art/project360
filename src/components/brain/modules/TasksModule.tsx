@@ -682,6 +682,9 @@ function TaskCard({
             ? `+${task.delayDays}d vencida`
             : formatRelative(task.dueDate)}
         </span>
+        {task.parentTaskId && (
+          <span className="text-[10px] text-accent-violet" title="Es una subtarea de otra tarea">↳ subtarea</span>
+        )}
         {(task.subtasks?.length ?? 0) > 0 && (
           <span className="text-text-muted text-[10px]" title="Subtareas">
             ☑ {task.subtasks!.filter((s) => s.done).length}/{task.subtasks!.length}

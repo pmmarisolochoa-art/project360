@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-07-11 — WhatsApp de recordatorios y post-reunión vía GHL
+
+**Decisión: canal WhatsApp = GoHighLevel (GHL), no Twilio.** Ya se paga GHL en Ikigai, no hay que aprobar plantillas con Meta, y el mensaje se puede editar dentro de GHL. Project360 NO habla WhatsApp directo: postea a un **Inbound Webhook** de un workflow de GHL (`GHL_WEBHOOK_URL` en Vercel) y GHL envía. Helper `api/_ghl.ts` (prefijo `_` → Vercel no lo enruta). Enganchado en el **cron de recordatorios** y en el **post-reunión**: si la persona tiene teléfono y hay webhook, se manda WhatsApp **además** del email; sin teléfono o sin webhook → se omite (email intacto). Nuevo campo `telefono` por miembro: **migración 023** (`team_members.telefono`) + captura en el modal de invitar y en el detalle del miembro (formato internacional +57). Payload a GHL: `{ tipo, nombre, telefono, mensaje, link, clientId, tareas[] }`. Commit `3c11489`. **Pendiente de ella:** correr migración 023, crear el workflow con Inbound Webhook en GHL (canal WhatsApp activo), pegar `GHL_WEBHOOK_URL` en Vercel, y poner teléfonos a los miembros.
+
+---
+
 ## 2026-07-09 — Recuento enlazado entre reuniones
 
 Al abrir una reunión, el MeetingDrawer muestra arriba un **"Recuento de la reunión anterior"** (mismo cliente): los compromisos de la reunión previa con su estado actual — **cumplida / vencida / pendiente / sin registro** — resuelto contra las tareas vivas por coincidencia de título. Resumen "X/Y cumplidos · N por revisar" y aviso para dar seguimiento a los abiertos. **Sin tokens** (data que ya teníamos: `meeting.extractedTasks` + estado de `tasks`). Componente `MeetingRecap.tsx`, visible también en modo lectura (equipo). Así cada reunión arranca revisando lo que quedó pendiente. Commit `d52571b`.

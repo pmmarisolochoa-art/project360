@@ -271,6 +271,7 @@ function InviteMemberModal({
   const accent = client.primaryColor;
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [rol, setRol] = useState<TeamRoleSlug>('project_manager');
   const [accessLevel, setAccessLevel] = useState<'editor' | 'viewer'>('editor');
   const [departamentos, setDepartamentos] = useState<DepartmentId[]>(['pm']);
@@ -306,6 +307,7 @@ function InviteMemberModal({
         email: email.trim(),
         nombre: nombre.trim(),
         rol,
+        telefono: telefono.trim() || undefined,
         accessLevel,
         departamentos,
         password,
@@ -319,6 +321,7 @@ function InviteMemberModal({
         nombre: nombre.trim(),
         rol,
         email: email.trim(),
+        telefono: telefono.trim() || undefined,
         avatarColor,
         funciones,
         kpis: emptyKpis(),
@@ -356,6 +359,16 @@ function InviteMemberModal({
         <div className="grid grid-cols-2 gap-3">
           <Input label="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Laura Gómez" autoFocus />
           <Input label="Correo de acceso" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="laura@agencia.com" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="WhatsApp (opcional)"
+            value={telefono}
+            onChange={(e) => setTelefono(e.target.value)}
+            placeholder="+57 300 123 4567"
+          />
+          <div />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -573,6 +586,19 @@ function MemberDetailModal({ summary, onClose, readOnly = false }: { summary: Me
               className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
+        </div>
+
+        {/* WhatsApp — para recordatorios y post-reunión vía GHL */}
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-text-muted mb-1">WhatsApp (opcional)</label>
+          <input
+            defaultValue={member.telefono ?? ''}
+            onBlur={(e) => { if (readOnly) return; const v = e.target.value.trim(); if (v !== (member.telefono ?? '')) update(member.id, { telefono: v || undefined }); }}
+            disabled={readOnly}
+            placeholder="+57 300 123 4567"
+            className="w-full bg-bg-elevated/60 border border-border-subtle rounded-md px-2.5 py-1.5 text-sm text-text-primary outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+          />
+          <p className="text-[10px] text-text-muted mt-1">En formato internacional (con +57). Se usa para los recordatorios y tareas por WhatsApp.</p>
         </div>
 
         {/* Funciones */}

@@ -65,6 +65,7 @@ export default async function handler(req: Request): Promise<Response> {
   const email = String(body.email ?? '').trim().toLowerCase();
   const nombre = String(body.nombre ?? '').trim();
   const rol = String(body.rol ?? '').trim();
+  const telefono = String(body.telefono ?? '').trim();
   const accessLevel = body.accessLevel === 'viewer' ? 'viewer' : 'editor';
   const password = String(body.password ?? '');
   const avatarColor = String(body.avatarColor ?? '#6366F1');
@@ -130,6 +131,7 @@ export default async function handler(req: Request): Promise<Response> {
       nombre,
       rol,
       email,
+      telefono: telefono || null,
       avatar_color: avatarColor,
       funciones,
       access_level: accessLevel,

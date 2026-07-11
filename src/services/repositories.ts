@@ -211,6 +211,7 @@ function rowToTeamMember(row: Record<string, unknown>): TeamMember {
     nombre: r.nombre,
     rol: r.rol as TeamRoleSlug,
     email: r.email ?? undefined,
+    telefono: r.telefono ?? undefined,
     avatarColor: r.avatar_color ?? '#6366F1',
     funciones: Array.isArray(r.funciones) ? r.funciones : [],
     kpis: r.kpis_custom && typeof r.kpis_custom === 'object'
@@ -227,6 +228,7 @@ function teamMemberToRow(m: Partial<TeamMember>, partial = false): Record<string
   if (!partial || m.nombre !== undefined) row.nombre = m.nombre;
   if (!partial || m.rol !== undefined) row.rol = m.rol;
   if (!partial || m.email !== undefined) row.email = m.email ?? null;
+  if (!partial || m.telefono !== undefined) row.telefono = m.telefono ?? null;
   if (!partial || m.avatarColor !== undefined) row.avatar_color = m.avatarColor;
   if (!partial || m.funciones !== undefined) row.funciones = m.funciones ?? [];
   if (!partial || m.kpis !== undefined) row.kpis_custom = m.kpis ?? { values: {}, history: {}, custom: [] };

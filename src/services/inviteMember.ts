@@ -6,6 +6,7 @@ export interface InvitePayload {
   email: string;
   nombre: string;
   rol: string;
+  telefono?: string;
   accessLevel: 'editor' | 'viewer';
   departamentos: DepartmentId[];
   password: string;

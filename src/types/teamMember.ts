@@ -40,6 +40,7 @@ export interface TeamMember {
   nombre: string;
   rol: TeamRoleSlug;
   email?: string;
+  telefono?: string;
   avatarColor: string;
   funciones: string[];
   kpis: TeamMemberKpis;

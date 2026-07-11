@@ -15,6 +15,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { sendWhatsAppViaGHL, ghlConfigured } from './_ghl';
 
 export const config = { runtime: 'edge' };
 
@@ -110,26 +111,29 @@ export default async function handler(req: Request): Promise<Response> {
   // ── 4. Resolver responsable → correo (por nombre O por rol) ────────────────
   const { data: members } = await admin
     .from('team_members')
-    .select('nombre, rol, email')
+    .select('nombre, rol, email, telefono')
     .eq('client_id', clientId);
-  const byName = new Map<string, { email: string; nombre: string }>();
-  const byRole = new Map<string, Array<{ email: string; nombre: string }>>();
+  interface Recip { email: string; nombre: string; telefono: string }
+  const byName = new Map<string, Recip>();
+  const byRole = new Map<string, Recip[]>();
   for (const m of members ?? []) {
     const email = m.email ? String(m.email) : '';
     const nombre = m.nombre ? String(m.nombre) : '';
+    const telefono = m.telefono ? String(m.telefono).trim() : '';
     if (!email || !nombre) continue;
-    byName.set(nombre.trim().toLowerCase(), { email, nombre });
+    const recip: Recip = { email, nombre, telefono };
+    byName.set(nombre.trim().toLowerCase(), recip);
     if (m.rol) {
       const rk = String(m.rol).trim().toLowerCase();
       const arr = byRole.get(rk) ?? [];
-      arr.push({ email, nombre });
+      arr.push(recip);
       byRole.set(rk, arr);
     }
   }
 
   // ── 5. Agrupar tareas por correo de cada persona ───────────────────────────
   interface Item { title: string; due: string | null; taskId: string }
-  const byEmail = new Map<string, { nombre: string; items: Item[] }>();
+  const byEmail = new Map<string, { nombre: string; telefono: string; items: Item[] }>();
   let unassigned = 0;
   for (const t of tasks) {
     const key = (t.assignedTo ?? '').toLowerCase();
@@ -138,7 +142,7 @@ export default async function handler(req: Request): Promise<Response> {
     const recipients = nameMatch ? [nameMatch] : (byRole.get(key) ?? []);
     if (recipients.length === 0) { unassigned++; continue; }
     for (const r of recipients) {
-      const bucket = byEmail.get(r.email) ?? { nombre: r.nombre, items: [] };
+      const bucket = byEmail.get(r.email) ?? { nombre: r.nombre, telefono: r.telefono, items: [] };
       bucket.items.push({ title: t.title, due: t.dueDate, taskId: t.id });
       byEmail.set(r.email, bucket);
     }
@@ -148,10 +152,13 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ ok: true, sent: 0, people: 0, unassigned, note: 'Ninguna tarea tiene un responsable con correo.' });
   }
 
-  // ── 6. Enviar un correo por persona ────────────────────────────────────────
+  // ── 6. Enviar un correo por persona. Si hay teléfono + GHL, también WhatsApp.
   let sent = 0;
+  let whatsapp = 0;
   const errors: string[] = [];
-  for (const [email, { nombre, items }] of byEmail) {
+  const useWhatsApp = ghlConfigured();
+  const taskUrl = (i: Item) => `${appUrl}/client/${clientId}/tasks?task=${i.taskId}`;
+  for (const [email, { nombre, telefono, items }] of byEmail) {
     const html = renderEmail(nombre, meetingTitle, items, clientId, appUrl);
     const subject = `📋 ${items.length} tarea${items.length === 1 ? '' : 's'} para ti — ${meetingTitle}`;
     try {
@@ -165,9 +172,23 @@ export default async function handler(req: Request): Promise<Response> {
     } catch (e) {
       errors.push(`${email}: ${e instanceof Error ? e.message : 'error'}`);
     }
+
+    if (useWhatsApp && telefono) {
+      const first = (nombre.split(' ')[0] || '').trim();
+      const lineas = items.map((i) => `• ${i.title}`).join('\n');
+      const mainLink = items.length === 1 ? taskUrl(items[0]) : `${appUrl}/mi-espacio`;
+      const mensaje = `Hola ${first} 👋 De la reunión "${meetingTitle}" quedaron ${items.length} tarea${items.length === 1 ? '' : 's'} a tu cargo:\n${lineas}\n\nÁbrelas aquí: ${mainLink}`;
+      const r = await sendWhatsAppViaGHL({
+        tipo: 'post-reunion',
+        nombre, telefono, mensaje, link: mainLink, clientId,
+        tareas: items.map((i) => ({ title: i.title, link: taskUrl(i) })),
+      });
+      if (r.ok) whatsapp++;
+      else if (r.error) errors.push(`wa ${telefono}: ${r.error}`);
+    }
   }
 
-  return json({ ok: true, sent, people: byEmail.size, unassigned, errors: errors.length ? errors : undefined });
+  return json({ ok: true, sent, whatsapp, people: byEmail.size, unassigned, errors: errors.length ? errors : undefined });
 }
 
 function renderEmail(

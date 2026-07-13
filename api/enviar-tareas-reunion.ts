@@ -135,12 +135,13 @@ export default async function handler(req: Request): Promise<Response> {
   interface Item { title: string; due: string | null; taskId: string }
   const byEmail = new Map<string, { nombre: string; telefono: string; items: Item[] }>();
   let unassigned = 0;
+  const missing = new Set<string>(); // responsables (nombre/rol) sin correo para avisar
   for (const t of tasks) {
     const key = (t.assignedTo ?? '').toLowerCase();
-    if (!key) { unassigned++; continue; }
+    if (!key) { unassigned++; missing.add('(sin responsable)'); continue; }
     const nameMatch = byName.get(key);
     const recipients = nameMatch ? [nameMatch] : (byRole.get(key) ?? []);
-    if (recipients.length === 0) { unassigned++; continue; }
+    if (recipients.length === 0) { unassigned++; missing.add(t.assignedTo ?? key); continue; }
     for (const r of recipients) {
       const bucket = byEmail.get(r.email) ?? { nombre: r.nombre, telefono: r.telefono, items: [] };
       bucket.items.push({ title: t.title, due: t.dueDate, taskId: t.id });
@@ -149,7 +150,11 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   if (byEmail.size === 0) {
-    return json({ ok: true, sent: 0, people: 0, unassigned, note: 'Ninguna tarea tiene un responsable con correo.' });
+    return json({
+      ok: true, sent: 0, people: 0, unassigned,
+      missing: [...missing],
+      note: 'Ninguna tarea tiene un responsable con correo.',
+    });
   }
 
   // ── 6. Enviar un correo por persona. Si hay teléfono + GHL, también WhatsApp.
@@ -188,7 +193,11 @@ export default async function handler(req: Request): Promise<Response> {
     }
   }
 
-  return json({ ok: true, sent, whatsapp, people: byEmail.size, unassigned, errors: errors.length ? errors : undefined });
+  return json({
+    ok: true, sent, whatsapp, people: byEmail.size, unassigned,
+    missing: missing.size ? [...missing] : undefined,
+    errors: errors.length ? errors : undefined,
+  });
 }
 
 function renderEmail(

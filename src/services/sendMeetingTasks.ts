@@ -11,6 +11,7 @@ export interface SendMeetingTasksResult {
   sent: number;
   people: number;
   unassigned: number;
+  missing?: string[];
   note?: string;
   errors?: string[];
 }
@@ -43,6 +44,7 @@ export async function sendMeetingTasks(payload: {
     sent: data.sent ?? 0,
     people: data.people ?? 0,
     unassigned: data.unassigned ?? 0,
+    missing: data.missing,
     note: data.note,
     errors: data.errors,
   };

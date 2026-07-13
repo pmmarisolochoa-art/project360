@@ -337,7 +337,12 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
         );
         setTasksToNotify([]);
       } else {
-        toast.info(r.note || 'No se envió ningún correo (revisa que los responsables tengan correo).');
+        const faltan = (r.missing ?? []).filter((m) => m !== '(sin responsable)');
+        toast.info(
+          faltan.length > 0
+            ? `Sin correo registrado para: ${faltan.join(', ')}. Ve a Equipo → cada persona → agrega su correo.`
+            : (r.note || 'No se envió ningún correo (revisa que los responsables tengan correo).'),
+        );
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudieron enviar las tareas');

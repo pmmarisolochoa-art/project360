@@ -113,8 +113,15 @@ export default async function handler(req: Request): Promise<Response> {
     .from('team_members')
     .select('nombre, rol, email, telefono')
     .eq('client_id', clientId);
+  // Normaliza para emparejar sin fallar por acentos, mayúsculas, espacios de
+  // más o paréntesis tipo "Santiago Ruiz (Content Manager)".
+  const norm = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+
   interface Recip { email: string; nombre: string; telefono: string }
   const byName = new Map<string, Recip>();
+  const byFirst = new Map<string, Recip[]>(); // por primer nombre (fallback)
   const byRole = new Map<string, Recip[]>();
   for (const m of members ?? []) {
     const email = m.email ? String(m.email) : '';
@@ -122,9 +129,12 @@ export default async function handler(req: Request): Promise<Response> {
     const telefono = m.telefono ? String(m.telefono).trim() : '';
     if (!email || !nombre) continue;
     const recip: Recip = { email, nombre, telefono };
-    byName.set(nombre.trim().toLowerCase(), recip);
+    const nk = norm(nombre);
+    byName.set(nk, recip);
+    const first = nk.split(' ')[0];
+    if (first) { const a = byFirst.get(first) ?? []; a.push(recip); byFirst.set(first, a); }
     if (m.rol) {
-      const rk = String(m.rol).trim().toLowerCase();
+      const rk = norm(String(m.rol));
       const arr = byRole.get(rk) ?? [];
       arr.push(recip);
       byRole.set(rk, arr);
@@ -137,10 +147,12 @@ export default async function handler(req: Request): Promise<Response> {
   let unassigned = 0;
   const missing = new Set<string>(); // responsables (nombre/rol) sin correo para avisar
   for (const t of tasks) {
-    const key = (t.assignedTo ?? '').toLowerCase();
+    const key = norm(t.assignedTo ?? '');
     if (!key) { unassigned++; missing.add('(sin responsable)'); continue; }
+    // 1) nombre exacto  2) rol  3) primer nombre único
+    const firstMatch = (() => { const a = byFirst.get(key.split(' ')[0]); return a && a.length === 1 ? a : null; })();
     const nameMatch = byName.get(key);
-    const recipients = nameMatch ? [nameMatch] : (byRole.get(key) ?? []);
+    const recipients = nameMatch ? [nameMatch] : (byRole.get(key) ?? firstMatch ?? []);
     if (recipients.length === 0) { unassigned++; missing.add(t.assignedTo ?? key); continue; }
     for (const r of recipients) {
       const bucket = byEmail.get(r.email) ?? { nombre: r.nombre, telefono: r.telefono, items: [] };

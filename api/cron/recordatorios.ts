@@ -101,18 +101,28 @@ export default async function handler(req: Request): Promise<Response> {
     .from('team_members')
     .select('client_id, nombre, rol, email, telefono')
     .in('client_id', clientIds);
+  // Normaliza para emparejar sin fallar por acentos, mayúsculas, espacios de
+  // más o paréntesis tipo "Santiago Ruiz (Content Manager)".
+  const norm = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/\([^)]*\)/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+
   interface Recip { email: string; nombre: string; telefono: string }
-  const byName = new Map<string, Recip>();          // client::nombre_lower
-  const byRole = new Map<string, Recip[]>();         // client::rol_lower
+  const byName = new Map<string, Recip>();          // client::nombre_norm
+  const byFirst = new Map<string, Recip[]>();        // client::primer_nombre
+  const byRole = new Map<string, Recip[]>();         // client::rol_norm
   for (const m of members ?? []) {
     const email = m.email ? String(m.email) : '';
     const nombre = m.nombre ? String(m.nombre) : '';
     const telefono = m.telefono ? String(m.telefono).trim() : '';
     if (!email || !nombre) continue;
     const recip: Recip = { email, nombre, telefono };
-    byName.set(`${m.client_id}::${nombre.trim().toLowerCase()}`, recip);
+    const nk = norm(nombre);
+    byName.set(`${m.client_id}::${nk}`, recip);
+    const first = nk.split(' ')[0];
+    if (first) { const fk = `${m.client_id}::${first}`; const a = byFirst.get(fk) ?? []; a.push(recip); byFirst.set(fk, a); }
     if (m.rol) {
-      const rk = `${m.client_id}::${String(m.rol).trim().toLowerCase()}`;
+      const rk = `${m.client_id}::${norm(String(m.rol))}`;
       const arr = byRole.get(rk) ?? [];
       arr.push(recip);
       byRole.set(rk, arr);
@@ -123,10 +133,12 @@ export default async function handler(req: Request): Promise<Response> {
   interface Item { title: string; when: 'hoy' | 'en 2 días'; clientId: string; taskId: string }
   const byEmail = new Map<string, { nombre: string; telefono: string; items: Item[] }>();
   for (const { t, due } of relevant) {
-    const key = (t.assigned_to ?? '').trim().toLowerCase();
+    const key = norm(t.assigned_to ?? '');
     if (!key) continue;
+    const firstArr = byFirst.get(`${t.client_id}::${key.split(' ')[0]}`);
+    const firstMatch = firstArr && firstArr.length === 1 ? firstArr : null;
     const nameMatch = byName.get(`${t.client_id}::${key}`);
-    const recipients = nameMatch ? [nameMatch] : (byRole.get(`${t.client_id}::${key}`) ?? []);
+    const recipients = nameMatch ? [nameMatch] : (byRole.get(`${t.client_id}::${key}`) ?? firstMatch ?? []);
     if (recipients.length === 0) continue; // nadie a quién avisar
     const when: Item['when'] = due === today ? 'hoy' : 'en 2 días';
     for (const r of recipients) {

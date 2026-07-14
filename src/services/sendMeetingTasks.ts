@@ -9,6 +9,7 @@ export interface MeetingTaskToSend {
 
 export interface SendMeetingTasksResult {
   sent: number;
+  whatsapp: number;
   people: number;
   unassigned: number;
   missing?: string[];
@@ -23,7 +24,7 @@ export interface SendMeetingTasksResult {
  */
 export async function sendMeetingTasks(payload: {
   clientId: string;
-  meetingTitle: string;
+  meetingTitle?: string; // sin él → recordatorio genérico (desde Tareas)
   tasks: MeetingTaskToSend[];
 }): Promise<SendMeetingTasksResult> {
   if (!supabase) throw new Error('Sin conexión a Supabase.');
@@ -42,10 +43,23 @@ export async function sendMeetingTasks(payload: {
   if (!res.ok) throw new Error(data.error || 'No se pudieron enviar las tareas.');
   return {
     sent: data.sent ?? 0,
+    whatsapp: data.whatsapp ?? 0,
     people: data.people ?? 0,
     unassigned: data.unassigned ?? 0,
     missing: data.missing,
     note: data.note,
     errors: data.errors,
   };
+}
+
+/**
+ * Recordatorio de tareas (desde el módulo Tareas): manda a cada responsable de
+ * las tareas dadas un correo (y WhatsApp si aplica) con sus pendientes. Reusa
+ * `sendMeetingTasks` sin `meetingTitle` → el backend usa el texto genérico.
+ */
+export async function sendTaskReminders(payload: {
+  clientId: string;
+  tasks: MeetingTaskToSend[];
+}): Promise<SendMeetingTasksResult> {
+  return sendMeetingTasks({ clientId: payload.clientId, tasks: payload.tasks });
 }

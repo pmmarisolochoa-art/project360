@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, Filter, Clock, AlertTriangle, Trash2, ArrowRight, MessageSquare, Link2,
-  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen, ChevronDown,
+  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen, ChevronDown, Send,
 } from 'lucide-react';
 import {
   differenceInDays, differenceInHours, format, parseISO,
@@ -31,6 +31,7 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { formatRelative } from '@/utils/dateHelpers';
 import { genId } from '@/utils/id';
+import { sendTaskReminders } from '@/services/sendMeetingTasks';
 
 const COLUMNS: Array<{ status: TaskStatus; label: string; tone: 'neutral' | 'info' | 'warning' | 'success' | 'danger' }> = [
   { status: 'pending', label: 'Pendiente', tone: 'neutral' },
@@ -99,6 +100,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   const [quickFilter, setQuickFilter] = useState<'all' | 'mine' | 'overdue' | 'today' | 'week'>('all');
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
   const [view, setView] = useState<'kanban' | 'list' | 'gantt'>('kanban');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
@@ -181,6 +183,42 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   const accent = client.primaryColor;
 
   const overdueCount = filtered.filter((t) => t.isDelayed && t.status !== 'completed').length;
+
+  // Tareas pendientes dentro del filtro actual → a quién recordarle.
+  const remindable = filtered.filter((t) => t.status !== 'completed' && t.assignedTo);
+
+  const sendReminders = async () => {
+    if (remindable.length === 0) {
+      toast.info('No hay tareas pendientes con responsable en este filtro.');
+      return;
+    }
+    setSendingReminder(true);
+    try {
+      const r = await sendTaskReminders({
+        clientId: client.id,
+        tasks: remindable.map((t) => ({
+          id: t.id, title: t.title, assignedTo: t.assignedTo, dueDate: t.dueDate,
+        })),
+      });
+      if (r.sent > 0) {
+        toast.success(
+          `Recordatorio enviado a ${r.people} persona${r.people === 1 ? '' : 's'} ✓` +
+            (r.whatsapp ? ` · ${r.whatsapp} por WhatsApp` : ''),
+        );
+      } else {
+        const faltan = (r.missing ?? []).filter((m) => m !== '(sin responsable)');
+        toast.info(
+          faltan.length > 0
+            ? `Sin correo registrado para: ${faltan.join(', ')}. Ve a Equipo → agrega su correo.`
+            : (r.note || 'No se envió ningún recordatorio.'),
+        );
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo enviar el recordatorio');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
 
   const QUICK_FILTERS: Array<{ key: typeof quickFilter; label: string }> = [
     { key: 'all', label: 'Todas' },
@@ -282,6 +320,18 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
               <GanttChartSquare className="h-3 w-3" /> Gantt
             </button>
           </div>
+          {!readOnly && remindable.length > 0 && (
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<Send className="h-3.5 w-3.5" />}
+              loading={sendingReminder}
+              onClick={sendReminders}
+              title="Envía a cada responsable (correo + WhatsApp) sus tareas pendientes de este filtro"
+            >
+              Enviar recordatorio ({remindable.length})
+            </Button>
+          )}
           {!readOnly && (
             <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>
               Nueva tarea

@@ -68,7 +68,10 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: 'Body inválido.' }, 400);
   }
   const clientId = String(body.clientId ?? '').trim();
-  const meetingTitle = String(body.meetingTitle ?? 'Reunión').trim();
+  // Con meetingTitle → post-reunión. Sin él → recordatorio genérico (desde Tareas).
+  const meetingTitleRaw = body.meetingTitle ? String(body.meetingTitle).trim() : '';
+  const isReminder = !meetingTitleRaw;
+  const meetingTitle = meetingTitleRaw;
   const tasks = (Array.isArray(body.tasks) ? body.tasks : [])
     .map((t) => t as Record<string, unknown>)
     .map((t) => ({
@@ -176,8 +179,10 @@ export default async function handler(req: Request): Promise<Response> {
   const useWhatsApp = ghlConfigured();
   const taskUrl = (i: Item) => `${appUrl}/client/${clientId}/tasks?task=${i.taskId}`;
   for (const [email, { nombre, telefono, items }] of byEmail) {
-    const html = renderEmail(nombre, meetingTitle, items, clientId, appUrl);
-    const subject = `📋 ${items.length} tarea${items.length === 1 ? '' : 's'} para ti — ${meetingTitle}`;
+    const html = renderEmail(nombre, meetingTitle, items, clientId, appUrl, isReminder);
+    const subject = isReminder
+      ? `📋 Recordatorio: tienes ${items.length} tarea${items.length === 1 ? '' : 's'} pendiente${items.length === 1 ? '' : 's'} — Project360`
+      : `📋 ${items.length} tarea${items.length === 1 ? '' : 's'} para ti — ${meetingTitle}`;
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -194,9 +199,11 @@ export default async function handler(req: Request): Promise<Response> {
       const first = (nombre.split(' ')[0] || '').trim();
       const lineas = items.map((i) => `• ${i.title}`).join('\n');
       const mainLink = items.length === 1 ? taskUrl(items[0]) : `${appUrl}/mi-espacio`;
-      const mensaje = `Hola ${first} 👋 De la reunión "${meetingTitle}" quedaron ${items.length} tarea${items.length === 1 ? '' : 's'} a tu cargo:\n${lineas}\n\nÁbrelas aquí: ${mainLink}`;
+      const mensaje = isReminder
+        ? `Hola ${first} 👋 Recordatorio: tienes ${items.length} tarea${items.length === 1 ? '' : 's'} pendiente${items.length === 1 ? '' : 's'}:\n${lineas}\n\nÁbrelas aquí: ${mainLink}`
+        : `Hola ${first} 👋 De la reunión "${meetingTitle}" quedaron ${items.length} tarea${items.length === 1 ? '' : 's'} a tu cargo:\n${lineas}\n\nÁbrelas aquí: ${mainLink}`;
       const r = await sendWhatsAppViaGHL({
-        tipo: 'post-reunion',
+        tipo: isReminder ? 'recordatorio' : 'post-reunion',
         nombre, telefono, mensaje, link: mainLink, clientId,
         tareas: items.map((i) => ({ title: i.title, link: taskUrl(i) })),
       });
@@ -218,6 +225,7 @@ function renderEmail(
   items: Array<{ title: string; due: string | null; taskId: string }>,
   clientId: string,
   appUrl: string,
+  isReminder = false,
 ): string {
   const first = (nombre.split(' ')[0] || '').trim();
   const taskUrl = (i: { taskId: string }) => `${appUrl}/client/${clientId}/tasks?task=${i.taskId}`;
@@ -243,14 +251,16 @@ function renderEmail(
     <div style="max-width:520px;margin:0 auto;padding:28px 16px">
       <div style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e8eaee">
         <div style="background:linear-gradient(135deg,#4f8cff,#37c9a6);padding:20px 24px;color:#fff">
-          <div style="font-size:12px;letter-spacing:2px;opacity:.9;text-transform:uppercase">Project360 · Tareas de reunión</div>
+          <div style="font-size:12px;letter-spacing:2px;opacity:.9;text-transform:uppercase">Project360 · ${isReminder ? 'Recordatorio de tareas' : 'Tareas de reunión'}</div>
           <div style="font-size:20px;font-weight:800;margin-top:4px">Hola ${escapeHtml(first)} 👋</div>
         </div>
         <div style="padding:22px 24px">
-          <p style="font-size:14px;color:#444;margin:0 0 14px">De la reunión <b>${escapeHtml(meetingTitle)}</b> quedaron estas tareas a tu cargo — <b>toca cada una para abrirla</b>:</p>
+          <p style="font-size:14px;color:#444;margin:0 0 14px">${isReminder
+            ? 'Estas son tus tareas pendientes'
+            : `De la reunión <b>${escapeHtml(meetingTitle)}</b> quedaron estas tareas a tu cargo`} — <b>toca cada una para abrirla</b>:</p>
           <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden">${rows}</table>
           <a href="${mainHref}" style="display:inline-block;margin-top:18px;background:#4f8cff;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">${mainLabel}</a>
-          <p style="font-size:12px;color:#999;margin:18px 0 0">Enviado desde Project360 al cerrar la reunión.</p>
+          <p style="font-size:12px;color:#999;margin:18px 0 0">${isReminder ? 'Recordatorio enviado desde Project360.' : 'Enviado desde Project360 al cerrar la reunión.'}</p>
         </div>
       </div>
     </div>

@@ -31,6 +31,11 @@ function initials(name: string): string {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?';
 }
 
+/** Normaliza un nombre para emparejar sin fallar por acentos, mayúsculas o espacios. */
+function normName(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 const BAR_COLORS = ['#6366F1', '#8B5CF6', '#06B6D4', '#10B981', '#F59E0B', '#EC4899', '#14B8A6', '#A855F7'];
 
 export function TeamMembersPanel({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
@@ -278,6 +283,28 @@ function InviteMemberModal({
   const [password, setPassword] = useState(genTempPassword());
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+
+  // Personas ya registradas de este cliente → para autollenar correo/celular/rol.
+  const allMembers = useTeamMembersStore((s) => s.members);
+  const clientMembers = useMemo(
+    () => allMembers.filter((m) => m.clientId === client.id),
+    [allMembers, client.id],
+  );
+
+  // Al escribir el nombre: si coincide con una persona registrada, trae sus datos.
+  const onNombreChange = (value: string) => {
+    setNombre(value);
+    const match = clientMembers.find((m) => normName(m.nombre) === normName(value));
+    if (match) {
+      if (match.email) setEmail(match.email);
+      if (match.telefono) setTelefono(match.telefono);
+      setRol(match.rol);
+      setAutoFilled(true);
+    } else if (autoFilled) {
+      setAutoFilled(false);
+    }
+  };
 
   const toggleDept = (id: DepartmentId) => {
     setDepartamentos((prev) => (prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]));
@@ -361,7 +388,18 @@ function InviteMemberModal({
         </p>
 
         <div className="grid grid-cols-2 gap-3">
-          <Input label="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Laura Gómez" autoFocus />
+          <Input
+            label="Nombre completo"
+            value={nombre}
+            onChange={(e) => onNombreChange(e.target.value)}
+            placeholder="Ej. Laura Gómez"
+            list="invitar-personas-registradas"
+            hint={autoFilled ? '✓ Datos tomados de la persona registrada' : undefined}
+            autoFocus
+          />
+          <datalist id="invitar-personas-registradas">
+            {clientMembers.map((m) => <option key={m.id} value={m.nombre} />)}
+          </datalist>
           <Input label="Correo de acceso" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="laura@agencia.com" />
         </div>
 

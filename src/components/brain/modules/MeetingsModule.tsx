@@ -212,7 +212,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
           ]}
         />
         <div className="text-xs text-text-muted ml-auto">
-          {filtered.length} reunión{filtered.length === 1 ? '' : 'es'}
+          {filtered.length} reuni{filtered.length === 1 ? 'ón' : 'ones'}
         </div>
       </div>
 

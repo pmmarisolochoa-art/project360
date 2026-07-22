@@ -18,6 +18,9 @@ export interface InviteResult {
   memberId: string;
   userId: string;
   email: string;
+  /** true si se le envió el correo con sus credenciales automáticamente. */
+  emailSent?: boolean;
+  emailError?: string;
 }
 
 /**

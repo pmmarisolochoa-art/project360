@@ -40,6 +40,10 @@ export default async function handler(req: Request): Promise<Response> {
   if (!url || !serviceKey) {
     return json({ error: 'Falta configuración del servidor (SUPABASE_SERVICE_ROLE_KEY en Vercel).' }, 500);
   }
+  // Correo de invitación (best-effort: si falla, el alta NO se cae).
+  const resendKey = process.env.RESEND_API_KEY;
+  const resendFrom = process.env.RESEND_FROM || 'Project360 <onboarding@resend.dev>';
+  const appUrl = process.env.APP_URL || 'https://project360-pearl.vercel.app';
 
   // ── 1. Autenticar al que invita ──────────────────────────────────────────
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
@@ -145,5 +149,65 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: `No se pudo crear el miembro: ${tmErr.message}` }, 500);
   }
 
-  return json({ ok: true, memberId: tm.id, userId, email });
+  // ── 7. Correo de invitación con su acceso (best-effort) ───────────────────
+  // El miembro ya está creado; si el correo falla, se lo compartes a mano.
+  let emailSent = false;
+  let emailError: string | undefined;
+  if (resendKey) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: resendFrom,
+          to: [email],
+          subject: '🔑 Tu acceso a Project360',
+          html: renderInviteEmail(nombre, email, password, appUrl),
+        }),
+      });
+      if (res.ok) emailSent = true;
+      else emailError = `${res.status} ${await res.text().catch(() => '')}`.slice(0, 200);
+    } catch (e) {
+      emailError = e instanceof Error ? e.message : 'error';
+    }
+  } else {
+    emailError = 'no-resend-key';
+  }
+
+  return json({ ok: true, memberId: tm.id, userId, email, emailSent, emailError });
+}
+
+/** Correo de bienvenida con las credenciales de acceso del nuevo miembro. */
+function renderInviteEmail(nombre: string, email: string, password: string, appUrl: string): string {
+  const first = (nombre.split(' ')[0] || '').trim();
+  const loginUrl = `${appUrl}/login`;
+  return `<!doctype html><html><body style="margin:0;background:#f5f6f8;font-family:Inter,Arial,sans-serif">
+    <div style="max-width:520px;margin:0 auto;padding:28px 16px">
+      <div style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e8eaee">
+        <div style="background:linear-gradient(135deg,#4f8cff,#37c9a6);padding:20px 24px;color:#fff">
+          <div style="font-size:12px;letter-spacing:2px;opacity:.9;text-transform:uppercase">Project360 · Acceso al equipo</div>
+          <div style="font-size:20px;font-weight:800;margin-top:4px">Hola ${escapeHtml(first)} 👋</div>
+        </div>
+        <div style="padding:22px 24px">
+          <p style="font-size:14px;color:#444;margin:0 0 16px">Te dieron acceso a <b>Project360</b>, donde vas a ver tus tareas, tu agenda y tus KPIs. Entra con estos datos:</p>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #eee;border-radius:8px;overflow:hidden;margin-bottom:6px">
+            <tr>
+              <td style="padding:12px 14px;border-bottom:1px solid #eee;font-size:13px;color:#666;white-space:nowrap">Correo</td>
+              <td style="padding:12px 14px;border-bottom:1px solid #eee;font-size:14px;color:#111;font-weight:600">${escapeHtml(email)}</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 14px;font-size:13px;color:#666;white-space:nowrap">Contraseña temporal</td>
+              <td style="padding:12px 14px;font-size:14px;color:#111;font-family:monospace;font-weight:700;letter-spacing:.5px">${escapeHtml(password)}</td>
+            </tr>
+          </table>
+          <a href="${loginUrl}" style="display:inline-block;margin-top:16px;background:#4f8cff;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">Entrar a Project360 →</a>
+          <p style="font-size:12px;color:#999;margin:18px 0 0">Por seguridad, cambia tu contraseña la primera vez que entres. Si no esperabas este correo, ignóralo.</p>
+        </div>
+      </div>
+    </div>
+  </body></html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }

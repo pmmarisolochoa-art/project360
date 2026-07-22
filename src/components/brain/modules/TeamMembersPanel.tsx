@@ -327,7 +327,11 @@ function InviteMemberModal({
         kpis: emptyKpis(),
         createdAt: new Date().toISOString(),
       };
-      toast.success(`${member.nombre} ya puede entrar. Comparte su correo y contraseña temporal.`);
+      if (result.emailSent) {
+        toast.success(`${member.nombre} ya puede entrar. Le enviamos un correo con su acceso ✉️`);
+      } else {
+        toast.success(`${member.nombre} ya puede entrar. El correo no salió — cópiale la contraseña y compártela.`);
+      }
       onInvited(member);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo invitar al miembro');

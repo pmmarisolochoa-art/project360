@@ -5,6 +5,7 @@ import { es } from 'date-fns/locale';
 import type { Meeting } from '@/types/meeting';
 import type { Task } from '@/types/task';
 import { withAlpha } from '@/utils/colorGenerator';
+import { evaluateSLA, type SLAResult } from '@/config/taskSLA';
 
 type Estado = 'cumplida' | 'vencida' | 'pendiente' | 'sin-registro';
 
@@ -57,7 +58,9 @@ export function MeetingRecap({
       else if (match.status === 'completed') estado = 'cumplida';
       else if (match.isDelayed || new Date(match.dueDate).getTime() < now) estado = 'vencida';
       else estado = 'pendiente';
-      return { title: c.title, responsible: c.responsibleRole, estado };
+      // Tiempos de entrega (Bloque B): atraso vs. fecha pactada y cumplimiento de SLA por tipo.
+      const sla: SLAResult | null = match ? evaluateSLA(match, now) : null;
+      return { title: c.title, responsible: c.responsibleRole, estado, sla };
     });
   }, [prev, tasks, meeting.clientId]);
 
@@ -68,6 +71,9 @@ export function MeetingRecap({
   const vencidas = items.filter((i) => i.estado === 'vencida').length;
   const pendientes = items.filter((i) => i.estado === 'pendiente').length;
   const abiertas = vencidas + pendientes;
+  // Cumplimiento de SLA: sobre los compromisos con tarea registrada y datos suficientes.
+  const conSLA = items.filter((i) => i.sla && i.sla.state !== 'sin-datos');
+  const dentroSLA = conSLA.filter((i) => i.sla!.state === 'dentro').length;
 
   return (
     <section className="rounded-lg border" style={{ borderColor: withAlpha(accent, 0.3), background: withAlpha(accent, 0.05) }}>
@@ -91,6 +97,11 @@ export function MeetingRecap({
         <div className="px-3 pb-3">
           <p className="text-[11px] text-text-muted mb-2">
             {prev.title} · {format(parseISO(prev.scheduledAt), "d 'de' MMM, yyyy", { locale: es })}
+            {conSLA.length > 0 && (
+              <> · <span className={dentroSLA === conSLA.length ? 'text-emerald-600' : 'text-amber-600'}>
+                {dentroSLA}/{conSLA.length} dentro de SLA
+              </span></>
+            )}
           </p>
 
           {total === 0 ? (
@@ -106,9 +117,28 @@ export function MeetingRecap({
                       <div className={`text-xs ${it.estado === 'cumplida' ? 'text-text-muted line-through' : 'text-text-primary'}`}>
                         {it.title}
                       </div>
-                      <div className="text-[10px] text-text-muted">{it.responsible}</div>
+                      <div className="text-[10px] text-text-muted flex items-center gap-1.5 flex-wrap">
+                        <span>{it.responsible}</span>
+                        {it.sla && it.sla.state !== 'sin-datos' && (
+                          <span
+                            className="rounded px-1 py-px font-medium"
+                            style={{
+                              color: it.sla.state === 'dentro' ? '#16a34a' : '#d97706',
+                              background: withAlpha(it.sla.state === 'dentro' ? '#16a34a' : '#d97706', 0.12),
+                            }}
+                            title={`Tiempo objetivo: ${it.sla.targetDays}d · lleva ${it.sla.elapsedDays}d`}
+                          >
+                            {it.sla.state === 'dentro' ? 'En SLA' : `Fuera de SLA (meta ${it.sla.targetDays}d)`}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-[10px] font-medium shrink-0 mt-0.5" style={{ color: m.color }}>{m.label}</span>
+                    <div className="shrink-0 mt-0.5 text-right">
+                      <span className="text-[10px] font-medium block" style={{ color: m.color }}>{m.label}</span>
+                      {it.sla && it.sla.overdueDays > 0 && (
+                        <span className="text-[10px] text-red-500">hace {it.sla.overdueDays}d</span>
+                      )}
+                    </div>
                   </li>
                 );
               })}

@@ -4,6 +4,30 @@
 
 ---
 
+## 2026-07-23 — Sprint de cierre de semana + WhatsApp en STANDBY (sin línea en GHL)
+
+**1. Nuevo tipo de reunión "Sprint de cierre de semana" (`weekly_closing`) — EN PRODUCCIÓN.** Reunión de PM para cerrar la semana con seguimiento riguroso. Al abrirla, el drawer muestra automático (sin tokens, data del store): cumplimiento global de la semana Lun-Dom (N/M + barra %), ✅ completadas, ⏳ no completadas (prioridad, bloqueadas, atraso `hace Nd`) y 👥 cumplimiento por responsable. La agenda IA genera estructura PM de 6 puntos con tiempos (resumen → causas de lo no completado → cumplimiento por persona → decisiones reprogramar/reasignar/cancelar → aprendizajes → compromisos próxima semana) + fallback sin IA. Componente nuevo `WeeklyClosingReview.tsx`; tipo agregado en toda la app (labels, agente PM, reportes). **Sin migración** (la 022 ya liberó el CHECK de tipos). Commit `dbec865`, push a prod.
+
+**2. WhatsApp vía GHL → STANDBY.** Se re-probó el webhook nuevo (`Success` 200, workflow mapeado por el equipo), pero plataformas confirma que **no hay línea de WhatsApp activa en las cuentas de GHL**. Decisión: congelar el canal WhatsApp por ahora (los recordatorios siguen saliendo por email/Resend). Opciones evaluadas para retomar: (a) activar línea en GHL (~$10/mes subcuenta + costo Meta, depende del equipo), (b) WhatsApp Cloud API propia de Meta (independiente, 1000 conversaciones/mes gratis, requiere verificación + plantillas + `api/_whatsapp.ts` nuevo — el camino "serio"), (c) cambiar a Telegram (gratis, sin aprobaciones, listo en un día). Número de prueba para cuando se retome: +573017907593.
+
+**Pendientes:** probar el Sprint de cierre con una semana real de Marcelo; decidir camino de WhatsApp; registrar resto del equipo; validar bloque B con Marcelo.
+
+---
+
+## 2026-07-22 — Bloque B cerrado (SLA) + alta de equipo self-service con correo
+
+**Dos entregas a producción (validadas):**
+
+1. **Tiempos de entrega / SLA por tipo de tarea** — cierra el bloque B (inteligencia de reuniones). Nuevo `src/config/taskSLA.ts`: tabla editable de días objetivo por `tag` de tarea (ads 2, content 2, strategy 3, meeting 1, deliverable 3, ropre 5, other 3) + helper `evaluateSLA`. En el "Recuento de la reunión anterior" (`MeetingRecap.tsx`) cada compromiso ahora muestra **atraso** (`hace Nd` vs. fecha pactada) y **badge de cumplimiento** (En SLA / Fuera de SLA), más resumen `N/M dentro de SLA`. Sin migración (usa `createdAt`/`dueDate`/`completedAt`/`tag`). Decisión: los defaults de SLA se dejan sin afinar por ahora ("vamos evaluando"); el cumplimiento vive solo en el recap, el config es reutilizable para enchufarlo a Equipo después. Commit `05dd551`.
+
+2. **Alta de equipo self-service + correo automático** — el botón "Invitar miembro" + Edge Function `api/invitar-miembro.ts` ya existían (crean login Auth + `users` + `team_members`, validan owner, rollback). Lo nuevo: al invitar, el endpoint **envía un correo vía Resend** con el acceso (correo + contraseña temporal + botón a `/login`), best-effort (si falla, el miembro igual queda creado y el toast avisa que se comparta manual). Con esto se acaba el alta manual en Supabase. Migraciones que lo sostienen (todas corridas): 018 (user_id+access_level), 021 (departamentos), 023 (telefono). `SUPABASE_SERVICE_ROLE_KEY` confirmada en Vercel. Validado E2E: correo llegó. Commit `40656de`.
+
+**GHL / WhatsApp — bloqueado en el equipo de plataformas.** Enviamos payload de prueba al Inbound Webhook (`Success` 200) pero el WhatsApp no llega: el workflow de GHL aún no tiene mapeada la acción de envío (`{{inboundWebhookRequest.telefono}}` / `.mensaje`, crear contacto, canal activo, workflow publicado). Nuestro código está listo; falta setup del lado de plataformas. Cuando confirmen → reenviar prueba a +573017907593 y pegar `GHL_WEBHOOK_URL` en Vercel.
+
+**Pendientes:** registrar al resto del equipo (ya self-service); validar bloque B con Marcelo (visual, reunión con anterior); registrar tareas por WhatsApp entrante (bloque D, depende de GHL).
+
+---
+
 ## 2026-07-11 — WhatsApp de recordatorios y post-reunión vía GHL
 
 **Decisión: canal WhatsApp = GoHighLevel (GHL), no Twilio.** Ya se paga GHL en Ikigai, no hay que aprobar plantillas con Meta, y el mensaje se puede editar dentro de GHL. Project360 NO habla WhatsApp directo: postea a un **Inbound Webhook** de un workflow de GHL (`GHL_WEBHOOK_URL` en Vercel) y GHL envía. Helper `api/_ghl.ts` (prefijo `_` → Vercel no lo enruta). Enganchado en el **cron de recordatorios** y en el **post-reunión**: si la persona tiene teléfono y hay webhook, se manda WhatsApp **además** del email; sin teléfono o sin webhook → se omite (email intacto). Nuevo campo `telefono` por miembro: **migración 023** (`team_members.telefono`) + captura en el modal de invitar y en el detalle del miembro (formato internacional +57). Payload a GHL: `{ tipo, nombre, telefono, mensaje, link, clientId, tareas[] }`. Commit `3c11489`. **Pendiente de ella:** correr migración 023, crear el workflow con Inbound Webhook en GHL (canal WhatsApp activo), pegar `GHL_WEBHOOK_URL` en Vercel, y poner teléfonos a los miembros.

@@ -26,7 +26,7 @@ import { ROLE_DEFS } from '@/types/team';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useProgramsStore } from '@/store/useProgramsStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
-import { resolveRoleLabel } from '@/utils/roleResolver';
+import { resolveRoleLabel, resolveRoleLabels, resolveAssignee } from '@/utils/roleResolver';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { formatRelative } from '@/utils/dateHelpers';
@@ -78,6 +78,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   const deleteTask = useClientStore((s) => s.deleteTask);
 
   const [filterAssignee, setFilterAssignee] = useState<string>('');
+  const [filterPerson, setFilterPerson] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
   const [filterTag, setFilterTag] = useState<string>('');
   // Filtro por programa (4D) — recuerda la última selección por cliente.
@@ -147,10 +148,38 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     }
   }, [searchParams, allTasks]);
 
-  // Filtro de responsable: SOLO por rol. Una tarea matchea un rol si:
-  //  - su assignedTo es ese slug, o
-  //  - su assignedTo es el nombre de un miembro del equipo con ese rol
-  // El nombre se sigue mostrando dentro de la card como información.
+  // Equipo real del cliente — alimenta los filtros de rol y de persona.
+  const allMembers = useTeamMembersStore((s) => s.members);
+  const clientMembers = useMemo(
+    () => allMembers.filter((m) => m.clientId === client.id),
+    [allMembers, client.id],
+  );
+
+  // Filtro por ROL: solo los roles que existen en el equipo de este cliente
+  // (en el orden de ROLE_DEFS). Si aún no hay equipo cargado, todos los roles.
+  const roleOptions = useMemo(() => {
+    const teamSlugs = new Set(clientMembers.map((m) => m.rol));
+    const defs = teamSlugs.size > 0 ? ROLE_DEFS.filter((r) => teamSlugs.has(r.slug)) : ROLE_DEFS;
+    return defs.map((r) => ({ value: r.slug, label: r.title }));
+  }, [clientMembers]);
+
+  // Filtro por PERSONA: nombres únicos del equipo + responsables de tareas
+  // que no estén en team_members (datos viejos) — para no dejar tareas fuera.
+  const personOptions = useMemo(() => {
+    const names = new Set<string>(clientMembers.map((m) => m.nombre));
+    for (const t of tasks) {
+      const resolved = resolveAssignee(t.assignedTo, client.id);
+      if (resolved && resolved !== 'Sin asignar' && !ROLE_DEFS.some((r) => r.title === resolved)) {
+        names.add(resolved);
+      }
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [clientMembers, tasks, client.id]);
+
+  // Filtro de responsable, en dos ejes independientes:
+  //  - ROL: matchea si CUALQUIERA de los roles del responsable coincide
+  //    (una persona puede tener 2+ roles en el equipo).
+  //  - PERSONA: matchea por nombre resuelto (slug → nombre real del miembro).
   const filtered = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -158,10 +187,14 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     const weekEnd = new Date(todayStart.getTime() + 7 * 86400000);
     return tasks.filter((t) => {
       if (filterAssignee) {
-        // filterAssignee es un slug de rol — buscamos coincidencia por slug o por nombre→rol
-        const roleLabel = resolveRoleLabel(t.assignedTo, t.clientId);
+        // filterAssignee es un slug de rol — matchea CUALQUIERA de los roles
+        // del responsable (una persona puede tener varios).
+        const roleLabels = resolveRoleLabels(t.assignedTo, t.clientId);
         const targetLabel = ROLE_DEFS.find((r) => r.slug === filterAssignee)?.title;
-        if (roleLabel !== targetLabel) return false;
+        if (!targetLabel || !roleLabels.includes(targetLabel)) return false;
+      }
+      if (filterPerson) {
+        if (resolveAssignee(t.assignedTo, t.clientId) !== filterPerson) return false;
       }
       if (filterPriority && t.priority !== filterPriority) return false;
       if (filterTag && t.tag !== filterTag) return false;
@@ -178,7 +211,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
       }
       return true;
     });
-  }, [tasks, filterAssignee, filterPriority, filterTag, programFunnelIds, quickFilter]);
+  }, [tasks, filterAssignee, filterPerson, filterPriority, filterTag, programFunnelIds, quickFilter]);
 
   const accent = client.primaryColor;
 
@@ -256,19 +289,20 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
         <Select
           options={[
             { value: '', label: 'Todos los roles' },
-            // Orden canónico del spec — solo roles, sin nombres de personas.
-            ...(
-              [
-                'project_manager', 'strategist', 'media_buyer', 'copywriter',
-                'designer', 'community', 'funnel_builder', 'editor', 'closer', 'onboarding',
-              ] as const
-            ).map((slug) => {
-              const role = ROLE_DEFS.find((r) => r.slug === slug);
-              return { value: slug, label: role?.title ?? slug };
-            }),
+            // Solo los roles presentes en el equipo real de este cliente.
+            ...roleOptions,
           ]}
           value={filterAssignee}
           onChange={(e) => setFilterAssignee(e.target.value)}
+          className="min-w-[180px]"
+        />
+        <Select
+          options={[
+            { value: '', label: 'Todas las personas' },
+            ...personOptions.map((n) => ({ value: n, label: n })),
+          ]}
+          value={filterPerson}
+          onChange={(e) => setFilterPerson(e.target.value)}
           className="min-w-[180px]"
         />
         <Select

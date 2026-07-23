@@ -69,3 +69,27 @@ export function resolveRoleLabel(assignedTo: string, clientId?: string): string 
 
   return null;
 }
+
+/**
+ * Como resolveRoleLabel, pero devuelve TODOS los títulos de rol del
+ * responsable. Una misma persona puede estar en el equipo con 2+ roles
+ * (ej. "Jhonatan · Estratega" y "Jhonatan · Copywriter") — el filtro por
+ * rol debe matchear cualquiera de ellos, no solo el primero.
+ */
+export function resolveRoleLabels(assignedTo: string, clientId?: string): string[] {
+  if (!assignedTo) return [];
+
+  if (VALID_SLUGS.has(assignedTo)) {
+    return [roleSlugToLabel(assignedTo)];
+  }
+
+  if (clientId) {
+    const labels = useTeamMembersStore.getState().members
+      .filter((m) => m.clientId === clientId && m.nombre === assignedTo)
+      .map((m) => ROLE_DEFS.find((r) => r.slug === m.rol)?.title)
+      .filter((t): t is string => !!t);
+    if (labels.length > 0) return Array.from(new Set(labels));
+  }
+
+  return [];
+}

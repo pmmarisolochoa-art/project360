@@ -504,6 +504,14 @@ function meetingAgendaFallback(args: {
       'Definición de Entregables del próximo período (E) (15 min)',
       'Conversión de entregables en tareas asignadas (10 min)',
     ],
+    weekly_closing: [
+      `Resumen de la semana — completado vs pendiente (${pendingTasksCount} tareas abiertas) (10 min)`,
+      'Revisión de tareas no completadas — causa: bloqueo, tiempo o estimación (10 min)',
+      'Cumplimiento por responsable — reconocer entregas y aclarar atrasos (5 min)',
+      'Decisiones sobre pendientes — reprogramar, reasignar o cancelar (10 min)',
+      'Aprendizajes de la semana — qué repetir y qué cambiar (5 min)',
+      'Compromisos de la próxima semana — responsable y fecha por cada uno (5 min)',
+    ],
   };
   // weekly_planning tiene formato distinto (por días) — fallback genérico semanal.
   if (meetingType === 'weekly_planning') {

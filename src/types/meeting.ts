@@ -6,7 +6,8 @@ export type MeetingType =
   | 'monthly_closing'
   | 'crisis'
   | 'weekly_planning'
-  | 'ropre_strategy';
+  | 'ropre_strategy'
+  | 'weekly_closing';
 
 export interface Meeting {
   id: string;

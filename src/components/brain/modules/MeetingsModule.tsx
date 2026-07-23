@@ -33,6 +33,7 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   crisis: 'Crisis',
   weekly_planning: 'Planeación semanal',
   ropre_strategy: 'Estrategia ROPRE & Entregables',
+  weekly_closing: 'Sprint de cierre de semana',
 };
 
 const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' | 'neutral' | 'danger'> = {
@@ -44,6 +45,7 @@ const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' |
   crisis: 'danger',
   weekly_planning: 'info',
   ropre_strategy: 'accent',
+  weekly_closing: 'success',
 };
 
 // Descripciones que se muestran en el modal "Nueva reunión" al seleccionar tipo.
@@ -57,6 +59,7 @@ export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
   crisis: '🚨 Diagnóstico de causa raíz, plan de mitigación inmediato con responsables y deadline.',
   weekly_planning: '📅 Coordina las tareas de la semana por día y persona. La agenda se genera con tareas pendientes y reuniones programadas.',
   ropre_strategy: '🎯 Sesión estratégica para actualizar el ROPRE y convertir entregables en tareas. El resultado se guarda directamente en el módulo ROPRE.',
+  weekly_closing: '🏁 Cierre de la semana: resumen automático de tareas completadas vs pendientes, cumplimiento por persona y compromisos que pasan a la próxima semana.',
 };
 
 export function MeetingsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {

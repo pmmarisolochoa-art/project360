@@ -142,6 +142,7 @@ const MEETING_TYPE_LABEL: Record<string, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Contenido',
   ads_review: 'Revisión ADS', monthly_closing: 'Cierre mensual', crisis: 'Crisis',
   weekly_planning: 'Planeación semanal', ropre_strategy: 'ROPRE & Entregables',
+  weekly_closing: 'Cierre de semana',
 };
 
 function WeekMeetingsPanel({ meetings }: { meetings: ReturnType<typeof useClientStore.getState>['meetings'] }) {

@@ -23,6 +23,7 @@ import type { RopreItem } from '@/types/ropre';
 import { ROLE_DEFS } from '@/types/team';
 import { RopreInlineEditor } from './RopreInlineEditor';
 import { WeeklyPlanningGrid } from './WeeklyPlanningGrid';
+import { WeeklyClosingReview } from './WeeklyClosingReview';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
@@ -33,6 +34,7 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Estrategia de contenido',
   ads_review: 'Revisión de ADS', monthly_closing: 'Cierre mensual', crisis: 'Crisis / Urgente',
   weekly_planning: 'Planeación semanal', ropre_strategy: 'Estrategia ROPRE & Entregables',
+  weekly_closing: 'Sprint de cierre de semana',
 };
 
 export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting: Meeting; onClose: () => void; readOnly?: boolean }) {
@@ -528,6 +530,13 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           {meeting.type === 'weekly_planning' && client && (
             <section>
               <WeeklyPlanningGrid clientId={client.id} weekAnchor={meeting.scheduledAt} accent={accent} />
+            </section>
+          )}
+
+          {/* Resumen de cumplimiento — solo para meeting.type === 'weekly_closing' */}
+          {meeting.type === 'weekly_closing' && client && (
+            <section>
+              <WeeklyClosingReview clientId={client.id} weekAnchor={meeting.scheduledAt} accent={accent} />
             </section>
           )}
 

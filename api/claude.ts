@@ -334,6 +334,14 @@ Ignora la regla de "5 puntos numerados" — usa el formato por días.`,
 6. Definición de Entregables del próximo período (E) (15 min)
 7. Conversión de entregables en tareas asignadas (10 min)
 En cada punto sé específico al cliente y su momento actual. Ignora la regla de "5 puntos" — usa exactamente 7.`,
+    weekly_closing: `SPRINT DE CIERRE DE SEMANA: reunión de PM para cerrar la semana con seguimiento riguroso. Genera EXACTAMENTE 6 puntos en este orden:
+1. Resumen de la semana — qué se completó vs qué quedó pendiente (menciona tareas concretas del contexto) (10 min)
+2. Revisión de tareas NO completadas — causa de cada una: bloqueo, falta de tiempo o mala estimación (10 min)
+3. Cumplimiento por responsable — reconocer lo entregado y aclarar lo atrasado, sin señalar culpables (5 min)
+4. Decisiones sobre pendientes — reprogramar, reasignar o cancelar cada tarea abierta (10 min)
+5. Aprendizajes de la semana — qué repetir y qué cambiar en el proceso (5 min)
+6. Compromisos para la próxima semana — responsable y fecha por cada uno (5 min)
+En cada punto sé específico: usa las tareas pendientes y vencidas del contexto con nombres y responsables. Ignora la regla de "5 puntos" — usa exactamente 6.`,
   };
   const focus = TYPE_FOCUS[ctx.meetingType] ?? 'Enfoque adaptado al tipo de reunión.';
 

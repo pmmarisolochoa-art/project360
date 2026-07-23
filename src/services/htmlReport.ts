@@ -371,6 +371,7 @@ const MEETING_TYPE_LABEL: Record<string, string> = {
   crisis: 'Crisis',
   weekly_planning: 'Planeación semanal',
   ropre_strategy: 'Estrategia ROPRE',
+  weekly_closing: 'Sprint de cierre de semana',
 };
 
 /** Estilos del informe de reunión — clases idénticas a las del semanal + .note. */

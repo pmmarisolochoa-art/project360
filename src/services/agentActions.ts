@@ -151,6 +151,7 @@ export function executeAction(action: AgentAction, clientId: string): { ok: bool
     const VALID_MT: MeetingType[] = [
       'kickoff', 'weekly_metrics', 'content_strategy', 'ads_review',
       'monthly_closing', 'crisis', 'weekly_planning', 'ropre_strategy',
+      'weekly_closing',
     ];
     const meeting: Meeting = {
       id: genId(),

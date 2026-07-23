@@ -273,25 +273,34 @@ async function callAnthropicChat(
   maxTokens = 1500,
   model: string = MODEL,
 ): Promise<string> {
-  const res = await fetch(ANTHROPIC_URL, {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': ANTHROPIC_VERSION,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({ model, max_tokens: maxTokens, system, messages }),
-  });
+  // Reintenta en errores transitorios de sobrecarga (429/529) — Anthropic
+  // puede rechazar puntualmente bajo carga. 2 reintentos con backoff corto.
+  let lastErr = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages }),
+    });
 
-  if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
+      const block = data.content?.find((b) => b.type === 'text');
+      if (!block?.text) throw new Error('Respuesta sin contenido de texto');
+      return block.text.trim();
+    }
+
     const errText = await res.text().catch(() => '');
-    throw new Error(`Anthropic API ${res.status}: ${errText.slice(0, 300)}`);
+    lastErr = `Anthropic API ${res.status}: ${errText.slice(0, 300)}`;
+    const transient = res.status === 429 || res.status === 529 || res.status >= 500;
+    if (!transient || attempt === 2) throw new Error(lastErr);
+    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
   }
-
-  const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
-  const block = data.content?.find((b) => b.type === 'text');
-  if (!block?.text) throw new Error('Respuesta sin contenido de texto');
-  return block.text.trim();
+  throw new Error(lastErr || 'Anthropic API: error desconocido');
 }
 
 async function agentChat(apiKey: string, ctx: AgentChatCtx): Promise<string> {

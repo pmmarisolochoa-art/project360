@@ -99,11 +99,21 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
         return;
       }
 
+      // El contexto del cliente se arma en el navegador leyendo los stores.
+      // Si un dato viene mal formado podría lanzar aquí — lo aislamos para que
+      // el chat siga funcionando (con menos contexto) en vez de romperse.
+      let clientContext = '';
+      try {
+        clientContext = buildClientContext(clientId);
+      } catch (ctxErr) {
+        console.warn('[AgentChat] buildClientContext falló, sigo sin contexto extendido', ctxErr);
+      }
+
       const system =
         agentDef.systemPrompt +
         ACTION_PROTOCOL +
         '\n\nCONTEXTO ACTUAL DEL CLIENTE:\n' +
-        buildClientContext(clientId);
+        (clientContext || 'No disponible en este momento.');
 
       const reply = await sendAgentMessage({
         system,
@@ -123,12 +133,18 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
       void saveMessage(clientId, agente, 'assistant', shown);
     } catch (e) {
       console.warn('[AgentChat] error', e);
+      const detail = e instanceof Error ? e.message : String(e);
+      // Mensaje según el tipo de fallo, con el detalle real para poder diagnosticar.
+      const overloaded = /429|529|overloaded|rate/i.test(detail);
+      const base = overloaded
+        ? 'El servicio de IA está saturado ahora mismo. Espera unos segundos y vuelve a intentar.'
+        : 'No pude responder en este momento. Revisa la conexión e intenta de nuevo.';
       setMessages((prev) => [
         ...prev,
         {
           id: newId(),
           role: 'assistant',
-          content: 'No pude responder en este momento. Revisa la conexión e intenta de nuevo.',
+          content: `${base}\n\n_Detalle: ${detail.slice(0, 200)}_`,
           error: true,
         },
       ]);

@@ -21,6 +21,17 @@ interface UiMessage extends ChatMessage {
   id: string;
   error?: boolean;
   actions?: AgentAction[];
+  streaming?: boolean;
+}
+
+/**
+ * Texto a mostrar mientras la respuesta se está escribiendo: recorta todo
+ * desde el marcador [ACCION] en adelante para no mostrar el JSON crudo del
+ * bloque de acción (que siempre viene al final).
+ */
+function displayWhileStreaming(text: string): string {
+  const idx = text.search(/\[ACCION/i);
+  return (idx >= 0 ? text.slice(0, idx) : text).trimEnd();
 }
 
 interface AgentChatProps {
@@ -115,21 +126,35 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
         '\n\nCONTEXTO ACTUAL DEL CLIENTE:\n' +
         (clientContext || 'No disponible en este momento.');
 
+      // Insertamos un mensaje vacío que se irá llenando token por token.
+      const streamId = newId();
+      setMessages((prev) => [
+        ...prev,
+        { id: streamId, role: 'assistant', content: '', streaming: true },
+      ]);
+
       const reply = await sendAgentMessage({
         system,
         messages: history.map((m) => ({ role: m.role, content: m.content })),
         model: agentDef.modelo,
+        onDelta: (fullText) => {
+          const partial = displayWhileStreaming(fullText);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === streamId ? { ...m, content: partial } : m)),
+          );
+        },
       });
 
+      // Respuesta completa → separamos texto visible de la acción propuesta.
       const { visibleText, action } = parseAgentAction(reply);
       const shown = visibleText || (action ? 'Te propongo esta acción 👇' : reply);
-      const assistantMsg: UiMessage = {
-        id: newId(),
-        role: 'assistant',
-        content: shown,
-        actions: action ? [action] : undefined,
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamId
+            ? { ...m, content: shown, actions: action ? [action] : undefined, streaming: false }
+            : m,
+        ),
+      );
       void saveMessage(clientId, agente, 'assistant', shown);
     } catch (e) {
       console.warn('[AgentChat] error', e);
@@ -139,8 +164,9 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
       const base = overloaded
         ? 'El servicio de IA está saturado ahora mismo. Espera unos segundos y vuelve a intentar.'
         : 'No pude responder en este momento. Revisa la conexión e intenta de nuevo.';
+      // Quitamos cualquier burbuja que se estuviera escribiendo y mostramos el error.
       setMessages((prev) => [
-        ...prev,
+        ...prev.filter((m) => !m.streaming),
         {
           id: newId(),
           role: 'assistant',
@@ -211,6 +237,9 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
                   style={m.role === 'user' ? { background: accent } : undefined}
                 >
                   {m.content}
+                  {m.streaming && (
+                    <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-text-muted animate-pulse rounded-sm" />
+                  )}
                 </div>
                 {m.role === 'assistant' && m.actions?.map((a, i) => (
                   <ActionCard key={`${m.id}-${i}`} action={a} clientId={clientId} onDone={() => undefined} />
@@ -220,7 +249,10 @@ export function AgentChat({ clientId, agente }: AgentChatProps) {
           ))
         )}
 
-        {sending && (
+        {/* Puntos de "escribiendo" solo antes del primer token (ej. mientras
+            corre un tool); una vez que la burbuja de streaming existe, el
+            cursor parpadeante dentro de ella hace de indicador. */}
+        {sending && !messages.some((m) => m.streaming) && (
           <div className="flex gap-2.5 justify-start">
             <div
               className="h-7 w-7 shrink-0 rounded-lg flex items-center justify-center mt-0.5"

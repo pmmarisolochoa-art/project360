@@ -47,9 +47,32 @@ export async function sendAgentMessage(args: {
   system: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   model?: string;
+  /** Callback opcional: se llama con el texto acumulado en cada fragmento. */
+  onDelta?: (fullText: string) => void;
 }): Promise<string> {
-  const { text } = await callBackend<{ text: string }>('agent_chat', args);
-  return text;
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feature: 'agent_chat', context: args }),
+  });
+  if (!res.ok || !res.body) {
+    // Los errores llegan como JSON { error }.
+    const errText = await res.text().catch(() => '');
+    let msg = errText.slice(0, 200);
+    try { msg = (JSON.parse(errText) as { error?: string }).error ?? msg; } catch { /* texto plano */ }
+    throw new Error(`Claude backend error ${res.status}: ${msg}`);
+  }
+  // Respuesta en streaming (text/plain) — acumulamos los deltas de texto.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    text += decoder.decode(value, { stream: true });
+    args.onDelta?.(text);
+  }
+  return text.trim();
 }
 
 /* ─────────────── BRAIN desde onboarding ─────────────── */

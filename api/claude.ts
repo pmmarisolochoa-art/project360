@@ -199,7 +199,7 @@ export default async function handler(req: Request): Promise<Response> {
       case 'meeting_agenda':
         return json({ text: await meetingAgenda(apiKey, body.context) });
       case 'agent_chat':
-        return json({ text: await agentChat(apiKey, body.context) });
+        return await agentChatStream(apiKey, body.context);
       case 'three_options':
         return json({ options: await threeOptions(apiKey, body.context) });
       case 'regenerate_section':
@@ -266,51 +266,73 @@ async function callAnthropic(apiKey: string, system: string, user: string, maxTo
  * Variante multi-turno: recibe un array de mensajes (user/assistant) en vez de
  * un único prompt. Usada por el chat del Agente PM para mantener conversación.
  */
-async function callAnthropicChat(
-  apiKey: string,
-  system: string,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-  maxTokens = 1500,
-  model: string = MODEL,
-): Promise<string> {
-  // Reintenta en errores transitorios de sobrecarga (429/529) — Anthropic
-  // puede rechazar puntualmente bajo carga. 2 reintentos con backoff corto.
-  let lastErr = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': ANTHROPIC_VERSION,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ model, max_tokens: maxTokens, system, messages }),
-    });
-
-    if (res.ok) {
-      const data = await res.json() as { content?: Array<{ type: string; text?: string }> };
-      const block = data.content?.find((b) => b.type === 'text');
-      if (!block?.text) throw new Error('Respuesta sin contenido de texto');
-      return block.text.trim();
-    }
-
-    const errText = await res.text().catch(() => '');
-    lastErr = `Anthropic API ${res.status}: ${errText.slice(0, 300)}`;
-    const transient = res.status === 429 || res.status === 529 || res.status >= 500;
-    if (!transient || attempt === 2) throw new Error(lastErr);
-    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
-  }
-  throw new Error(lastErr || 'Anthropic API: error desconocido');
-}
-
-async function agentChat(apiKey: string, ctx: AgentChatCtx): Promise<string> {
+/**
+ * Chat del Agente PM en STREAMING.
+ *
+ * Antes se esperaba a que Anthropic generara TODA la respuesta y luego se
+ * devolvía como JSON — con contexto grande + hasta 1500 tokens de salida,
+ * eso superaba el límite de tiempo del Edge Function → 504
+ * FUNCTION_INVOCATION_TIMEOUT. Con streaming los primeros bytes salen en
+ * segundos y la conexión se mantiene viva, así que ya no hay timeout.
+ *
+ * Devuelve `text/plain`: solo los fragmentos de texto (deltas), que el
+ * frontend va acumulando. Los errores se devuelven como JSON.
+ */
+async function agentChatStream(apiKey: string, ctx: AgentChatCtx): Promise<Response> {
   const messages = (ctx.messages ?? [])
     .filter((m) => m.content && m.content.trim().length > 0)
     .map((m) => ({ role: m.role, content: m.content }));
-  if (messages.length === 0) throw new Error('Sin mensajes para el agente');
-  // El último mensaje debe ser del usuario (requisito de la API).
+  if (messages.length === 0) return json({ error: 'Sin mensajes para el agente' }, 400);
   const model = ctx.model && ctx.model.startsWith('claude-') ? ctx.model : MODEL;
-  return callAnthropicChat(apiKey, ctx.system, messages, 1500, model);
+
+  const upstream = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': ANTHROPIC_VERSION,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ model, max_tokens: 1500, system: ctx.system, messages, stream: true }),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    const errText = await upstream.text().catch(() => '');
+    return json({ error: `Anthropic API ${upstream.status}: ${errText.slice(0, 300)}` }, 502);
+  }
+
+  // Transforma el SSE de Anthropic → texto plano (solo los text_delta).
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      buffer += decoder.decode(chunk, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? ''; // la última puede estar incompleta
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const evt = JSON.parse(payload) as {
+            type?: string;
+            delta?: { type?: string; text?: string };
+          };
+          if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta' && evt.delta.text) {
+            controller.enqueue(encoder.encode(evt.delta.text));
+          }
+        } catch {
+          /* línea parcial o no-JSON — se ignora */
+        }
+      }
+    },
+  });
+
+  return new Response(upstream.body.pipeThrough(transform), {
+    status: 200,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', ...CORS_HEADERS },
+  });
 }
 
 async function meetingAgenda(apiKey: string, ctx: MeetingAgendaCtx): Promise<string> {

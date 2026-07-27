@@ -68,6 +68,10 @@ export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
   management: '🏛️ Reunión de gerencia: sistema y procesos (SOPs), objetivos y KPIs generales de la agencia, y decisiones importantes de dirección.',
 };
 
+// Reuniones "internas" = de la agencia (dirección/equipo), no de un cliente.
+const INTERNAL_TYPES: ReadonlySet<MeetingType> = new Set(['general', 'management']);
+export const isInternalMeeting = (t: MeetingType) => INTERNAL_TYPES.has(t);
+
 export function MeetingsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const allMeetings = useClientStore((s) => s.meetings);
   const meetings = useMemo(
@@ -84,6 +88,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
   const [view, setView] = useState<'list' | 'week'>('list');
   const [fType, setFType] = useState<string>('');
   const [fStatus, setFStatus] = useState<'all' | 'upcoming' | 'past' | 'completed' | 'pending'>('all');
+  const [fScope, setFScope] = useState<'all' | 'client' | 'internal'>('all');
   const [creating, setCreating] = useState(false);
   const [defaultType, setDefaultType] = useState<MeetingType>('weekly_metrics');
 
@@ -112,6 +117,8 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
   const filtered = useMemo(() => {
     const now = new Date();
     return meetings.filter((m) => {
+      if (fScope === 'internal' && !isInternalMeeting(m.type)) return false;
+      if (fScope === 'client' && isInternalMeeting(m.type)) return false;
       if (fType && m.type !== fType) return false;
       const d = parseISO(m.scheduledAt);
       if (fStatus === 'upcoming' && !isAfter(d, now)) return false;
@@ -120,7 +127,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
       if (fStatus === 'pending' && m.completed) return false;
       return true;
     });
-  }, [meetings, fType, fStatus]);
+  }, [meetings, fType, fStatus, fScope]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -202,6 +209,16 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
             <LayoutGrid className="h-3.5 w-3.5" /> Semana
           </button>
         </div>
+        <Select
+          value={fScope}
+          onChange={(e) => setFScope(e.target.value as typeof fScope)}
+          className="min-w-[150px]"
+          options={[
+            { value: 'all', label: 'Cliente + internas' },
+            { value: 'client', label: '👥 De cliente' },
+            { value: 'internal', label: '🏛️ Internas (agencia)' },
+          ]}
+        />
         <Select
           value={fType}
           onChange={(e) => setFType(e.target.value)}
@@ -329,6 +346,7 @@ function ListView({ meetings, accent, onOpen, onDelete, readOnly = false }: {
                       <span>{m.durationMin} min</span>
                       <span>·</span>
                       <Badge tone={TYPE_TONE[m.type]}>{TYPE_LABEL[m.type]}</Badge>
+                      {isInternalMeeting(m.type) && <Badge tone="accent">🏛️ Interna</Badge>}
                       {m.participants && m.participants.length > 0 && (
                         <>
                           <span>·</span>

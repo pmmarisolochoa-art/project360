@@ -11,7 +11,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <header
-      className="h-16 flex items-center justify-between gap-2 px-3 sm:px-6 border-b backdrop-blur-md"
+      className="relative z-30 h-16 flex items-center justify-between gap-2 px-3 sm:px-6 border-b backdrop-blur-md"
       style={{ background: 'var(--header-bg)', borderColor: 'var(--header-border)' }}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0 max-w-md">

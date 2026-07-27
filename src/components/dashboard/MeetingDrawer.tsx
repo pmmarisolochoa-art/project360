@@ -30,6 +30,7 @@ import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
 import { sendMeetingTasks, type MeetingTaskToSend } from '@/services/sendMeetingTasks';
+import { dedupeExtracted } from '@/utils/taskDedup';
 import { MeetingRecap } from './MeetingRecap';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
@@ -232,12 +233,9 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     setExtracting(true);
     try {
       // Tareas ya existentes y pendientes de este cliente → para no duplicar.
-      const norm = (s: string) =>
-        s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
       const openTitles = tasksByClient
         .filter((t) => t.clientId === client.id && t.status !== 'completed')
         .map((t) => t.title);
-      const existingNorm = new Set(openTitles.map(norm));
 
       const result = await extractTasksFromNotes({
         clientName: client.name,
@@ -252,9 +250,8 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           .map((m) => ({ nombre: m.nombre, rol: m.rol })), // asignar a la persona
       });
 
-      // Red de seguridad: descarta las que igual quedaron idénticas a una existente.
-      const deduped = result.filter((t) => !existingNorm.has(norm(t.title)));
-      const omitted = result.length - deduped.length;
+      // Guard: descarta las idénticas a una existente O repetidas en el lote.
+      const { unique: deduped, omitted } = dedupeExtracted(result, openTitles);
 
       if (deduped.length === 0) {
         toast.info(
@@ -367,6 +364,10 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     // Solo auto-extrae si NO se extrajo ya manualmente (evita crear tareas duplicadas).
     if (client && notes.trim().length >= 20 && (meeting.extractedTasks?.length ?? 0) === 0) {
       try {
+        // Tareas abiertas del cliente → la IA no las repite Y las filtramos después.
+        const openTitles = tasksByClient
+          .filter((t) => t.clientId === client.id && t.status !== 'completed')
+          .map((t) => t.title);
         const result = await extractTasksFromNotes({
           clientName: client.name,
           industry: client.industry,
@@ -374,9 +375,15 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           notes,
           agenda,
           availableRoles: ROLE_DEFS.map((r) => r.slug),
+          existingTasks: openTitles,
+          teamMembers: allMembers
+            .filter((m) => m.clientId === client.id)
+            .map((m) => ({ nombre: m.nombre, rol: m.rol })),
         });
-        extractedRecord = result;
-        for (const t of result) {
+        // Guard anti-duplicados: contra las abiertas y dentro del mismo lote.
+        const { unique } = dedupeExtracted(result, openTitles);
+        extractedRecord = unique;
+        for (const t of unique) {
           const task: Task = {
             id: genId(),
             clientId: meeting.clientId,
@@ -715,8 +722,14 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
               <ExtractedTasksList
                 tasks={extractedDraft}
                 onConfirm={(selected) => {
+                  // Guard final: por si se crearon tareas iguales entre el borrador
+                  // y la confirmación, filtra contra las abiertas actuales del cliente.
+                  const openTitles = tasksByClient
+                    .filter((t) => t.clientId === meeting.clientId && t.status !== 'completed')
+                    .map((t) => t.title);
+                  const { unique: toCreate, omitted } = dedupeExtracted(selected, openTitles);
                   const created: MeetingTaskToSend[] = [];
-                  for (const t of selected) {
+                  for (const t of toCreate) {
                     const task: Task = {
                       id: genId(),
                       clientId: meeting.clientId,
@@ -741,7 +754,10 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                   // Conserva los compromisos confirmados como registro de la reunión
                   // (esto es lo que hace aparecer las "Decisiones" en el reporte).
                   updateMeeting(meeting.id, { extractedTasks: selected });
-                  toast.success(`${selected.length} tarea${selected.length === 1 ? '' : 's'} creada${selected.length === 1 ? '' : 's'} en el módulo Tareas`);
+                  toast.success(
+                    `${created.length} tarea${created.length === 1 ? '' : 's'} creada${created.length === 1 ? '' : 's'} en el módulo Tareas` +
+                      (omitted > 0 ? ` · ${omitted} omitida${omitted === 1 ? '' : 's'} por duplicado` : ''),
+                  );
                 }}
               />
             </section>

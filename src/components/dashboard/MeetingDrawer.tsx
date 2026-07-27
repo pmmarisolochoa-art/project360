@@ -66,6 +66,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
   // Tareas recién creadas desde esta reunión, listas para avisar a sus responsables.
   const [tasksToNotify, setTasksToNotify] = useState<MeetingTaskToSend[]>([]);
   const [sendingTasks, setSendingTasks] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveIndicator, setSaveIndicator] = useState<string>('');
   const initialNotes = useRef(meeting.notes ?? '');
@@ -410,7 +411,11 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     // falla el correo, la reunión igual queda marcada como realizada.
     if (client) {
       const commitments = extractedRecord ?? meeting.extractedTasks ?? [];
-      const hasContent = notes.trim().length >= 20 || commitments.length > 0;
+      const hasContent =
+        notes.trim().length >= 20 ||
+        commitments.length > 0 ||
+        (agenda?.trim().length ?? 0) >= 20 ||
+        (meeting.summary?.trim().length ?? 0) >= 20;
       if (hasContent) {
         const mergedMeeting = { ...meeting, notes, agenda, completed: true, extractedTasks: commitments };
         toast.info('Generando y enviando el reporte al equipo…');
@@ -421,11 +426,42 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           })
           .catch((e) => {
             console.warn('[markDone] envío de reporte falló', e);
-            toast.error(`No se pudo enviar el reporte: ${e instanceof Error ? e.message.slice(0, 80) : 'error'}`);
+            toast.error(`No se pudo enviar el reporte: ${e instanceof Error ? e.message.slice(0, 120) : 'error'}`);
           });
+      } else {
+        // No hay nada que reportar → avisamos en vez de saltar en silencio.
+        toast.info('Sin notas ni compromisos: no se generó reporte. Agrega notas o extrae tareas y usa "Enviar al equipo".');
       }
     }
     onClose();
+  };
+
+  // Envío manual del reporte al equipo (independiente de "Marcar como realizada").
+  const sendReportNow = async () => {
+    if (!client) return;
+    const commitments = meeting.extractedTasks ?? [];
+    const hasContent =
+      notes.trim().length >= 20 ||
+      commitments.length > 0 ||
+      (agenda?.trim().length ?? 0) >= 20 ||
+      (meeting.summary?.trim().length ?? 0) >= 20;
+    if (!hasContent) {
+      toast.info('Agrega notas o extrae tareas antes de enviar el reporte.');
+      return;
+    }
+    setSendingReport(true);
+    toast.info('Generando y enviando el reporte al equipo…');
+    try {
+      const merged = { ...meeting, notes, agenda } as Meeting;
+      const r = await sendMeetingReport(client, merged);
+      if (r.sent > 0) toast.success(`Reporte enviado al equipo (${r.people} persona${r.people === 1 ? '' : 's'}) ✓`);
+      else toast.info(r.note || 'Reporte generado, pero el equipo no tiene correos registrados.');
+    } catch (e) {
+      console.warn('[sendReportNow] falló', e);
+      toast.error(`No se pudo enviar: ${e instanceof Error ? e.message.slice(0, 140) : 'error'}`);
+    } finally {
+      setSendingReport(false);
+    }
   };
 
   const cancelMeeting = () => {
@@ -716,6 +752,17 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                 }}
               >
                 PDF
+              </Button>
+            )}
+            {!readOnly && client && (
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<Send className="h-3.5 w-3.5" />}
+                loading={sendingReport}
+                onClick={sendReportNow}
+              >
+                Enviar al equipo
               </Button>
             )}
             {!readOnly && !meeting.completed && (

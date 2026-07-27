@@ -1050,12 +1050,14 @@ Reglas:
   const user = `Cliente: ${ctx.clientName} (${ctx.industry})
 Reunión: ${ctx.meetingTitle} · Tipo: ${ctx.meetingType} · Fecha: ${ctx.date}
 
-${ctx.summary ? `Resumen previo:\n${ctx.summary}\n\n` : ''}${ctx.agenda ? `Agenda:\n${ctx.agenda}\n\n` : ''}${commitments}Notas de la reunión:
-${ctx.notes || '(sin notas)'}
+${ctx.summary ? `Resumen previo:\n${ctx.summary.slice(0, 2000)}\n\n` : ''}${ctx.agenda ? `Agenda:\n${ctx.agenda.slice(0, 2000)}\n\n` : ''}${commitments}Notas de la reunión:
+${(ctx.notes || '(sin notas)').slice(0, 8000)}
 
 Genera el reporte ejecutivo en JSON.`;
 
-  const txt = await callAnthropic(apiKey, system, user, 1600);
+  // Modelo rápido (Haiku) + notas acotadas: evita el timeout del Edge Function
+  // con transcripciones largas. Salida estructurada corta → 1200 tokens bastan.
+  const txt = await callAnthropic(apiKey, system, user, 1200, FAST_MODEL);
   const parsed = JSON.parse(extractJson(txt)) as Record<string, unknown>;
   const okTone = (t: unknown) => (['g', 'r', 'a', 'b', ''].includes(String(t)) ? String(t) : '');
   const okLevel = (l: unknown) => (['low', 'medium', 'high'].includes(String(l)) ? String(l) : 'medium');

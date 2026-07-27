@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-07-27 — Reportes de reunión por correo + tipos nuevos + anti-duplicados + fixes UX
+
+Sesión larga de features y estabilización sobre el sistema de reuniones. Todo en producción (main → Vercel).
+
+**1. Reporte ejecutivo de reunión (PM experto) en PDF + envío por correo.** Cada reunión genera un reporte con análisis IA (titular, deck, KPIs, decisiones, riesgos, próximos pasos, foco de la próxima reunión) — `meeting_report` en el backend. Se **envía por correo al equipo** con el PDF adjunto (endpoint `api/enviar-reporte-reunion.ts` vía Resend), y hay **selector de destinatarios** (elegir a quién). Auto-envío al "Marcar como realizada" + botón manual "Enviar al equipo". **Decisión de diseño:** el reporte reusa el motor paginado del reporte semanal (`composeReport`, exportado) en vez del approach editorial rasterizado que rompía la paginación — así queda coherente con el semanal, con cabecera/footer por página y tamaño A4 correcto. **3 bugs resueltos en el camino:** (a) PDF pesaba varios MB (PNG) → excedía el límite del Edge Function → ahora JPEG comprimido; (b) `meeting_report` daba 504 con notas largas → ahora FAST_MODEL (Haiku) + notas acotadas; (c) un correo mal escrito en el equipo tumbaba TODO el envío → ahora valida formato y omite los inválidos. Ojo: dominio ya verificado en Resend (los recordatorios llegan), RESEND_FROM OK.
+
+**2. Tipos de reunión nuevos.** `general` (esporádica, sin tema fijo) y `management` (gerencia: SOPs, KPIs de agencia, decisiones estratégicas). **Decisión:** las reuniones internas de la agencia viven dentro del **cliente Ikigai** (ya existe en prod, no se creó cliente nuevo). Filtro "Cliente / Internas" + badge "🏛️ Interna" en el módulo (helper `isInternalMeeting`). También `weekly_closing` de la sesión anterior seguía activo.
+
+**3. Anti-duplicados de tareas de reunión.** Se limpiaron duplicados existentes con un detector nuevo (banner + modal "Revisar y limpiar" en el módulo Tareas, conserva la más avanzada) + alerta al crear una tarea con título repetido. Y se cerró la fuente: guard compartido `dedupeExtracted()` (util nuevo) aplicado en los **3 puntos** de extracción (extraer manual, auto-extract al cerrar, confirmar) — antes solo el manual deduplicaba. Filtra contra tareas abiertas Y dentro del mismo lote.
+
+**4. Fixes UX:** chat del Agente PM ahora en **streaming token por token** (resuelve el 504 del chat + efecto typing); filtro de **tareas por persona** (además de por rol, que ahora refleja el equipo real y matchea múltiples roles de una persona); buscador global — dropdown ya no se solapa con la página (z-index) y **clic en resultado abre la tarea/reunión** (deep-link `?task=`/`?meeting=`).
+
+**⚠️ Alerta de infraestructura:** hay un **proceso externo concurrente** creando ramas `ci/safety-net*` desde main y cambiando el branch activo entre commits (aparecen commits "ci: red de seguridad" ajenos). No son hooks locales. Dos commits cayeron en esas ramas y hubo que moverlos a main a mano. Todo quedó bien en `origin/main`, pero **revisar qué automatización/terminal las crea** para que no interfiera.
+
+**Pendientes:** validar E2E el correo del reporte con equipo real (probar el flujo completo); WhatsApp/GHL sigue en standby (sin línea); investigar el proceso que crea ramas ci/safety-net.
+
+---
+
 ## 2026-07-23 — Sprint de cierre de semana + WhatsApp en STANDBY (sin línea en GHL)
 
 **1. Nuevo tipo de reunión "Sprint de cierre de semana" (`weekly_closing`) — EN PRODUCCIÓN.** Reunión de PM para cerrar la semana con seguimiento riguroso. Al abrirla, el drawer muestra automático (sin tokens, data del store): cumplimiento global de la semana Lun-Dom (N/M + barra %), ✅ completadas, ⏳ no completadas (prioridad, bloqueadas, atraso `hace Nd`) y 👥 cumplimiento por responsable. La agenda IA genera estructura PM de 6 puntos con tiempos (resumen → causas de lo no completado → cumplimiento por persona → decisiones reprogramar/reasignar/cancelar → aprendizajes → compromisos próxima semana) + fallback sin IA. Componente nuevo `WeeklyClosingReview.tsx`; tipo agregado en toda la app (labels, agente PM, reportes). **Sin migración** (la 022 ya liberó el CHECK de tipos). Commit `dbec865`, push a prod.

@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
+import { Modal } from '@/components/ui/Modal';
 import { generateMeetingAgenda, extractTasksFromNotes, generateRopreFromTranscription, type ExtractedTask } from '@/services/claudeApi';
 import { useRopreStore } from '@/store/useRopreStore';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
@@ -68,6 +69,8 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
   const [tasksToNotify, setTasksToNotify] = useState<MeetingTaskToSend[]>([]);
   const [sendingTasks, setSendingTasks] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
+  const [showRecipients, setShowRecipients] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(() => new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveIndicator, setSaveIndicator] = useState<string>('');
   const initialNotes = useRef(meeting.notes ?? '');
@@ -437,32 +440,72 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     onClose();
   };
 
-  // Envío manual del reporte al equipo (independiente de "Marcar como realizada").
-  const sendReportNow = async () => {
+  // Destinatarios posibles = equipo del cliente con correo (dedup por correo).
+  const reportRecipients = (() => {
+    if (!client) return [] as Array<{ email: string; nombre: string; rol: string }>;
+    const seen = new Set<string>();
+    const out: Array<{ email: string; nombre: string; rol: string }> = [];
+    for (const m of allMembers) {
+      if (m.clientId !== client.id) continue;
+      const email = (m.email ?? '').trim().toLowerCase();
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      out.push({ email, nombre: m.nombre || email, rol: ROLE_DEFS.find((r) => r.slug === m.rol)?.title ?? m.rol });
+    }
+    return out;
+  })();
+
+  const reportHasContent =
+    notes.trim().length >= 20 ||
+    (meeting.extractedTasks?.length ?? 0) > 0 ||
+    (agenda?.trim().length ?? 0) >= 20 ||
+    (meeting.summary?.trim().length ?? 0) >= 20;
+
+  // Abre el selector de destinatarios (marca todos por defecto).
+  const openRecipientPicker = () => {
     if (!client) return;
-    const commitments = meeting.extractedTasks ?? [];
-    const hasContent =
-      notes.trim().length >= 20 ||
-      commitments.length > 0 ||
-      (agenda?.trim().length ?? 0) >= 20 ||
-      (meeting.summary?.trim().length ?? 0) >= 20;
-    if (!hasContent) {
+    if (!reportHasContent) {
       toast.info('Agrega notas o extrae tareas antes de enviar el reporte.');
       return;
     }
+    if (reportRecipients.length === 0) {
+      toast.info('El equipo de este cliente no tiene correos registrados. Ve a Equipo y agrégalos.');
+      return;
+    }
+    setSelectedEmails(new Set(reportRecipients.map((r) => r.email)));
+    setShowRecipients(true);
+  };
+
+  // Genera el PDF y lo envía a los destinatarios elegidos.
+  const doSendReport = async () => {
+    if (!client) return;
+    const recipients = Array.from(selectedEmails);
+    if (recipients.length === 0) {
+      toast.info('Elige al menos una persona.');
+      return;
+    }
     setSendingReport(true);
-    toast.info('Generando y enviando el reporte al equipo…');
+    setShowRecipients(false);
+    toast.info(`Generando y enviando el reporte a ${recipients.length} persona${recipients.length === 1 ? '' : 's'}…`);
     try {
       const merged = { ...meeting, notes, agenda } as Meeting;
-      const r = await sendMeetingReport(client, merged);
-      if (r.sent > 0) toast.success(`Reporte enviado al equipo (${r.people} persona${r.people === 1 ? '' : 's'}) ✓`);
-      else toast.info(r.note || 'Reporte generado, pero el equipo no tiene correos registrados.');
+      const r = await sendMeetingReport(client, merged, { recipients });
+      if (r.sent > 0) toast.success(`Reporte enviado (${r.people} persona${r.people === 1 ? '' : 's'}) ✓${r.note ? ` · ${r.note}` : ''}`);
+      else toast.info(r.note || 'No se envió: revisa los correos del equipo.');
     } catch (e) {
-      console.warn('[sendReportNow] falló', e);
+      console.warn('[doSendReport] falló', e);
       toast.error(`No se pudo enviar: ${e instanceof Error ? e.message.slice(0, 140) : 'error'}`);
     } finally {
       setSendingReport(false);
     }
+  };
+
+  const toggleEmail = (email: string) => {
+    setSelectedEmails((prev) => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email); else next.add(email);
+      return next;
+    });
   };
 
   const cancelMeeting = () => {
@@ -761,7 +804,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                 variant="secondary"
                 leftIcon={<Send className="h-3.5 w-3.5" />}
                 loading={sendingReport}
-                onClick={sendReportNow}
+                onClick={openRecipientPicker}
               >
                 Enviar al equipo
               </Button>
@@ -774,6 +817,66 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           </div>
         </footer>
       </motion.aside>
+
+      {/* Selector de destinatarios del reporte */}
+      <Modal
+        open={showRecipients}
+        onClose={() => setShowRecipients(false)}
+        title="Enviar reporte al equipo"
+        size="sm"
+        footer={
+          <div className="flex items-center justify-between gap-2">
+            <button
+              className="text-xs text-text-muted hover:text-text-primary"
+              onClick={() =>
+                setSelectedEmails(
+                  selectedEmails.size === reportRecipients.length
+                    ? new Set()
+                    : new Set(reportRecipients.map((r) => r.email)),
+                )
+              }
+            >
+              {selectedEmails.size === reportRecipients.length ? 'Quitar todos' : 'Seleccionar todos'}
+            </button>
+            <Button
+              size="sm"
+              leftIcon={<Send className="h-3.5 w-3.5" />}
+              loading={sendingReport}
+              disabled={selectedEmails.size === 0}
+              onClick={doSendReport}
+            >
+              Enviar reporte ({selectedEmails.size})
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs text-text-secondary mb-3">
+          Elige a quién enviarle el reporte ejecutivo (PDF) de esta reunión. Solo aparecen los
+          miembros del equipo con correo registrado.
+        </p>
+        <div className="space-y-1.5 max-h-[45vh] overflow-y-auto">
+          {reportRecipients.map((r) => (
+            <label
+              key={r.email}
+              className="flex items-center gap-2.5 rounded-lg border border-border-subtle bg-bg-base/30 px-3 py-2 cursor-pointer hover:bg-bg-elevated/40"
+            >
+              <input
+                type="checkbox"
+                checked={selectedEmails.has(r.email)}
+                onChange={() => toggleEmail(r.email)}
+                className="h-4 w-4 accent-accent-violet"
+              />
+              <span className="h-7 w-7 rounded-full bg-gradient-accent text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
+                {r.nombre[0]?.toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-text-primary truncate">{r.nombre} <span className="text-text-muted text-xs">· {r.rol}</span></div>
+                <div className="text-[11px] text-text-muted truncate">{r.email}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+      </Modal>
     </>
   );
 }

@@ -19,8 +19,10 @@ export interface SendMeetingReportResult {
 export async function sendMeetingReport(
   client: Client,
   meeting: Meeting,
-  commitments?: Commitment[],
+  opts?: { commitments?: Commitment[]; recipients?: string[] },
 ): Promise<SendMeetingReportResult> {
+  const commitments = opts?.commitments;
+  const recipients = opts?.recipients;
   if (!supabase) throw new Error('Sin conexión a Supabase.');
 
   const { data: sessionData } = await supabase.auth.getSession();
@@ -45,6 +47,7 @@ export async function sendMeetingReport(
       dateLabel,
       pdfBase64: base64,
       fileName,
+      recipients: recipients && recipients.length ? recipients : undefined,
     }),
   });
 

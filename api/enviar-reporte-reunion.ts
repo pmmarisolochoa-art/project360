@@ -59,6 +59,10 @@ export default async function handler(req: Request): Promise<Response> {
   const dateLabel = String(body.dateLabel ?? '').trim();
   const pdfBase64 = String(body.pdfBase64 ?? '').trim();
   const fileName = String(body.fileName ?? 'Reporte_Reunion.pdf').trim();
+  // Destinatarios elegidos por el usuario (opcional). Si no vienen → todo el equipo.
+  const chosen = (Array.isArray(body.recipients) ? body.recipients : [])
+    .map((r) => String(r ?? '').trim().toLowerCase())
+    .filter(Boolean);
 
   if (!clientId) return json({ error: 'Falta el cliente.' }, 400);
   if (!pdfBase64) return json({ error: 'Falta el PDF del reporte.' }, 400);
@@ -89,21 +93,39 @@ export default async function handler(req: Request): Promise<Response> {
   }
   if (!authorized) return json({ error: 'No tienes permiso para enviar en este cliente.' }, 403);
 
-  // ── 4. Destinatarios: todo el equipo del cliente con correo ──
+  // ── 4. Destinatarios: correos VÁLIDOS del equipo del cliente ──
+  // (Si el usuario eligió destinatarios, solo esos — pero siempre restringido
+  //  al equipo real del cliente por seguridad.)
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const { data: members } = await admin
     .from('team_members')
     .select('nombre, email')
     .eq('client_id', clientId);
 
+  const invalid: string[] = [];
   const seen = new Set<string>();
-  const recipients: string[] = [];
+  const teamEmails: string[] = [];
   for (const m of members ?? []) {
-    const email = (m.email ? String(m.email) : '').trim().toLowerCase();
-    if (email && !seen.has(email)) { seen.add(email); recipients.push(email); }
+    const raw = (m.email ? String(m.email) : '').trim();
+    if (!raw) continue;
+    const email = raw.toLowerCase();
+    if (!EMAIL_RE.test(email)) { invalid.push(`${m.nombre ?? email}`); continue; } // formato inválido → se omite (no tumba el envío)
+    if (!seen.has(email)) { seen.add(email); teamEmails.push(email); }
   }
 
+  // Filtra por la selección del usuario (si la hubo), siempre dentro del equipo.
+  const chosenSet = new Set(chosen);
+  const recipients = chosen.length ? teamEmails.filter((e) => chosenSet.has(e)) : teamEmails;
+
   if (recipients.length === 0) {
-    return json({ ok: true, sent: 0, people: 0, note: 'Ningún miembro del equipo tiene correo registrado.' });
+    return json({
+      ok: true, sent: 0, people: 0,
+      note: chosen.length
+        ? 'Ninguno de los destinatarios elegidos tiene un correo válido en el equipo.'
+        : (invalid.length
+            ? `El equipo no tiene correos válidos (revisa: ${invalid.slice(0, 5).join(', ')}).`
+            : 'Ningún miembro del equipo tiene correo registrado.'),
+    });
   }
 
   // ── 5. Enviar UN correo al equipo con el PDF adjunto ──
@@ -130,7 +152,10 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: e instanceof Error ? e.message : 'Error al enviar.' }, 502);
   }
 
-  return json({ ok: true, sent: 1, people: recipients.length });
+  return json({
+    ok: true, sent: 1, people: recipients.length,
+    note: invalid.length ? `Se omitieron ${invalid.length} correo(s) con formato inválido.` : undefined,
+  });
 }
 
 function renderEmail(a: {

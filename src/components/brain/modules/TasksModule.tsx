@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, Filter, Clock, AlertTriangle, Trash2, ArrowRight, MessageSquare, Link2,
-  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen, ChevronDown, Send,
+  LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen, ChevronDown, Send, CheckCircle2,
 } from 'lucide-react';
 import {
   differenceInDays, differenceInHours, format, parseISO,
@@ -46,6 +46,42 @@ const PRIORITY_TONE: Record<TaskPriority, 'danger' | 'warning' | 'subtle'> = {
   P2: 'warning',
   P3: 'subtle',
 };
+
+/** Normaliza un título para comparar duplicados (sin acentos, minúsculas, espacios colapsados). */
+const normTitle = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+// Cuál conservar dentro de un grupo de duplicados: la MÁS avanzada (para no
+// perder trabajo hecho); empate → la más antigua (la original).
+const STATUS_RANK: Record<TaskStatus, number> = {
+  completed: 0, in_review: 1, in_progress: 2, pending: 3, blocked: 4,
+};
+
+interface DupGroup { title: string; keep: Task; remove: Task[] }
+
+/** Agrupa tareas por título normalizado y devuelve los grupos con >1 (duplicados). */
+function findDuplicateGroups(tasks: Task[]): DupGroup[] {
+  const map = new Map<string, Task[]>();
+  for (const t of tasks) {
+    const k = normTitle(t.title);
+    if (!k) continue;
+    const arr = map.get(k) ?? [];
+    arr.push(t);
+    map.set(k, arr);
+  }
+  const groups: DupGroup[] = [];
+  for (const arr of map.values()) {
+    if (arr.length < 2) continue;
+    const sorted = [...arr].sort((a, b) => {
+      const r = STATUS_RANK[a.status] - STATUS_RANK[b.status];
+      if (r !== 0) return r;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+    groups.push({ title: sorted[0].title, keep: sorted[0], remove: sorted.slice(1) });
+  }
+  // Grupos con más duplicados primero.
+  return groups.sort((a, b) => b.remove.length - a.remove.length);
+}
 
 /**
  * Evalúa el resultado de una tarea contra su meta (Sección 5):
@@ -99,6 +135,8 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     return new Set(funnels.filter((f) => f.programId === filterProgram).map((f) => f.id));
   }, [filterProgram, funnels]);
   const [quickFilter, setQuickFilter] = useState<'all' | 'mine' | 'overdue' | 'today' | 'week'>('all');
+  const [showDedupe, setShowDedupe] = useState(false);
+  const [toDelete, setToDelete] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
@@ -253,6 +291,24 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     }
   };
 
+  // Duplicadas del cliente actual (por título normalizado).
+  const dupGroups = useMemo(() => findDuplicateGroups(tasks), [tasks]);
+  const dupCount = dupGroups.reduce((n, g) => n + g.remove.length, 0);
+
+  const openDedupe = () => {
+    // Por defecto marca para eliminar TODAS las copias no-canónicas.
+    setToDelete(new Set(dupGroups.flatMap((g) => g.remove.map((t) => t.id))));
+    setShowDedupe(true);
+  };
+  const confirmDedupe = () => {
+    const ids = Array.from(toDelete);
+    if (ids.length === 0) { setShowDedupe(false); return; }
+    for (const id of ids) deleteTask(id);
+    toast.success(`${ids.length} tarea${ids.length === 1 ? '' : 's'} duplicada${ids.length === 1 ? '' : 's'} eliminada${ids.length === 1 ? '' : 's'}`);
+    setShowDedupe(false);
+    setToDelete(new Set());
+  };
+
   const QUICK_FILTERS: Array<{ key: typeof quickFilter; label: string }> = [
     { key: 'all', label: 'Todas' },
     { key: 'mine', label: 'Mis tareas' },
@@ -263,6 +319,18 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
 
   return (
     <div className="space-y-4">
+      {/* Alerta de tareas duplicadas */}
+      {!readOnly && dupCount > 0 && (
+        <div className="rounded-[12px] border border-status-warning/40 bg-status-warning/10 px-4 py-3 flex flex-wrap items-center gap-3">
+          <AlertTriangle className="h-4 w-4 text-status-warning shrink-0" />
+          <div className="text-sm text-text-primary flex-1 min-w-0">
+            <b>{dupCount} tarea{dupCount === 1 ? '' : 's'} duplicada{dupCount === 1 ? '' : 's'}</b> detectada{dupCount === 1 ? '' : 's'} en{' '}
+            {dupGroups.length} grupo{dupGroups.length === 1 ? '' : 's'} de títulos repetidos.
+          </div>
+          <Button size="sm" variant="secondary" onClick={openDedupe}>Revisar y limpiar</Button>
+        </div>
+      )}
+
       {/* Quick filters chips */}
       <div className="surface p-2 flex flex-wrap items-center gap-1.5">
         {QUICK_FILTERS.map((f) => (
@@ -567,6 +635,60 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
           }}
         />
       )}
+
+      {/* Modal: revisar y limpiar duplicadas */}
+      <Modal
+        open={showDedupe}
+        onClose={() => setShowDedupe(false)}
+        title="Limpiar tareas duplicadas"
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-text-muted">{toDelete.size} marcada{toDelete.size === 1 ? '' : 's'} para eliminar</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setShowDedupe(false)}>Cancelar</Button>
+              <Button size="sm" variant="danger" disabled={toDelete.size === 0} onClick={confirmDedupe}>
+                Eliminar {toDelete.size} duplicada{toDelete.size === 1 ? '' : 's'}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <p className="text-xs text-text-secondary mb-3">
+          Agrupamos las tareas con el <b>mismo título</b>. Se <b>conserva</b> la más avanzada (o la más
+          antigua) y se marcan las copias para eliminar. Desmarca cualquiera que quieras conservar.
+        </p>
+        <div className="space-y-3 max-h-[55vh] overflow-y-auto">
+          {dupGroups.map((g) => (
+            <div key={g.keep.id} className="rounded-lg border border-border-subtle bg-bg-base/30 p-3">
+              <div className="text-sm font-semibold text-text-primary mb-2 truncate">{g.title}</div>
+              <div className="flex items-center gap-2 rounded-md bg-status-success/10 border border-status-success/30 px-2.5 py-1.5 mb-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" />
+                <span className="text-xs text-text-primary flex-1 truncate">Se conserva · {g.keep.status} · {g.keep.assignedTo || 'sin responsable'}</span>
+              </div>
+              {g.remove.map((t) => (
+                <label key={t.id} className="flex items-center gap-2.5 rounded-md border border-border-subtle bg-bg-surface px-2.5 py-1.5 mb-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={toDelete.has(t.id)}
+                    onChange={() => setToDelete((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                      return next;
+                    })}
+                    className="h-3.5 w-3.5 accent-status-danger"
+                  />
+                  <Badge tone={t.priority === 'P1' ? 'danger' : t.priority === 'P2' ? 'warning' : 'neutral'}>{t.priority}</Badge>
+                  <span className="text-xs text-text-secondary flex-1 truncate">
+                    {t.status} · {t.assignedTo || 'sin responsable'}
+                  </span>
+                  <span className="text-[10px] text-text-muted">{format(parseISO(t.createdAt), 'd MMM', { locale: es })}</span>
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -863,6 +985,13 @@ function TaskModal({
 }) {
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
+
+  // Alerta de duplicado: ¿ya existe otra tarea (de este cliente) con el mismo título?
+  const duplicateOf = useMemo(() => {
+    const nt = normTitle(title);
+    if (nt.length < 3) return null;
+    return allTasks.find((t) => t.id !== task?.id && normTitle(t.title) === nt) ?? null;
+  }, [title, allTasks, task?.id]);
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'pending');
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'P2');
   const [assignedTo, setAssignedTo] = useState(task?.assignedTo ?? '');
@@ -1005,6 +1134,15 @@ function TaskModal({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
+        {duplicateOf && (
+          <div className="-mt-2 flex items-start gap-2 rounded-md border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-text-secondary">
+            <AlertTriangle className="h-3.5 w-3.5 text-status-warning shrink-0 mt-0.5" />
+            <span>
+              Ya existe una tarea con este título (<b>{duplicateOf.status}</b> · {duplicateOf.assignedTo || 'sin responsable'}).
+              Puedes guardarla igual, pero revisa si es un duplicado.
+            </span>
+          </div>
+        )}
         <Textarea
           label="Descripción"
           rows={3}

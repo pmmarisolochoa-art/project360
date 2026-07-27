@@ -161,6 +161,18 @@ interface AgentChatCtx {
   model?: string;                                         // de agent_prompts.modelo
 }
 
+interface MeetingReportCtx {
+  clientName: string;
+  industry: string;
+  meetingType: string;
+  meetingTitle: string;
+  date: string;                                           // fecha legible
+  agenda?: string;
+  notes?: string;
+  summary?: string;
+  commitments?: Array<{ title: string; responsible: string; dueInDays: number }>;
+}
+
 type RequestBody =
   | { feature: 'meeting_agenda'; context: MeetingAgendaCtx }
   | { feature: 'agent_chat'; context: AgentChatCtx }
@@ -172,6 +184,7 @@ type RequestBody =
   | { feature: 'generate_content_copy'; context: GenerateContentCopyCtx }
   | { feature: 'generate_ad_variants'; context: GenerateAdVariantsCtx }
   | { feature: 'weekly_report'; context: WeeklyReportCtx }
+  | { feature: 'meeting_report'; context: MeetingReportCtx }
   | { feature: 'ropre_weekly'; context: RopreWeeklyCtx };
 
 export default async function handler(req: Request): Promise<Response> {
@@ -216,6 +229,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ variants: await generateAdVariants(apiKey, body.context) });
       case 'weekly_report':
         return json(await weeklyReport(apiKey, body.context));
+      case 'meeting_report':
+        return json({ report: await meetingReport(apiKey, body.context) });
       case 'ropre_weekly':
         return json(await ropreWeekly(apiKey, body.context));
       default:
@@ -993,6 +1008,79 @@ Genera el análisis ROPRE en JSON.`;
     cambios_esta_semana: String(parsed.cambios_esta_semana ?? ''),
     semaforo: String(parsed.semaforo ?? 'amarillo'),
     recomendacion_pm: String(parsed.recomendacion_pm ?? ''),
+  };
+}
+
+async function meetingReport(apiKey: string, ctx: MeetingReportCtx): Promise<{
+  headline: string;
+  deck: string;
+  kpis: Array<{ label: string; value: string; sub?: string; tone: string }>;
+  decisions: string[];
+  risks: Array<{ title: string; detail?: string; level: string }>;
+  nextSteps: string[];
+  nextMeetingFocus?: string;
+}> {
+  const system = `Eres una Project Manager senior de una agencia de marketing digital en LATAM. Redactas el REPORTE EJECUTIVO de una reunión, dirigido al equipo: claro, específico y accionable, como lo haría una PM con 10 años de experiencia.
+
+Devuelve SOLO un objeto JSON válido (sin texto antes ni después) con esta forma EXACTA:
+{
+  "headline": "Título corto y potente del reporte (máx 8 palabras)",
+  "deck": "Bajada de 1-2 frases con lo esencial: qué se decidió y qué sigue.",
+  "kpis": [{"label":"etiqueta corta","value":"dato o cifra","sub":"contexto breve","tone":"g|r|a|b|"}],
+  "decisions": ["Decisión concreta tomada en la reunión"],
+  "risks": [{"title":"Riesgo o bloqueo","detail":"por qué importa o cómo mitigar","level":"low|medium|high"}],
+  "nextSteps": ["Próximo paso accionable (verbo en infinitivo)"],
+  "nextMeetingFocus": "Foco sugerido para la próxima reunión (una frase)"
+}
+
+Reglas:
+- Usa SOLO información de las notas/agenda/resumen. NO inventes cifras ni acuerdos.
+- kpis: solo métricas o hechos duros que aparezcan (ROAS, presupuesto, leads, fechas límite, %). Si no hay datos duros, devuelve [] o 1-2 hitos cualitativos. tone: g=logro/positivo, r=alerta/crítico, a=atención, b=informativo, ""=neutro.
+- decisions: máximo 6, las más importantes. Si no hay, [].
+- risks: máximo 4; si no hay riesgos claros, [].
+- nextSteps: máximo 6. No repitas los compromisos ya listados (esos ya están registrados como tareas).
+- Español, profesional pero directo. Sin relleno.`;
+
+  const commitments = ctx.commitments?.length
+    ? `Compromisos/tareas ya extraídos de la reunión (YA registrados como tareas — no los repitas en nextSteps):\n${ctx.commitments.map((c) => `- ${c.title} → ${c.responsible} (en ${c.dueInDays}d)`).join('\n')}\n\n`
+    : '';
+
+  const user = `Cliente: ${ctx.clientName} (${ctx.industry})
+Reunión: ${ctx.meetingTitle} · Tipo: ${ctx.meetingType} · Fecha: ${ctx.date}
+
+${ctx.summary ? `Resumen previo:\n${ctx.summary}\n\n` : ''}${ctx.agenda ? `Agenda:\n${ctx.agenda}\n\n` : ''}${commitments}Notas de la reunión:
+${ctx.notes || '(sin notas)'}
+
+Genera el reporte ejecutivo en JSON.`;
+
+  const txt = await callAnthropic(apiKey, system, user, 1600);
+  const parsed = JSON.parse(extractJson(txt)) as Record<string, unknown>;
+  const okTone = (t: unknown) => (['g', 'r', 'a', 'b', ''].includes(String(t)) ? String(t) : '');
+  const okLevel = (l: unknown) => (['low', 'medium', 'high'].includes(String(l)) ? String(l) : 'medium');
+  const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+  return {
+    headline: String(parsed.headline ?? ctx.meetingTitle).slice(0, 120),
+    deck: String(parsed.deck ?? '').slice(0, 600),
+    kpis: arr(parsed.kpis).slice(0, 6).map((k) => {
+      const o = k as Record<string, unknown>;
+      return {
+        label: String(o.label ?? '').slice(0, 40),
+        value: String(o.value ?? '').slice(0, 40),
+        sub: o.sub ? String(o.sub).slice(0, 140) : undefined,
+        tone: okTone(o.tone),
+      };
+    }).filter((k) => k.label && k.value),
+    decisions: arr(parsed.decisions).slice(0, 6).map((d) => String(d).slice(0, 300)).filter(Boolean),
+    risks: arr(parsed.risks).slice(0, 4).map((r) => {
+      const o = r as Record<string, unknown>;
+      return {
+        title: String(o.title ?? '').slice(0, 180),
+        detail: o.detail ? String(o.detail).slice(0, 300) : undefined,
+        level: okLevel(o.level),
+      };
+    }).filter((r) => r.title),
+    nextSteps: arr(parsed.nextSteps).slice(0, 6).map((s) => String(s).slice(0, 300)).filter(Boolean),
+    nextMeetingFocus: parsed.nextMeetingFocus ? String(parsed.nextMeetingFocus).slice(0, 300) : undefined,
   };
 }
 

@@ -163,6 +163,63 @@ export async function extractTasksFromNotes(args: {
   }
 }
 
+/* ─────────────── Reporte ejecutivo de reunión (PM experto) ─────────────── */
+
+export interface MeetingReportData {
+  headline: string;
+  deck: string;
+  kpis: Array<{ label: string; value: string; sub?: string; tone: string }>;
+  decisions: string[];
+  risks: Array<{ title: string; detail?: string; level: string }>;
+  nextSteps: string[];
+  nextMeetingFocus?: string;
+}
+
+export async function generateMeetingReport(args: {
+  clientName: string;
+  industry: string;
+  meetingType: string;
+  meetingTitle: string;
+  date: string;
+  agenda?: string;
+  notes?: string;
+  summary?: string;
+  commitments?: Array<{ title: string; responsible: string; dueInDays: number }>;
+}): Promise<MeetingReportData> {
+  try {
+    const { report } = await callBackend<{ report: MeetingReportData }>('meeting_report', args);
+    return report;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[claudeApi] meeting_report falló, usando fallback.', e);
+    toast.warning(`IA no disponible — reporte con estructura básica. (${msg.slice(0, 80)})`);
+    return meetingReportFallback(args);
+  }
+}
+
+/** Reporte mínimo sin IA: usa resumen/notas y los compromisos ya extraídos. */
+function meetingReportFallback(args: {
+  meetingTitle: string;
+  summary?: string;
+  notes?: string;
+  commitments?: Array<{ title: string; responsible: string; dueInDays: number }>;
+}): MeetingReportData {
+  const firstWords = (t: string, n: number) => {
+    const w = t.trim().split(/\s+/);
+    return w.length <= n ? t.trim() : w.slice(0, n).join(' ') + '…';
+  };
+  const deckSource = (args.summary && args.summary.trim()) || (args.notes && args.notes.trim()) || '';
+  return {
+    headline: args.meetingTitle,
+    deck: deckSource ? firstWords(deckSource, 45) : 'Reporte de la reunión con los compromisos acordados.',
+    kpis: [],
+    decisions: [],
+    risks: [],
+    nextSteps: (args.commitments ?? []).slice(0, 6).map((c) => `${c.title} (${c.responsible})`),
+    nextMeetingFocus: undefined,
+  };
+}
+
 /* ─────────────── ROPRE from transcription ─────────────── */
 
 export interface ExtractedRopre {

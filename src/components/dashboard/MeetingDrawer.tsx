@@ -4,7 +4,8 @@ import { motion } from 'framer-motion';
 import {
   X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain, Send,
 } from 'lucide-react';
-import { exportMeetingReportHTML } from '@/services/htmlReport';
+import { downloadMeetingReportPdf } from '@/services/meetingReportEditorial';
+import { sendMeetingReport } from '@/services/sendMeetingReport';
 import { marked } from 'marked';
 import mammoth from 'mammoth';
 import { format, parseISO } from 'date-fns';
@@ -402,6 +403,28 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     } else {
       toast.success('Reunión marcada como realizada');
     }
+
+    // ── Reporte automático al equipo (PM experto) ──────────────────────────
+    // Se dispara al cerrar la reunión. Usa los campos más frescos (notas/agenda
+    // locales + tareas recién extraídas o las ya confirmadas). Best-effort: si
+    // falla el correo, la reunión igual queda marcada como realizada.
+    if (client) {
+      const commitments = extractedRecord ?? meeting.extractedTasks ?? [];
+      const hasContent = notes.trim().length >= 20 || commitments.length > 0;
+      if (hasContent) {
+        const mergedMeeting = { ...meeting, notes, agenda, completed: true, extractedTasks: commitments };
+        toast.info('Generando y enviando el reporte al equipo…');
+        void sendMeetingReport(client, mergedMeeting)
+          .then((r) => {
+            if (r.sent > 0) toast.success(`Reporte enviado al equipo (${r.people} persona${r.people === 1 ? '' : 's'}) ✓`);
+            else toast.info(r.note || 'Reporte generado, pero el equipo no tiene correos registrados.');
+          })
+          .catch((e) => {
+            console.warn('[markDone] envío de reporte falló', e);
+            toast.error(`No se pudo enviar el reporte: ${e instanceof Error ? e.message.slice(0, 80) : 'error'}`);
+          });
+      }
+    }
     onClose();
   };
 
@@ -683,7 +706,8 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                 leftIcon={<FileDown className="h-3.5 w-3.5" />}
                 onClick={async () => {
                   try {
-                    await exportMeetingReportHTML({ client, meeting });
+                    toast.info('Generando el reporte ejecutivo…');
+                    await downloadMeetingReportPdf(client, meeting);
                     toast.success('Reporte de reunión generado');
                   } catch (e) {
                     console.warn('[meetingPdf]', e);

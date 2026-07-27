@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -110,6 +110,20 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
       setSearchParams(next, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  // Deep-link ?meeting=<id> (ej. desde el buscador global): abre esa reunión.
+  const openedMeetingRef = useRef<string | null>(null);
+  useEffect(() => {
+    const mid = searchParams.get('meeting');
+    if (!mid || openedMeetingRef.current === mid) return;
+    if (meetings.some((m) => m.id === mid)) {
+      openedMeetingRef.current = mid;
+      openMeeting(mid);
+      const next = new URLSearchParams(searchParams);
+      next.delete('meeting');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, meetings, openMeeting, setSearchParams]);
   const [anchor, setAnchor] = useState(new Date());
 
   const accent = client.primaryColor;

@@ -65,7 +65,8 @@ export function GlobalSearch({ className }: { className?: string }) {
         out.push({
           key: `t-${t.id}`, group: 'Tareas', icon: CheckSquare, label: t.title,
           sublabel: clientById[t.clientId]?.name, color: clientById[t.clientId]?.primaryColor,
-          onSelect: () => navigate(`/client/${t.clientId}/tasks`),
+          // Deep-link a la tarea concreta: abre su detalle aunque ya estés en la página.
+          onSelect: () => navigate(`/client/${t.clientId}/tasks?task=${t.id}`),
         }),
       );
 
@@ -77,7 +78,8 @@ export function GlobalSearch({ className }: { className?: string }) {
         out.push({
           key: `m-${m.id}`, group: 'Reuniones', icon: Calendar, label: m.title,
           sublabel: clientById[m.clientId]?.name, color: clientById[m.clientId]?.primaryColor,
-          onSelect: () => navigate(`/client/${m.clientId}/meetings`),
+          // Deep-link a la reunión concreta: abre su drawer aunque ya estés en la página.
+          onSelect: () => navigate(`/client/${m.clientId}/meetings?meeting=${m.id}`),
         }),
       );
 

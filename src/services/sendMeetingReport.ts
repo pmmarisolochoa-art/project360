@@ -28,9 +28,9 @@ export async function sendMeetingReport(
   if (!token) throw new Error('Tu sesión expiró. Vuelve a entrar e inténtalo de nuevo.');
 
   // 1. Sintetiza con IA + arma el PDF (en el navegador).
-  const { base64, fileName } = await buildReportFromMeeting(client, meeting, commitments);
+  const { base64, fileName, deck } = await buildReportFromMeeting(client, meeting, commitments);
 
-  // 2. Reconstruye un deck corto para el cuerpo del correo (best-effort).
+  // 2. Fecha legible para el cuerpo del correo.
   const dateLabel = format(parseISO(meeting.scheduledAt), "d 'de' MMMM yyyy", { locale: es });
 
   // 3. Envía al backend para adjuntarlo y mandarlo al equipo.
@@ -41,7 +41,7 @@ export async function sendMeetingReport(
       clientId: client.id,
       clientName: client.name,
       meetingTitle: meeting.title,
-      deck: (meeting.summary || '').slice(0, 400),
+      deck: (deck || meeting.summary || '').slice(0, 400),
       dateLabel,
       pdfBase64: base64,
       fileName,

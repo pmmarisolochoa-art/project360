@@ -36,7 +36,7 @@ function hexRgb(hex: string): [number, number, number] {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-interface ReportModel {
+export interface ReportModel {
   styles: string;
   blocks: string[];
   client: string;
@@ -50,6 +50,11 @@ interface ReportModel {
   fileName: string;
 }
 
+/** Helper de escape para HTML — reusable desde otros módulos de reporte. */
+export function escapeReport(s: unknown): string {
+  return esc(s);
+}
+
 export async function exportWeeklyReportHTML(input: WeeklyHtmlInput): Promise<void> {
   await renderReport(await buildReportModel(input));
 }
@@ -60,6 +65,16 @@ export async function exportWeeklyReportHTML(input: WeeklyHtmlInput): Promise<vo
  * Lo usan tanto el reporte semanal como el de reunión, para que ambos se vean igual.
  */
 async function renderReport(m: ReportModel): Promise<void> {
+  const doc = await composeReport(m);
+  doc.save(m.fileName);
+}
+
+/**
+ * Igual que renderReport pero NO descarga: devuelve el documento jsPDF ya
+ * paginado (con cabecera/footer por página). Sirve para obtener el blob/base64
+ * y enviarlo por correo, o para descargarlo manualmente.
+ */
+export async function composeReport(m: ReportModel): Promise<jsPDF> {
   const holder = document.createElement('div');
   holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff;';
   holder.innerHTML = `<div class="rep"><style>${m.styles}</style><div class="body">${
@@ -100,7 +115,7 @@ async function renderReport(m: ReportModel): Promise<void> {
       blocks.forEach(({ img, y }) => doc.addImage(img.data, 'PNG', MX, y, img.wmm, img.hmm));
     });
 
-    doc.save(m.fileName);
+    return doc;
   } finally {
     document.body.removeChild(holder);
   }

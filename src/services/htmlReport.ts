@@ -48,6 +48,10 @@ export interface ReportModel {
   accentClient: string;
   runningLabel: string;
   fileName: string;
+  /** Formato de imagen de los bloques. JPEG pesa mucho menos (para enviar por
+   *  correo sin exceder el límite del servidor). Default PNG (más nítido). */
+  imageFormat?: 'PNG' | 'JPEG';
+  imageQuality?: number; // 0-1, solo para JPEG (default 0.85)
 }
 
 /** Helper de escape para HTML — reusable desde otros módulos de reporte. */
@@ -84,12 +88,15 @@ export async function composeReport(m: ReportModel): Promise<jsPDF> {
 
   try {
     const SCALE = 2;
+    const fmt = m.imageFormat ?? 'PNG';
+    const quality = m.imageQuality ?? 0.85;
+    const mime = fmt === 'JPEG' ? 'image/jpeg' : 'image/png';
     const blockEls = Array.from(holder.querySelectorAll('.block')) as HTMLElement[];
     const imgs: Array<{ data: string; wmm: number; hmm: number }> = [];
     const CONTENT_W = 182; // 210 - 2*14
     for (const el of blockEls) {
       const cv = await html2canvas(el, { scale: SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false });
-      imgs.push({ data: cv.toDataURL('image/png'), wmm: CONTENT_W, hmm: (cv.height / cv.width) * CONTENT_W });
+      imgs.push({ data: cv.toDataURL(mime, quality), wmm: CONTENT_W, hmm: (cv.height / cv.width) * CONTENT_W });
     }
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -112,7 +119,7 @@ export async function composeReport(m: ReportModel): Promise<jsPDF> {
       if (i > 0) doc.addPage();
       if (i === 0) drawCoverHeader(doc, m); else drawRunningHeader(doc, m, i + 1, total);
       drawFooter(doc, m);
-      blocks.forEach(({ img, y }) => doc.addImage(img.data, 'PNG', MX, y, img.wmm, img.hmm));
+      blocks.forEach(({ img, y }) => doc.addImage(img.data, fmt, MX, y, img.wmm, img.hmm));
     });
 
     return doc;

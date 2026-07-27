@@ -52,6 +52,10 @@ export async function sendMeetingReport(
   });
 
   const data = (await res.json().catch(() => ({}))) as Partial<SendMeetingReportResult> & { error?: string };
-  if (!res.ok) throw new Error(data.error || 'No se pudo enviar el reporte.');
+  if (!res.ok) {
+    // 413 = el PDF pesa demasiado para el servidor; otros = error real del backend.
+    const hint = res.status === 413 ? 'el PDF pesa demasiado' : `HTTP ${res.status}`;
+    throw new Error(data.error || `No se pudo enviar el reporte (${hint}).`);
+  }
   return { sent: data.sent ?? 0, people: data.people ?? 0, note: data.note };
 }

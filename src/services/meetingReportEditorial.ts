@@ -188,6 +188,10 @@ function buildModel(client: Client, meeting: Meeting, report: MeetingReportData,
     ],
     footerLeft: `${client.name} · Reporte de Reunión · ${dateLabel}`,
     fileName: `Reporte_Reunion_${client.name.replace(/\s+/g, '_')}_${format(date, 'yyyy-MM-dd')}.pdf`,
+    // JPEG comprimido → el PDF pesa poco y no excede el límite del Edge Function
+    // al enviarlo por correo. Calidad suficiente para un reporte de texto.
+    imageFormat: 'JPEG',
+    imageQuality: 0.82,
   };
 }
 

@@ -388,6 +388,8 @@ En cada punto sé específico al cliente y su momento actual. Ignora la regla de
 5. Aprendizajes de la semana — qué repetir y qué cambiar en el proceso (5 min)
 6. Compromisos para la próxima semana — responsable y fecha por cada uno (5 min)
 En cada punto sé específico: usa las tareas pendientes y vencidas del contexto con nombres y responsables. Ignora la regla de "5 puntos" — usa exactamente 6.`,
+    general: 'REUNIÓN GENERAL: reunión esporádica y sin tema fijo. Agenda ligera y flexible: repaso rápido de novedades, temas varios que traiga el equipo, puntos pendientes de reuniones anteriores, alineación puntual de prioridades, dudas abiertas y acuerdos. No fuerces métricas ni una estructura rígida — mantenla breve y práctica.',
+    management: 'REUNIÓN DE GERENCIA: enfoque de dirección de la agencia (no de un cliente puntual). Cubre: estado del sistema y procesos internos (SOPs), objetivos y KPIs generales de la agencia, decisiones estratégicas importantes que hay que tomar, prioridades transversales del equipo y asignación de responsables con próximos hitos. Tono ejecutivo y orientado a decisiones.',
   };
   const focus = TYPE_FOCUS[ctx.meetingType] ?? 'Enfoque adaptado al tipo de reunión.';
 

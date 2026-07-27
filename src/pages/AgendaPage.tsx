@@ -36,6 +36,8 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   weekly_planning: 'Planeación semanal',
   ropre_strategy: 'Estrategia ROPRE',
   weekly_closing: 'Sprint de cierre de semana',
+  general: 'Reunión general',
+  management: 'Reunión de gerencia',
 };
 
 export function AgendaPage() {

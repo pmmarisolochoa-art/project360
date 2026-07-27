@@ -592,6 +592,20 @@ function meetingAgendaFallback(args: {
       'Aprendizajes de la semana — qué repetir y qué cambiar (5 min)',
       'Compromisos de la próxima semana — responsable y fecha por cada uno (5 min)',
     ],
+    general: [
+      'Novedades y temas varios del equipo',
+      'Puntos pendientes de reuniones anteriores',
+      'Alineación rápida de prioridades',
+      'Dudas y temas abiertos',
+      'Acuerdos y responsables',
+    ],
+    management: [
+      'Estado del sistema y procesos internos (SOPs)',
+      'Objetivos y KPIs generales de la agencia',
+      'Decisiones estratégicas a tomar',
+      'Prioridades transversales del equipo',
+      'Asignación de responsables y próximos hitos',
+    ],
   };
   // weekly_planning tiene formato distinto (por días) — fallback genérico semanal.
   if (meetingType === 'weekly_planning') {

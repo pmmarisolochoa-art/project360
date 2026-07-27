@@ -143,6 +143,7 @@ const MEETING_TYPE_LABEL: Record<string, string> = {
   ads_review: 'Revisión ADS', monthly_closing: 'Cierre mensual', crisis: 'Crisis',
   weekly_planning: 'Planeación semanal', ropre_strategy: 'ROPRE & Entregables',
   weekly_closing: 'Cierre de semana',
+  general: 'General', management: 'Gerencia',
 };
 
 function WeekMeetingsPanel({ meetings }: { meetings: ReturnType<typeof useClientStore.getState>['meetings'] }) {

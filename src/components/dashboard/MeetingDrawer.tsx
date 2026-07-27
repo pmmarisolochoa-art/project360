@@ -36,6 +36,7 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   ads_review: 'Revisión de ADS', monthly_closing: 'Cierre mensual', crisis: 'Crisis / Urgente',
   weekly_planning: 'Planeación semanal', ropre_strategy: 'Estrategia ROPRE & Entregables',
   weekly_closing: 'Sprint de cierre de semana',
+  general: 'Reunión general', management: 'Reunión de gerencia',
 };
 
 export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting: Meeting; onClose: () => void; readOnly?: boolean }) {

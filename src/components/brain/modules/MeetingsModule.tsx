@@ -34,6 +34,8 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   weekly_planning: 'Planeación semanal',
   ropre_strategy: 'Estrategia ROPRE & Entregables',
   weekly_closing: 'Sprint de cierre de semana',
+  general: 'Reunión general',
+  management: 'Reunión de gerencia',
 };
 
 const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' | 'neutral' | 'danger'> = {
@@ -46,6 +48,8 @@ const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' |
   weekly_planning: 'info',
   ropre_strategy: 'accent',
   weekly_closing: 'success',
+  general: 'neutral',
+  management: 'accent',
 };
 
 // Descripciones que se muestran en el modal "Nueva reunión" al seleccionar tipo.
@@ -60,6 +64,8 @@ export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
   weekly_planning: '📅 Coordina las tareas de la semana por día y persona. La agenda se genera con tareas pendientes y reuniones programadas.',
   ropre_strategy: '🎯 Sesión estratégica para actualizar el ROPRE y convertir entregables en tareas. El resultado se guarda directamente en el módulo ROPRE.',
   weekly_closing: '🏁 Cierre de la semana: resumen automático de tareas completadas vs pendientes, cumplimiento por persona y compromisos que pasan a la próxima semana.',
+  general: '🗣️ Reunión general y esporádica, sin un tema fijo. Para alineaciones puntuales, novedades o temas varios del equipo.',
+  management: '🏛️ Reunión de gerencia: sistema y procesos (SOPs), objetivos y KPIs generales de la agencia, y decisiones importantes de dirección.',
 };
 
 export function MeetingsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {

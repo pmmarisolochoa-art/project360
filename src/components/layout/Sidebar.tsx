@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useClientStore } from '@/store/useClientStore';
+import { avanceForClient } from '@/utils/avance';
 import { healthFromMetrics } from '@/utils/metricsCalculator';
 
 const nav = [
@@ -31,9 +32,10 @@ const globalNav = [
 
 export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const clients = useClientStore((s) => s.clients);
+  const tasks = useClientStore((s) => s.tasks);
   // Salud global del portafolio: peor estado entre clientes activos
   const worstHealth = clients.reduce<'green' | 'yellow' | 'red'>((acc, c) => {
-    const h = healthFromMetrics(c.metrics.roas, c.metrics.progressPercent, c.metrics.pendingTasksToday);
+    const h = healthFromMetrics(c.metrics.roas, avanceForClient(tasks, c.id), c.metrics.pendingTasksToday);
     if (h === 'red') return 'red';
     if (h === 'yellow' && acc !== 'red') return 'yellow';
     return acc;

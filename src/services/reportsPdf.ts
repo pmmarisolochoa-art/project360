@@ -484,7 +484,7 @@ export function exportMonthlyReport({ client, tasks, meetings }: {
       ['Ventas', client.metrics.salesCount ? `${client.metrics.salesCount}` : '—'],
       ['Facturado acumulado', client.metrics.revenueAccumulated ? `$${client.metrics.revenueAccumulated.toLocaleString('es')}` : '—'],
       ['Meta mensual', client.metrics.monthlyRevenueTarget ? `$${client.metrics.monthlyRevenueTarget.toLocaleString('es')}` : '—'],
-      ['Avance del proyecto', `${client.metrics.progressPercent}%`],
+      ['Avance del proyecto', `${tasks.length ? Math.round((tasks.filter((t) => t.status === 'completed').length / tasks.length) * 100) : 0}%`],
       ['Tareas completadas este mes', String(completed.length)],
       ['Reuniones este mes', String(monthMeetings.length)],
     ],

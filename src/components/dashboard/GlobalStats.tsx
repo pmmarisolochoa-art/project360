@@ -5,6 +5,7 @@ import { Users, CalendarClock, AlertTriangle, BellRing, ArrowRight, Check } from
 import { isThisWeek, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useClientStore } from '@/store/useClientStore';
+import { avanceForClient } from '@/utils/avance';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { Badge } from '@/components/ui/Badge';
@@ -117,6 +118,7 @@ export function GlobalStats() {
 function ActiveClientsPanel() {
   const navigate = useNavigate();
   const clients = useClientStore((s) => s.clients);
+  const tasks = useClientStore((s) => s.tasks);
   const list = clients.filter((c) => c.status === 'active' || c.status === 'planning' || c.status === 'onboarding');
   return (
     <div>
@@ -127,7 +129,7 @@ function ActiveClientsPanel() {
             <span className="h-2 w-2 rounded-full shrink-0" style={{ background: c.primaryColor, boxShadow: `0 0 8px ${c.primaryColor}` }} />
             <div className="flex-1 min-w-0">
               <div className="text-sm text-text-primary truncate">{c.name}</div>
-              <div className="text-[10px] text-text-muted">{c.businessType} · {c.metrics.progressPercent}% avance</div>
+              <div className="text-[10px] text-text-muted">{c.businessType} · {avanceForClient(tasks, c.id)}% avance</div>
             </div>
             <Badge tone="neutral">{c.status}</Badge>
             <Button size="sm" variant="secondary" onClick={() => navigate(`/client/${c.id}`)}>Abrir</Button>

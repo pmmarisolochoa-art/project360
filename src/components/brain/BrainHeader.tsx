@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/Badge';
 import { withAlpha } from '@/utils/colorGenerator';
 import { formatRelative } from '@/utils/dateHelpers';
 import { ReportsMenu } from '@/components/brain/ReportsMenu';
+import { useClientStore } from '@/store/useClientStore';
+import { avanceForClient } from '@/utils/avance';
 
 const statusTone: Record<ClientStatus, 'success' | 'warning' | 'info' | 'neutral' | 'danger' | 'accent'> = {
   active: 'success',
@@ -25,6 +27,9 @@ const statusText: Record<ClientStatus, string> = {
 
 export function BrainHeader({ client }: { client: Client }) {
   const accent = client.primaryColor;
+  // Avance = % de tareas completadas del cliente (en vivo, no un valor fijo).
+  const allTasks = useClientStore((s) => s.tasks);
+  const avance = avanceForClient(allTasks, client.id);
   return (
     <motion.header
       initial={{ opacity: 0, y: -8 }}
@@ -80,7 +85,7 @@ export function BrainHeader({ client }: { client: Client }) {
             <Kpi
               icon={<Zap className="h-3.5 w-3.5" />}
               label="Avance"
-              value={`${client.metrics.progressPercent}%`}
+              value={`${avance}%`}
               accent={accent}
             />
             <Kpi

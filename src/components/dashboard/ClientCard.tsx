@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { withAlpha } from '@/utils/colorGenerator';
 import { formatRelative } from '@/utils/dateHelpers';
 import { useClientStore } from '@/store/useClientStore';
+import { avanceForClient } from '@/utils/avance';
 import { fetchPlatformDailyMetrics } from '@/services/adsIntegrations';
 import { toast } from '@/store/useToastStore';
 import { ClientTasksHoverPanel } from './ClientTasksHoverPanel';
@@ -45,6 +46,8 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
   const navigate = useNavigate();
   const updateClient = useClientStore((s) => s.updateClient);
   const deleteClient = useClientStore((s) => s.deleteClient);
+  const allTasks = useClientStore((s) => s.tasks);
+  const avance = avanceForClient(allTasks, client.id);
   const status = statusLabel[client.status];
   const accent = client.primaryColor;
   const [hover, setHover] = useState(false);
@@ -259,7 +262,7 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
           <Metric
             icon={<Zap className="h-3.5 w-3.5" />}
             label="Avance"
-            value={`${client.metrics.progressPercent}%`}
+            value={`${avance}%`}
             accent={accent}
           />
         </div>
@@ -269,7 +272,7 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
           <div className="h-1.5 w-full rounded-full bg-bg-elevated overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${client.metrics.progressPercent}%` }}
+              animate={{ width: `${avance}%` }}
               transition={{ duration: 0.9, delay: 0.2 + index * 0.07, ease: 'easeOut' }}
               className="h-full rounded-full"
               style={{ background: `linear-gradient(90deg, ${accent}, ${withAlpha(accent, 0.6)})` }}

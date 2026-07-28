@@ -235,7 +235,7 @@ function buildClientFromOnboarding(data: OnboardingData, brain: Awaited<ReturnTy
       roas: null,
       pendingTasksToday: brain.initialDeliverables?.length ?? 0,
       nextMeetingAt: null,
-      progressPercent: 5,
+      progressPercent: 0, // legacy: el avance real se calcula de las tareas (utils/avance)
       bottleneck: { role: 'Estratega', reason: 'Pendiente sesión de kickoff' },
     },
     onboardingData: {

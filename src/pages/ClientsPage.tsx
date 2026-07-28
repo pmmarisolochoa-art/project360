@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Plus, Search, Grid3x3, List as ListIcon } from 'lucide-react';
 import { useClientStore } from '@/store/useClientStore';
+import { avanceForClient } from '@/utils/avance';
 import { ClientCard } from '@/components/dashboard/ClientCard';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
@@ -166,7 +167,7 @@ export function ClientsPage() {
                   <td className="py-2.5 pr-3"><Badge tone={STATUS_TONE[c.status]}>{STATUS_LABEL[c.status]}</Badge></td>
                   <td className="py-2.5 pr-3 text-xs text-right text-text-primary">{c.metrics.roas?.toFixed(2) ?? '—'}</td>
                   <td className="py-2.5 pr-3 text-xs text-right text-text-primary">{c.metrics.pendingTasksToday}</td>
-                  <td className="py-2.5 pr-3 text-xs text-right text-text-primary">{c.metrics.progressPercent}%</td>
+                  <td className="py-2.5 pr-3 text-xs text-right text-text-primary">{avanceForClient(tasks, c.id)}%</td>
                   <td className="py-2.5 pr-4 text-xs text-right text-text-primary">
                     ${(c.metrics.invertedThisMonth ?? c.monthlyAdsBudget).toLocaleString()}
                   </td>

@@ -100,7 +100,14 @@ export function MiEspacio() {
   const weekDone = weekTasks.filter((t) => t.status === 'completed').length;
   const completedAll = myTasks.filter((t) => t.status === 'completed');
   const onTime = completedAll.filter((t) => t.completedAt && t.dueDate && new Date(t.completedAt) <= new Date(t.dueDate)).length;
-  const cumplimiento = myTasks.length > 0 ? Math.round((onTime / myTasks.length) * 100) : 0;
+  // Cumplimiento = entregas a tiempo ÷ lo que YA debías entregar (completadas +
+  // vencidas sin entregar). NO cuenta las pendientes que aún no vencen, así el %
+  // refleja la puntualidad real y no se hunde por tener trabajo futuro abierto.
+  const overdueOpen = myTasks.filter(
+    (t) => t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < now,
+  ).length;
+  const dueSoFar = completedAll.length + overdueOpen;
+  const cumplimiento = dueSoFar > 0 ? Math.round((onTime / dueSoFar) * 100) : 100;
   const activeClientIds = new Set(myTasks.map((t) => t.clientId));
 
   // Entregas urgentes: pendientes con vencimiento hasta mañana. Vencidas primero.
@@ -210,7 +217,7 @@ export function MiEspacio() {
           icon={<TrendingUp className="h-4 w-4" />}
           label="Mi cumplimiento"
           value={`${cumplimiento}%`}
-          sub="Entregas a tiempo / asignadas"
+          sub="A tiempo / lo que ya debías entregar"
         />
         <MetricCard
           icon={<Users className="h-4 w-4" />}

@@ -85,10 +85,21 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
   if (agency?.id) return { role: 'owner', agencyId: agency.id, clientAccesses: [] };
 
   // 2. ¿Es miembro del equipo de uno o más clientes?
-  const { data: members } = await supabase
-    .from('team_members')
-    .select('id, client_id, access_level, nombre, rol, departamentos, ve_todas_tareas')
-    .eq('user_id', userId);
+  // Resiliente: si la columna nueva `ve_todas_tareas` aún no existe (migración
+  // pendiente o caché de esquema de PostgREST), la consulta con esa columna
+  // falla. NUNCA debemos degradar a un miembro a 'owner' por eso → reintentamos
+  // sin la columna. Un miembro mal clasificado como owner vería el dashboard
+  // del owner en vez de su /mi-espacio.
+  const BASE_COLS = 'id, client_id, access_level, nombre, rol, departamentos';
+  let members: Record<string, unknown>[] | null = null;
+  const withFlag = await supabase.from('team_members').select(`${BASE_COLS}, ve_todas_tareas`).eq('user_id', userId);
+  if (withFlag.error) {
+    console.warn('[auth] ve_todas_tareas no disponible, reintento sin ella', withFlag.error.message);
+    const base = await supabase.from('team_members').select(BASE_COLS).eq('user_id', userId);
+    members = base.data as Record<string, unknown>[] | null;
+  } else {
+    members = withFlag.data as Record<string, unknown>[] | null;
+  }
   if (members && members.length > 0) {
     return {
       role: 'member',

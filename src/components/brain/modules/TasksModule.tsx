@@ -196,18 +196,24 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     [allMembers, client.id],
   );
 
-  // ── Identidad del usuario que mira → "Mis tareas" muestra SUS tareas ──
-  // Puede ser el owner (currentUser) o un miembro con acceso (clientAccesses).
+  // ── Identidad del usuario que mira ──
+  // MIEMBRO → su nombre del acceso (NO el del owner). OWNER → currentUser.
+  // Clave: no mezclar al owner (Marisol) en la identidad de un miembro.
   const currentUser = useAppStore((s) => s.currentUser);
+  const authRole = useAuthStore((s) => s.role);
   const clientAccesses = useAuthStore((s) => s.clientAccesses);
+  const isMember = authRole === 'member';
   const myNames = useMemo(() => {
     const set = new Set<string>();
-    for (const a of clientAccesses) {
-      if (a.clientId === client.id && a.nombre) set.add(a.nombre.trim().toLowerCase());
+    if (isMember) {
+      for (const a of clientAccesses) {
+        if (a.clientId === client.id && a.nombre) set.add(a.nombre.trim().toLowerCase());
+      }
+    } else if (currentUser?.name) {
+      set.add(currentUser.name.trim().toLowerCase());
     }
-    if (currentUser?.name) set.add(currentUser.name.trim().toLowerCase());
     return set;
-  }, [clientAccesses, currentUser, client.id]);
+  }, [isMember, clientAccesses, currentUser, client.id]);
   // Roles que tiene el usuario en este cliente → sus tareas asignadas por rol.
   const myRoleSlugs = useMemo(
     () => new Set<string>(
@@ -222,6 +228,14 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     const resolved = resolveAssignee(t.assignedTo, client.id).trim().toLowerCase();
     return myNames.has(resolved);
   };
+
+  // Un MIEMBRO solo ve SUS tareas en todo el módulo; el owner ve todas.
+  // (allTasks se conserva completo para resolver dependencias entre tareas.)
+  const visibleTasks = useMemo(
+    () => (isMember ? tasks.filter(isMine) : tasks),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isMember, tasks, myNames, myRoleSlugs],
+  );
 
   // Filtro por ROL: solo los roles que existen en el equipo de este cliente
   // (en el orden de ROLE_DEFS). Si aún no hay equipo cargado, todos los roles.
@@ -253,7 +267,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart.getTime() + 86400000);
     const weekEnd = new Date(todayStart.getTime() + 7 * 86400000);
-    return tasks.filter((t) => {
+    return visibleTasks.filter((t) => {
       if (filterAssignee) {
         // filterAssignee es un slug de rol — matchea CUALQUIERA de los roles
         // del responsable (una persona puede tener varios).
@@ -284,7 +298,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
       return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, filterAssignee, filterPerson, filterPriority, programFunnelIds, quickFilter, myNames, myRoleSlugs]);
+  }, [visibleTasks, filterAssignee, filterPerson, filterPriority, programFunnelIds, quickFilter, myNames, myRoleSlugs]);
 
   const accent = client.primaryColor;
 
@@ -345,8 +359,8 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     }
   };
 
-  // Duplicadas del cliente actual (por título normalizado).
-  const dupGroups = useMemo(() => findDuplicateGroups(tasks), [tasks]);
+  // Duplicadas visibles (para el owner = todas; para el miembro = las suyas).
+  const dupGroups = useMemo(() => findDuplicateGroups(visibleTasks), [visibleTasks]);
   const dupCount = dupGroups.reduce((n, g) => n + g.remove.length, 0);
 
   const openDedupe = () => {
@@ -363,9 +377,11 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     setToDelete(new Set());
   };
 
+  // Para un miembro, todo el módulo ya son "sus tareas" → el chip 'Mis tareas'
+  // sobra (mostraría lo mismo que 'Todas'). Se oculta.
   const QUICK_FILTERS: Array<{ key: typeof quickFilter; label: string }> = [
     { key: 'all', label: 'Todas' },
-    { key: 'mine', label: 'Mis tareas' },
+    ...(isMember ? [] : [{ key: 'mine' as const, label: 'Mis tareas' }]),
     { key: 'overdue', label: 'Vencidas' },
     { key: 'today', label: 'Hoy' },
     { key: 'week', label: 'Esta semana' },
@@ -408,6 +424,8 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
         <div className="flex items-center gap-1.5 text-xs text-text-muted mr-2">
           <Filter className="h-3.5 w-3.5" /> Filtros
         </div>
+        {/* Filtros de rol y persona: solo para el owner (un miembro ve solo lo suyo). */}
+        {!isMember && (
         <Select
           options={[
             { value: '', label: 'Todos los roles' },
@@ -418,6 +436,8 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
           onChange={(e) => setFilterAssignee(e.target.value)}
           className="min-w-[180px]"
         />
+        )}
+        {!isMember && (
         <Select
           options={[
             { value: '', label: 'Todas las personas' },
@@ -427,6 +447,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
           onChange={(e) => setFilterPerson(e.target.value)}
           className="min-w-[180px]"
         />
+        )}
         <Select
           options={[
             { value: '', label: 'Todas las prioridades' },

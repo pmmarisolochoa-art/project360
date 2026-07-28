@@ -226,6 +226,7 @@ export function MiEspacio() {
           label="Mi cumplimiento"
           value={`${cumplimiento}%`}
           sub="A tiempo / lo que ya debías entregar"
+          onClick={firstActiveClientId ? () => navigate(`/client/${firstActiveClientId}/tasks?filter=mine`) : undefined}
         />
         <MetricCard
           icon={<Users className="h-4 w-4" />}

@@ -42,6 +42,11 @@ export interface Task {
   kpiResultado?: string;  // resultado real, se llena al completar
   kpiTipo?: string;       // 'manual' | 'auto'
   createdAt: string;
+  /** Última modificación — se actualiza en cada cambio (trigger en BD + store). */
+  updatedAt?: string;
+  /** ID de esta tarea en la plataforma externa (integración). Evita duplicados
+   *  en la sincronización de ida-y-vuelta. Vacío = creada dentro de Project360. */
+  externalId?: string;
 }
 
 export type TaskTag = 'ads' | 'content' | 'strategy' | 'meeting' | 'deliverable' | 'ropre' | 'other';

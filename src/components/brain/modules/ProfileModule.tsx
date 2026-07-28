@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { useClientStore } from '@/store/useClientStore';
+import { clientSigla } from '@/utils/sigla';
 import { toast } from '@/store/useToastStore';
 import { regenerateBrainSection } from '@/services/claudeApi';
 import { AIOptionsFlow } from './AIOptionsFlow';
@@ -106,6 +107,7 @@ type EditingSection = 'business' | 'contact' | null;
 interface FichaDraft {
   // Datos del negocio
   businessName: string;
+  sigla: string;
   founderName: string;
   industry: string;
   yearsInMarket: number;
@@ -126,6 +128,7 @@ function buildDraft(client: Client): FichaDraft {
   const biz = client.onboardingData.business as Record<string, unknown> | undefined;
   return {
     businessName: id?.businessName ?? client.name,
+    sigla: clientSigla(client),
     founderName: id?.founderName ?? '',
     industry: id?.industry ?? client.industry,
     yearsInMarket: id?.yearsInMarket ?? 0,
@@ -190,6 +193,7 @@ function ClientCard({ client, accent, readOnly = false }: { client: Client; acce
 
     updateClient(client.id, {
       name: draft.businessName,
+      sigla: draft.sigla.trim().toUpperCase() || undefined,
       industry: draft.industry,
       businessType: draft.businessType,
       onboardingData: {
@@ -276,6 +280,14 @@ function ClientCard({ client, accent, readOnly = false }: { client: Client; acce
               accent={accent}
               error={errors.businessName}
               required
+            />
+            <EditableField
+              label="Sigla (ej. DG, AT)"
+              editing={isBizEdit}
+              value={draft.sigla}
+              displayValue={clientSigla(client)}
+              onChange={(v) => setDraft({ ...draft, sigla: v.slice(0, 4) })}
+              accent={accent}
             />
             <EditableField
               label="Fundador / Contacto"

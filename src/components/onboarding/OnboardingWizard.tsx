@@ -28,6 +28,7 @@ import { FunnelTemplateSelector, FunnelCreationProgress } from './FunnelTemplate
 import { useAuthStore } from '@/store/useAuthStore';
 import { toast } from '@/store/useToastStore';
 import { genId } from '@/utils/id';
+import { siglaFromName } from '@/utils/sigla';
 
 export function OnboardingWizard() {
   const navigate = useNavigate();
@@ -224,6 +225,7 @@ function buildClientFromOnboarding(data: OnboardingData, brain: Awaited<ReturnTy
     id: genId(),
     agencyId: useAuthStore.getState().agencyId ?? 'a_1',
     name,
+    sigla: siglaFromName(name), // auto: "David Guerrero" → "DG" (editable en el perfil)
     industry: data.step1.industry,
     businessType: data.step2.businessType,
     primaryColor: generateAccentColor(name),

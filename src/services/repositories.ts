@@ -502,6 +502,7 @@ function rowToClient(row: Record<string, unknown>): Client {
     id: r.id,
     agencyId: r.agency_id,
     name: r.name,
+    sigla: r.sigla ?? undefined,
     industry: r.industry,
     businessType: r.business_type,
     primaryColor: r.primary_color,
@@ -524,6 +525,7 @@ function clientToRow(c: Partial<Client>, partial = false): Record<string, unknow
     id: 'id',
     agencyId: 'agency_id',
     name: 'name',
+    sigla: 'sigla',
     industry: 'industry',
     businessType: 'business_type',
     primaryColor: 'primary_color',
@@ -578,6 +580,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     kpiTipo: r.kpi_tipo ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at ?? undefined,
+    externalId: r.external_id ?? undefined,
   };
 }
 
@@ -613,6 +616,7 @@ function taskToRow(t: Partial<Task>, partial = false): Record<string, unknown> {
     kpiTipo: 'kpi_tipo',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
+    externalId: 'external_id',
   };
   const row: Record<string, unknown> = {};
   for (const key of Object.keys(t) as Array<keyof Task>) {

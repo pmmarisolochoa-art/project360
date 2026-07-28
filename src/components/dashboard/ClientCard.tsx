@@ -21,6 +21,7 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { formatRelative } from '@/utils/dateHelpers';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
+import { clientSigla } from '@/utils/sigla';
 import { fetchPlatformDailyMetrics } from '@/services/adsIntegrations';
 import { toast } from '@/store/useToastStore';
 import { ClientTasksHoverPanel } from './ClientTasksHoverPanel';
@@ -149,7 +150,16 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
               <Badge tone={status.tone}>{status.text}</Badge>
               <Badge tone="neutral">{projectTypeLabel[client.projectType]}</Badge>
             </div>
-            <h3 className="heading text-lg font-bold leading-tight truncate">{client.name}</h3>
+            <h3 className="heading text-lg font-bold leading-tight truncate flex items-center gap-2">
+              <span
+                className="inline-flex items-center justify-center h-5 min-w-[24px] px-1.5 rounded text-[10px] font-bold text-white shrink-0"
+                style={{ background: accent }}
+                title={`Sigla de ${client.name}`}
+              >
+                {clientSigla(client)}
+              </span>
+              <span className="truncate">{client.name}</span>
+            </h3>
             <p className="text-xs text-text-muted mt-0.5 truncate">
               {client.industry} · {client.businessType}
             </p>

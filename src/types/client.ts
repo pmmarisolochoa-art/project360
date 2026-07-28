@@ -76,6 +76,8 @@ export interface Client {
   id: string;
   agencyId: string;
   name: string;
+  /** Sigla corta del cliente (ej. DG, AT). Editable; si falta, se deriva del nombre. */
+  sigla?: string;
   industry: string;
   businessType: string;
   primaryColor: string;

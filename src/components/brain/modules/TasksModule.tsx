@@ -26,7 +26,9 @@ import { ROLE_DEFS } from '@/types/team';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useProgramsStore } from '@/store/useProgramsStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
-import { resolveRoleLabel, resolveRoleLabels, resolveAssignee } from '@/utils/roleResolver';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useAppStore } from '@/store/useAppStore';
+import { resolveRoleLabel, resolveRoleLabels, resolveAssignee, isRoleSlug } from '@/utils/roleResolver';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { formatRelative } from '@/utils/dateHelpers';
@@ -116,7 +118,8 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   const [filterAssignee, setFilterAssignee] = useState<string>('');
   const [filterPerson, setFilterPerson] = useState<string>('');
   const [filterPriority, setFilterPriority] = useState<string>('');
-  const [filterTag, setFilterTag] = useState<string>('');
+  // Cómo ordenar las tareas activas (las completadas siempre van al final).
+  const [sortMode, setSortMode] = useState<'overdue' | 'priority' | 'recent'>('overdue');
   // Filtro por programa (4D) — recuerda la última selección por cliente.
   const programs = useProgramsStore((s) => s.programs).filter((p) => p.clientId === client.id);
   const funnels = useFunnelLaunchStore((s) => s.funnels);
@@ -193,6 +196,33 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     [allMembers, client.id],
   );
 
+  // ── Identidad del usuario que mira → "Mis tareas" muestra SUS tareas ──
+  // Puede ser el owner (currentUser) o un miembro con acceso (clientAccesses).
+  const currentUser = useAppStore((s) => s.currentUser);
+  const clientAccesses = useAuthStore((s) => s.clientAccesses);
+  const myNames = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of clientAccesses) {
+      if (a.clientId === client.id && a.nombre) set.add(a.nombre.trim().toLowerCase());
+    }
+    if (currentUser?.name) set.add(currentUser.name.trim().toLowerCase());
+    return set;
+  }, [clientAccesses, currentUser, client.id]);
+  // Roles que tiene el usuario en este cliente → sus tareas asignadas por rol.
+  const myRoleSlugs = useMemo(
+    () => new Set<string>(
+      clientMembers.filter((m) => myNames.has(m.nombre.trim().toLowerCase())).map((m) => m.rol),
+    ),
+    [clientMembers, myNames],
+  );
+  const isMine = (t: Task): boolean => {
+    const an = (t.assignedTo ?? '').trim().toLowerCase();
+    if (an && myNames.has(an)) return true;
+    if (isRoleSlug(t.assignedTo) && myRoleSlugs.has(t.assignedTo)) return true;
+    const resolved = resolveAssignee(t.assignedTo, client.id).trim().toLowerCase();
+    return myNames.has(resolved);
+  };
+
   // Filtro por ROL: solo los roles que existen en el equipo de este cliente
   // (en el orden de ROLE_DEFS). Si aún no hay equipo cargado, todos los roles.
   const roleOptions = useMemo(() => {
@@ -235,23 +265,47 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
         if (resolveAssignee(t.assignedTo, t.clientId) !== filterPerson) return false;
       }
       if (filterPriority && t.priority !== filterPriority) return false;
-      if (filterTag && t.tag !== filterTag) return false;
       if (programFunnelIds && !(t.funnelId && programFunnelIds.has(t.funnelId))) return false;
-      if (quickFilter === 'mine' && t.assignedTo !== 'Marisol Ochoa') return false;
+      // Activa = pendiente o en progreso. Los tabs Mis tareas / Hoy / Esta semana
+      // solo muestran tareas activas (sin completadas ni en revisión/bloqueadas).
+      const isActive = t.status === 'pending' || t.status === 'in_progress';
+      if (quickFilter === 'mine' && (!isMine(t) || !isActive)) return false;
       if (quickFilter === 'overdue' && !(t.isDelayed && t.status !== 'completed')) return false;
       if (quickFilter === 'today') {
+        if (!isActive) return false;
         const d = new Date(t.dueDate);
         if (d < todayStart || d >= todayEnd) return false;
       }
       if (quickFilter === 'week') {
+        if (!isActive) return false;
         const d = new Date(t.dueDate);
         if (d < todayStart || d >= weekEnd) return false;
       }
       return true;
     });
-  }, [tasks, filterAssignee, filterPerson, filterPriority, filterTag, programFunnelIds, quickFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, filterAssignee, filterPerson, filterPriority, programFunnelIds, quickFilter, myNames, myRoleSlugs]);
 
   const accent = client.primaryColor;
+
+  // Ordena: completadas SIEMPRE al final (separadas); activas según sortMode.
+  // Default 'overdue' = las que llevan más tiempo vencidas van primero (dueDate asc).
+  const sorted = useMemo(() => {
+    const ms = (iso?: string) => { const n = iso ? new Date(iso).getTime() : NaN; return Number.isNaN(n) ? Infinity : n; };
+    const PRI: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
+    return [...filtered].sort((a, b) => {
+      const aDone = a.status === 'completed' ? 1 : 0;
+      const bDone = b.status === 'completed' ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;                 // activas antes que completadas
+      if (aDone === 1) return ms(b.completedAt ?? b.dueDate) - ms(a.completedAt ?? a.dueDate); // completadas: recientes primero
+      if (sortMode === 'recent') return ms(b.createdAt) - ms(a.createdAt);
+      if (sortMode === 'priority') {
+        const d = (PRI[a.priority] ?? 3) - (PRI[b.priority] ?? 3);
+        return d !== 0 ? d : ms(a.dueDate) - ms(b.dueDate);
+      }
+      return ms(a.dueDate) - ms(b.dueDate);                      // overdue: vencida hace más tiempo primero
+    });
+  }, [filtered, sortMode]);
 
   const overdueCount = filtered.filter((t) => t.isDelayed && t.status !== 'completed').length;
 
@@ -386,12 +440,13 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
         />
         <Select
           options={[
-            { value: '', label: 'Todas las etiquetas' },
-            ...Object.entries(TASK_TAG_LABEL).map(([v, l]) => ({ value: v, label: l })),
+            { value: 'overdue', label: '⏱️ Más vencidas primero' },
+            { value: 'priority', label: '🚩 Prioridad (P1 primero)' },
+            { value: 'recent', label: '🆕 Más recientes' },
           ]}
-          value={filterTag}
-          onChange={(e) => setFilterTag(e.target.value)}
-          className="min-w-[160px]"
+          value={sortMode}
+          onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+          className="min-w-[180px]"
         />
         {programs.length > 0 && (
           <Select
@@ -481,7 +536,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
       {tasks.length > 0 && view === 'kanban' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
           {COLUMNS.map((col) => {
-            const colTasks = filtered.filter((t) => t.status === col.status);
+            const colTasks = sorted.filter((t) => t.status === col.status);
             const isDropTarget = dragOverStatus === col.status;
             return (
               <div
@@ -572,11 +627,11 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
       )}
 
       {tasks.length > 0 && view === 'list' && (
-        <TasksList tasks={filtered} accent={accent} allTasks={tasks} onOpen={setEditing} />
+        <TasksList tasks={sorted} accent={accent} allTasks={tasks} onOpen={setEditing} />
       )}
 
       {tasks.length > 0 && view === 'gantt' && (
-        <TasksGantt tasks={filtered} accent={accent} allTasks={tasks} onOpen={setEditing} />
+        <TasksGantt tasks={sorted} accent={accent} allTasks={tasks} onOpen={setEditing} />
       )}
 
       {/* Barra flotante de acciones bulk — aparece cuando hay 1+ seleccionada */}
@@ -1457,7 +1512,38 @@ function TasksList({
   allTasks: Task[];
   onOpen: (t: Task) => void;
 }) {
-  const sorted = [...tasks].sort((a, b) => +new Date(a.dueDate) - +new Date(b.dueDate));
+  // Respeta el orden del padre (ya viene ordenado); solo separa activas de completadas.
+  const active = tasks.filter((t) => t.status !== 'completed');
+  const done = tasks.filter((t) => t.status === 'completed');
+  const now = Date.now();
+
+  const row = (t: Task) => {
+    const blocked = (t.dependsOn ?? []).some((id) => allTasks.find((x) => x.id === id)?.status !== 'completed');
+    const overdueDays = t.status !== 'completed'
+      ? Math.floor((now - new Date(t.dueDate).getTime()) / 86400000)
+      : 0;
+    return (
+      <tr key={t.id} onClick={() => onOpen(t)} className="border-b border-border-subtle/30 cursor-pointer hover:bg-bg-elevated/30">
+        <td className="py-2.5 pl-3 pr-3"><Badge tone={t.priority === 'P1' ? 'danger' : t.priority === 'P2' ? 'warning' : 'neutral'}>{t.priority}</Badge></td>
+        <td className="py-2.5 pr-3 text-text-primary">
+          {t.title}
+          {blocked && t.status !== 'completed' && (
+            <span className="ml-2 text-[10px] inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5" style={{ background: 'rgba(245,158,11,0.10)', color: '#F59E0B' }}>
+              <Lock className="h-2.5 w-2.5" /> Bloqueada
+            </span>
+          )}
+        </td>
+        <td className="py-2.5 pr-3 text-text-secondary text-xs">{t.assignedTo}</td>
+        <td className="py-2.5 pr-3 text-xs">
+          {format(parseISO(t.dueDate), 'd MMM', { locale: es })}
+          {overdueDays > 0 && <span className="ml-1.5 text-[10px] text-status-danger">· hace {overdueDays}d</span>}
+        </td>
+        <td className="py-2.5 pr-3 text-xs text-text-secondary">{t.status}</td>
+        <td className="py-2.5 pr-3 text-xs text-text-muted">{(t.dependsOn?.length ?? 0)} / {allTasks.filter((x) => x.dependsOn?.includes(t.id)).length}</td>
+      </tr>
+    );
+  };
+
   return (
     <div className="surface overflow-x-auto">
       <table className="w-full text-sm">
@@ -1472,26 +1558,15 @@ function TasksList({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((t) => {
-            const blocked = (t.dependsOn ?? []).some((id) => allTasks.find((x) => x.id === id)?.status !== 'completed');
-            return (
-              <tr key={t.id} onClick={() => onOpen(t)} className="border-b border-border-subtle/30 cursor-pointer hover:bg-bg-elevated/30">
-                <td className="py-2.5 pl-3 pr-3"><Badge tone={t.priority === 'P1' ? 'danger' : t.priority === 'P2' ? 'warning' : 'neutral'}>{t.priority}</Badge></td>
-                <td className="py-2.5 pr-3 text-text-primary">
-                  {t.title}
-                  {blocked && t.status !== 'completed' && (
-                    <span className="ml-2 text-[10px] inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5" style={{ background: 'rgba(245,158,11,0.10)', color: '#F59E0B' }}>
-                      <Lock className="h-2.5 w-2.5" /> Bloqueada
-                    </span>
-                  )}
-                </td>
-                <td className="py-2.5 pr-3 text-text-secondary text-xs">{t.assignedTo}</td>
-                <td className="py-2.5 pr-3 text-xs">{format(parseISO(t.dueDate), 'd MMM', { locale: es })}</td>
-                <td className="py-2.5 pr-3 text-xs text-text-secondary">{t.status}</td>
-                <td className="py-2.5 pr-3 text-xs text-text-muted">{(t.dependsOn?.length ?? 0)} / {allTasks.filter((x) => x.dependsOn?.includes(t.id)).length}</td>
-              </tr>
-            );
-          })}
+          {active.map(row)}
+          {done.length > 0 && (
+            <tr className="[background:var(--table-header-bg)]">
+              <td colSpan={6} className="py-1.5 pl-3 text-[10px] uppercase tracking-wider text-text-muted">
+                ✓ Completadas ({done.length})
+              </td>
+            </tr>
+          )}
+          {done.map(row)}
         </tbody>
       </table>
     </div>

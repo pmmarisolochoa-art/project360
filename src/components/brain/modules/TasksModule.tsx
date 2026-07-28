@@ -189,6 +189,18 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     }
   }, [searchParams, allTasks]);
 
+  // Deep-link ?filter=week|overdue|today|all (ej. desde las tarjetas de /mi-espacio):
+  // pre-selecciona el tab de tareas. Se aplica una vez.
+  const appliedFilterRef = useRef(false);
+  useEffect(() => {
+    if (appliedFilterRef.current) return;
+    const f = searchParams.get('filter');
+    if (f && ['all', 'mine', 'overdue', 'today', 'week'].includes(f)) {
+      appliedFilterRef.current = true;
+      setQuickFilter(f as typeof quickFilter);
+    }
+  }, [searchParams]);
+
   // Equipo real del cliente — alimenta los filtros de rol y de persona.
   const allMembers = useTeamMembersStore((s) => s.members);
   const clientMembers = useMemo(

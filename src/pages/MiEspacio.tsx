@@ -110,6 +110,12 @@ export function MiEspacio() {
   const cumplimiento = dueSoFar > 0 ? Math.round((onTime / dueSoFar) * 100) : 100;
   const activeClientIds = new Set(myTasks.map((t) => t.clientId));
 
+  // Destinos para las tarjetas cliqueables (el board de tareas ya filtra por el
+  // miembro). Preferimos el cliente de la tarea relevante; si no, el primero.
+  const firstActiveClientId = [...activeClientIds][0] ?? myClientIds[0];
+  const weekTargetClientId = weekTasks[0]?.clientId ?? firstActiveClientId;
+  const overdueTargetClientId = overdueSinEntregar[0]?.clientId ?? overdue[0]?.clientId ?? firstActiveClientId;
+
   // Entregas urgentes: pendientes con vencimiento hasta mañana. Vencidas primero.
   const urgent = useMemo(() => {
     return pending
@@ -205,6 +211,7 @@ export function MiEspacio() {
           label="Tareas esta semana"
           value={weekTasks.length}
           sub={`${weekDone} completadas · ${weekTasks.length - weekDone} pendientes`}
+          onClick={weekTargetClientId ? () => navigate(`/client/${weekTargetClientId}/tasks?filter=week`) : undefined}
         />
         <MetricCard
           icon={<AlertTriangle className="h-4 w-4" />}
@@ -212,6 +219,7 @@ export function MiEspacio() {
           value={overdueSinEntregar.length}
           sub="Requieren atención hoy"
           danger={overdueSinEntregar.length > 0}
+          onClick={overdueTargetClientId ? () => navigate(`/client/${overdueTargetClientId}/tasks?filter=overdue`) : undefined}
         />
         <MetricCard
           icon={<TrendingUp className="h-4 w-4" />}
@@ -224,6 +232,7 @@ export function MiEspacio() {
           label="Clientes activos"
           value={activeClientIds.size}
           sub={myClients.filter((c) => activeClientIds.has(c.id)).map((c) => c.name).join(' · ') || '—'}
+          onClick={firstActiveClientId ? () => navigate(`/client/${firstActiveClientId}`) : undefined}
         />
       </div>
 
@@ -414,22 +423,33 @@ export function MiEspacio() {
 }
 
 function MetricCard({
-  icon, label, value, sub, danger,
+  icon, label, value, sub, danger, onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | number;
   sub: string;
   danger?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="surface p-4">
+  const content = (
+    <>
       <div className="flex items-center gap-2 text-text-muted mb-2">
         {icon}
         <span className="text-[11px] uppercase tracking-wider">{label}</span>
       </div>
       <div className={cn('text-2xl font-bold', danger ? 'text-status-danger' : 'text-text-primary')}>{value}</div>
       <div className="text-[11px] text-text-muted mt-1 truncate" title={sub}>{sub}</div>
-    </div>
+    </>
+  );
+  if (!onClick) return <div className="surface p-4">{content}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="surface p-4 text-left w-full transition hover:border-accent-violet/40 hover:bg-bg-elevated/40 focus-ring cursor-pointer"
+    >
+      {content}
+    </button>
   );
 }

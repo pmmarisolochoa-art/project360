@@ -212,6 +212,7 @@ function rowToTeamMember(row: Record<string, unknown>): TeamMember {
     rol: r.rol as TeamRoleSlug,
     email: r.email ?? undefined,
     telefono: r.telefono ?? undefined,
+    veTodasTareas: r.ve_todas_tareas ?? false,
     avatarColor: r.avatar_color ?? '#6366F1',
     funciones: Array.isArray(r.funciones) ? r.funciones : [],
     kpis: r.kpis_custom && typeof r.kpis_custom === 'object'
@@ -229,6 +230,7 @@ function teamMemberToRow(m: Partial<TeamMember>, partial = false): Record<string
   if (!partial || m.rol !== undefined) row.rol = m.rol;
   if (!partial || m.email !== undefined) row.email = m.email ?? null;
   if (!partial || m.telefono !== undefined) row.telefono = m.telefono ?? null;
+  if (!partial || m.veTodasTareas !== undefined) row.ve_todas_tareas = m.veTodasTareas ?? false;
   if (!partial || m.avatarColor !== undefined) row.avatar_color = m.avatarColor;
   if (!partial || m.funciones !== undefined) row.funciones = m.funciones ?? [];
   if (!partial || m.kpis !== undefined) row.kpis_custom = m.kpis ?? { values: {}, history: {}, custom: [] };
@@ -575,6 +577,7 @@ function rowToTask(row: Record<string, unknown>): Task {
     kpiResultado: r.kpi_resultado ?? undefined,
     kpiTipo: r.kpi_tipo ?? undefined,
     createdAt: r.created_at,
+    updatedAt: r.updated_at ?? undefined,
   };
 }
 
@@ -609,6 +612,7 @@ function taskToRow(t: Partial<Task>, partial = false): Record<string, unknown> {
     kpiResultado: 'kpi_resultado',
     kpiTipo: 'kpi_tipo',
     createdAt: 'created_at',
+    updatedAt: 'updated_at',
   };
   const row: Record<string, unknown> = {};
   for (const key of Object.keys(t) as Array<keyof Task>) {

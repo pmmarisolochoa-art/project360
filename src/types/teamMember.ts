@@ -41,6 +41,8 @@ export interface TeamMember {
   rol: TeamRoleSlug;
   email?: string;
   telefono?: string;
+  /** Coordinador: si true, ve TODAS las tareas del cliente (no solo las suyas). */
+  veTodasTareas?: boolean;
   avatarColor: string;
   funciones: string[];
   kpis: TeamMemberKpis;

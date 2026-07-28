@@ -215,6 +215,10 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   const authRole = useAuthStore((s) => s.role);
   const clientAccesses = useAuthStore((s) => s.clientAccesses);
   const isMember = authRole === 'member';
+  // Coordinador = miembro con el flag "ve todas las tareas" en ESTE cliente.
+  // Ve todo el equipo, como el owner. El resto de miembros solo ve lo suyo.
+  const isCoordinator = isMember && clientAccesses.some((a) => a.clientId === client.id && a.veTodasTareas);
+  const scopeToMine = isMember && !isCoordinator; // true → solo mis tareas
   const myNames = useMemo(() => {
     const set = new Set<string>();
     if (isMember) {
@@ -241,12 +245,12 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     return myNames.has(resolved);
   };
 
-  // Un MIEMBRO solo ve SUS tareas en todo el módulo; el owner ve todas.
+  // Un MIEMBRO normal solo ve SUS tareas; el owner y el coordinador ven todas.
   // (allTasks se conserva completo para resolver dependencias entre tareas.)
   const visibleTasks = useMemo(
-    () => (isMember ? tasks.filter(isMine) : tasks),
+    () => (scopeToMine ? tasks.filter(isMine) : tasks),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isMember, tasks, myNames, myRoleSlugs],
+    [scopeToMine, tasks, myNames, myRoleSlugs],
   );
 
   // Filtro por ROL: solo los roles que existen en el equipo de este cliente
@@ -393,7 +397,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   // sobra (mostraría lo mismo que 'Todas'). Se oculta.
   const QUICK_FILTERS: Array<{ key: typeof quickFilter; label: string }> = [
     { key: 'all', label: 'Todas' },
-    ...(isMember ? [] : [{ key: 'mine' as const, label: 'Mis tareas' }]),
+    ...(scopeToMine ? [] : [{ key: 'mine' as const, label: 'Mis tareas' }]),
     { key: 'overdue', label: 'Vencidas' },
     { key: 'today', label: 'Hoy' },
     { key: 'week', label: 'Esta semana' },
@@ -437,7 +441,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
           <Filter className="h-3.5 w-3.5" /> Filtros
         </div>
         {/* Filtros de rol y persona: solo para el owner (un miembro ve solo lo suyo). */}
-        {!isMember && (
+        {!scopeToMine && (
         <Select
           options={[
             { value: '', label: 'Todos los roles' },
@@ -449,7 +453,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
           className="min-w-[180px]"
         />
         )}
-        {!isMember && (
+        {!scopeToMine && (
         <Select
           options={[
             { value: '', label: 'Todas las personas' },

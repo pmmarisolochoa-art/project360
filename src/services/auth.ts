@@ -51,6 +51,8 @@ export interface ClientAccessCtx {
   nombre: string;
   rol: string;
   departamentos: string[];
+  /** Coordinador: ve TODAS las tareas del cliente (no solo las suyas). */
+  veTodasTareas: boolean;
 }
 
 /** Contexto resuelto del usuario: qué tipo es y qué puede ver. */
@@ -85,7 +87,7 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
   // 2. ¿Es miembro del equipo de uno o más clientes?
   const { data: members } = await supabase
     .from('team_members')
-    .select('id, client_id, access_level, nombre, rol, departamentos')
+    .select('id, client_id, access_level, nombre, rol, departamentos, ve_todas_tareas')
     .eq('user_id', userId);
   if (members && members.length > 0) {
     return {
@@ -100,6 +102,7 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
           nombre: (m.nombre as string) ?? '',
           rol: (m.rol as string) ?? '',
           departamentos: Array.isArray(m.departamentos) ? (m.departamentos as string[]) : [],
+          veTodasTareas: m.ve_todas_tareas === true,
         })),
     };
   }

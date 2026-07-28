@@ -643,6 +643,23 @@ function MemberDetailModal({ summary, onClose, readOnly = false }: { summary: Me
           <p className="text-[10px] text-text-muted mt-1">En formato internacional (con +57). Se usa para los recordatorios y tareas por WhatsApp.</p>
         </div>
 
+        {/* Coordinador — ve todas las tareas del equipo */}
+        <label className={`flex items-start gap-2.5 rounded-md border border-border-subtle bg-bg-base/40 px-3 py-2.5 ${readOnly ? 'opacity-60' : 'cursor-pointer'}`}>
+          <input
+            type="checkbox"
+            checked={!!live().veTodasTareas}
+            disabled={readOnly}
+            onChange={(e) => update(member.id, { veTodasTareas: e.target.checked })}
+            className="h-4 w-4 mt-0.5 accent-accent-violet"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm text-text-primary">Coordinador — ve todas las tareas del equipo</span>
+            <span className="block text-[11px] text-text-muted mt-0.5">
+              Activado, esta persona ve <b>todas</b> las tareas del cliente (como el owner), no solo las suyas. Ideal para líderes/PM.
+            </span>
+          </span>
+        </label>
+
         {/* Funciones */}
         <div>
           <div className="text-[10px] uppercase tracking-wider text-text-muted mb-2">Funciones del rol</div>

@@ -41,10 +41,34 @@ const CURRENCIES = ['USD', 'COP', 'MXN', 'EUR', 'ARS', 'CLP', 'PEN', 'BRL'];
 export function ProfileModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const [active, setActive] = useState<SubSection>('1A');
   const [infoEditorOpen, setInfoEditorOpen] = useState(false);
+  const updateClient = useClientStore((s) => s.updateClient);
   const accent = client.primaryColor;
 
   return (
     <div className="space-y-4">
+      {/* Espacio de Agencia — marca este cliente como el contenedor interno
+          (reuniones compartidas). Solo el owner. */}
+      {!readOnly && (
+        <label className="surface px-4 py-3 flex items-start gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!client.isAgency}
+            onChange={(e) => {
+              updateClient(client.id, { isAgency: e.target.checked });
+              toast.success(e.target.checked ? 'Marcado como Espacio de Agencia' : 'Ya no es Espacio de Agencia');
+            }}
+            className="h-4 w-4 mt-0.5 accent-accent-violet"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm text-text-primary">🏛️ Este es el Espacio de Agencia</span>
+            <span className="block text-[11px] text-text-muted mt-0.5">
+              Activado, deja de aparecer en la lista de clientes y pasa a la sección <b>Agencia</b> del menú.
+              Ahí viven las reuniones compartidas (planeación, sprint de cierre, gerencia).
+            </span>
+          </span>
+        </label>
+      )}
+
       {!readOnly && (
         <div className="flex items-center justify-end">
           <Button

@@ -66,9 +66,13 @@ export function BrainHeader({ client }: { client: Client }) {
               >
                 {clientSigla(client)}
               </span>
-              <Badge tone={statusTone[client.status]}>{statusText[client.status]}</Badge>
-              <Badge tone="neutral">{client.businessType}</Badge>
-              <Badge tone="info">{client.industry}</Badge>
+              {client.isAgency
+                ? <Badge tone="accent">🏛️ Espacio de Agencia</Badge>
+                : <>
+                    <Badge tone={statusTone[client.status]}>{statusText[client.status]}</Badge>
+                    <Badge tone="neutral">{client.businessType}</Badge>
+                    <Badge tone="info">{client.industry}</Badge>
+                  </>}
             </div>
             <h1 className="heading text-3xl lg:text-4xl font-bold leading-tight" style={{ color: accent }}>
               {client.name}

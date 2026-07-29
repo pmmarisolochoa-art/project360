@@ -78,6 +78,8 @@ export interface Client {
   name: string;
   /** Sigla corta del cliente (ej. DG, AT). Editable; si falta, se deriva del nombre. */
   sigla?: string;
+  /** Espacio de Agencia: si true, no es un cliente real (aloja reuniones compartidas). */
+  isAgency?: boolean;
   industry: string;
   businessType: string;
   primaryColor: string;

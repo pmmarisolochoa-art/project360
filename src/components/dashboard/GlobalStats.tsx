@@ -29,7 +29,7 @@ export function GlobalStats() {
   const notifications = useNotificationStore((s) => s.notifications);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
-  const activeClients = clients.filter((c) => c.status === 'active' || c.status === 'planning').length;
+  const activeClients = clients.filter((c) => !c.isAgency && (c.status === 'active' || c.status === 'planning')).length;
   const weekMeetings = meetings.filter((m) => isThisWeek(parseISO(m.scheduledAt), { weekStartsOn: 1 }));
   const meetingsThisWeek = weekMeetings.length;
   const overdueTasks = tasks.filter((t) => t.isDelayed && t.status !== 'completed');
@@ -119,7 +119,7 @@ function ActiveClientsPanel() {
   const navigate = useNavigate();
   const clients = useClientStore((s) => s.clients);
   const tasks = useClientStore((s) => s.tasks);
-  const list = clients.filter((c) => c.status === 'active' || c.status === 'planning' || c.status === 'onboarding');
+  const list = clients.filter((c) => !c.isAgency && (c.status === 'active' || c.status === 'planning' || c.status === 'onboarding'));
   return (
     <div>
       <h3 className="heading text-base font-bold mb-3">Clientes activos</h3>

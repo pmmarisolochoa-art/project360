@@ -46,6 +46,7 @@ export function ClientsPage() {
   const filtered = useMemo(
     () =>
       clients.filter((c) => {
+        if (c.isAgency) return false; // el espacio de Agencia no es un cliente real
         if (q && !c.name.toLowerCase().includes(q.toLowerCase()) && !c.industry.toLowerCase().includes(q.toLowerCase())) return false;
         if (fStatus && c.status !== fStatus) return false;
         if (fProject && c.projectType !== fProject) return false;

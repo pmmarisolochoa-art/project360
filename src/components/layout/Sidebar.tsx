@@ -10,6 +10,7 @@ import {
   Package,
   Link as LinkIcon,
   ClipboardCheck,
+  Building2,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useClientStore } from '@/store/useClientStore';
@@ -33,8 +34,18 @@ const globalNav = [
 export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const clients = useClientStore((s) => s.clients);
   const tasks = useClientStore((s) => s.tasks);
-  // Salud global del portafolio: peor estado entre clientes activos
+  // El espacio de Agencia (si existe) va como entrada aparte, no como cliente.
+  const agencyClient = clients.find((c) => c.isAgency);
+  const navItems = agencyClient
+    ? [
+        ...nav.slice(0, 2),
+        { to: `/client/${agencyClient.id}`, label: 'Agencia', icon: Building2, end: false },
+        ...nav.slice(2),
+      ]
+    : nav;
+  // Salud global del portafolio: peor estado entre clientes reales (sin agencia).
   const worstHealth = clients.reduce<'green' | 'yellow' | 'red'>((acc, c) => {
+    if (c.isAgency) return acc;
     const h = healthFromMetrics(c.metrics.roas, avanceForClient(tasks, c.id), c.metrics.pendingTasksToday);
     if (h === 'red') return 'red';
     if (h === 'yellow' && acc !== 'red') return 'yellow';
@@ -86,7 +97,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {nav.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

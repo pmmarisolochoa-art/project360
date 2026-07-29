@@ -11,7 +11,8 @@ import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { Button } from '@/components/ui/Button';
 
 export function DashboardMacro() {
-  const clients = useClientStore((s) => s.clients);
+  // Excluye el espacio de Agencia de la lista de clientes reales.
+  const clients = useClientStore((s) => s.clients).filter((c) => !c.isAgency);
   const meetings = useClientStore((s) => s.meetings);
   const meetingId = useUIDrawerStore((s) => s.meetingId);
   const closeMeeting = useUIDrawerStore((s) => s.closeMeeting);

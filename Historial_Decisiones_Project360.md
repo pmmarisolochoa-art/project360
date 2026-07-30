@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-30 — Playwright MCP como verificación en navegador + fix de "cliente activo" + bootstrap x4 → x1
+
+Primera sesión usando **Playwright MCP** para verificar la app en un navegador real. Commit `d7cd0d0` (local en `main`, **sin pushear**).
+
+**1. Decisión: "cliente en onboarding SÍ cuenta como activo".** El KPI "Clientes activos" del Dashboard Macro mostraba `0` teniendo a Ikigai activo, mientras el sidebar y las tarjetas mostraban `1` — tres lugares filtraban por su cuenta y dos estaban mal. Razón de la decisión: `planning` ya contaba como activo y `onboarding` es la fase *anterior*, así que excluirlo no tenía lógica; además un cliente en onboarding ya consume horas y presupuesto ($10.000 invertidos en Ikigai). **Fuente única de verdad nueva** en `src/types/client.ts`: `ACTIVE_CLIENT_STATUSES = ['onboarding','planning','active']` + helper `isActiveClient()`, consumido por `GlobalStats` y `Sidebar`. Si mañana se decide que `paused` también cuenta, se cambia en un solo lugar.
+
+**2. Bootstrap de Supabase: 4 rondas de queries por carga → 1.** `bootstrapFromRemote` se disparaba varias veces mientras el contexto de auth se resolvía (×2 más por StrictMode en dev) = 4 hidrataciones completas por page load. Ahora es **idempotente por contexto de sesión** (cachea la promesa por `userId:agencyId`); `AuthGate` limpia la caché al cerrar sesión. **Decisión de diseño importante:** NO se gateó por `agencyId != null` — se verificó que los **miembros de equipo legítimamente tienen `agencyId: null`** (`services/auth.ts:106`), así que esa condición habría roto el acceso del equipo. ⚠️ **Sin probar:** el ciclo logout→login (no había credenciales en sesión). Si al reentrar aparecieran datos viejos, la causa está ahí.
+
+**3. 🔴 Bug de pérdida de datos encontrado y revertido.** Había un cambio **sin commitear** en `src/store/useClientStore.ts` que sellaba `updatedAt` en cada `updateTask`, con el comentario "la BD también la fija por trigger". **Esa columna no existe** en la tabla `tasks` (`supabase/schema.sql` solo tiene `created_at`). Resultado: **toda** actualización de tarea devolvía `400 / PGRST204` y, como el repo solo hace `console.warn`, la UI mostraba el cambio como guardado y no se guardaba nada. Se **revirtió el archivo** (`git checkout`). Producción nunca estuvo afectada porque el cambio jamás se commiteó. **Aprendizaje de fondo:** que un fallo de escritura a Supabase sea solo un `console.warn` es lo que permitió que pasara inadvertido — los errores de persistencia deberían mostrar un toast.
+
+**4. Script `typecheck` estaba roto** desde hacía tiempo: `tsc -b --noEmit` es inválido en proyectos composite (error `TS6310`). Ahora es `tsc -b`.
+
+**Pendientes:** decidir si se agrega `updated_at` + trigger a `tasks` (o se deja sin sellar); hacer que los errores de escritura muestren toast en vez de solo `console.warn`; probar logout→login; **pushear `d7cd0d0`**; `dist/index.js` pesa 4 MB (1 MB gzip) sin code-splitting — cargas lentas en móvil LATAM; migrar a future flags de React Router v7.
+
+---
+
 ## 2026-07-27 — Reportes de reunión por correo + tipos nuevos + anti-duplicados + fixes UX
 
 Sesión larga de features y estabilización sobre el sistema de reuniones. Todo en producción (main → Vercel).

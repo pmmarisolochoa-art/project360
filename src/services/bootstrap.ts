@@ -15,12 +15,47 @@ import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
 
+type BootstrapResult = { source: 'remote' | 'local' };
+
+/**
+ * Última hidratación por contexto de sesión. El efecto que llama a
+ * `bootstrapFromRemote` se dispara varias veces mientras el contexto de auth se
+ * resuelve (y dos veces más por StrictMode en dev), lo que provocaba 4 rondas
+ * completas de queries a Supabase por carga de página. Guardamos la promesa por
+ * contexto para que las llamadas repetidas reusen la misma.
+ */
+let lastRun: { key: string; promise: Promise<BootstrapResult> } | null = null;
+
 /**
  * Llamado al iniciar la app y al cambiar de sesión.
  * Si hay Supabase + agencia del usuario, hidrata clientes/tareas/reuniones
  * filtrados por agency_id. Si no, deja el seed in-memory.
+ *
+ * Idempotente por contexto de sesión: llamarlo N veces con el mismo
+ * usuario+agencia hace UNA sola ronda de queries. Al cambiar de sesión la clave
+ * cambia y vuelve a hidratar.
  */
-export async function bootstrapFromRemote(): Promise<{ source: 'remote' | 'local' }> {
+export function bootstrapFromRemote(): Promise<BootstrapResult> {
+  const { user, agencyId } = useAuthStore.getState();
+  const key = `${user?.id ?? 'anon'}:${agencyId ?? 'none'}`;
+
+  if (lastRun?.key === key) return lastRun.promise;
+
+  const promise = runBootstrap().catch((e) => {
+    // Un fallo no debe quedar cacheado: la próxima llamada reintenta.
+    if (lastRun?.key === key) lastRun = null;
+    throw e;
+  });
+  lastRun = { key, promise };
+  return promise;
+}
+
+/** Limpia la memoria de hidratación (usar al cerrar sesión). */
+export function resetBootstrapCache(): void {
+  lastRun = null;
+}
+
+async function runBootstrap(): Promise<BootstrapResult> {
   if (!usingRemote || !supabase) {
     useClientStore.getState().setHydrated(true); // modo local: el seed ES la data
     return { source: 'local' };

@@ -5,6 +5,14 @@ export type ClientStatus =
   | 'paused'
   | 'completed';
 
+/** Estados en los que un cliente se considera vivo (consume horas y presupuesto). */
+export const ACTIVE_CLIENT_STATUSES: ClientStatus[] = ['onboarding', 'planning', 'active'];
+
+/** Fuente única de verdad para "¿este cliente cuenta como activo?". */
+export function isActiveClient(c: { isAgency?: boolean; status: ClientStatus }): boolean {
+  return !c.isAgency && ACTIVE_CLIENT_STATUSES.includes(c.status);
+}
+
 export type ProjectType =
   | 'ecommerce'
   | 'launch'

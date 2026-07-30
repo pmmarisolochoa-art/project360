@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { getCurrentSession, onAuthChange, requiresAuth, resolveUserContext } from '@/services/auth';
 import { useAuthStore } from '@/store/useAuthStore';
+import { resetBootstrapCache } from '@/services/bootstrap';
 
 /**
  * Guarda las rutas autenticadas. Si no hay Supabase configurado,
@@ -35,6 +36,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setUser({ id: session.user.id, email: session.user.email ?? '' });
         await hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
+        resetBootstrapCache();
         reset();
       }
       setLoading(false);
@@ -46,6 +48,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         setUser({ id: session.user.id, email: session.user.email ?? '' });
         void hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
+        resetBootstrapCache();
         reset();
       }
     });

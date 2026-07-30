@@ -16,6 +16,7 @@ import { cn } from '@/utils/cn';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
 import { healthFromMetrics } from '@/utils/metricsCalculator';
+import { isActiveClient } from '@/types/client';
 
 const nav = [
   { to: '/', label: 'Dashboard Macro', icon: LayoutDashboard, end: true },
@@ -154,7 +155,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
           <span className="text-[11px] uppercase tracking-wider text-text-muted">Salud global</span>
         </div>
         <div className="text-sm text-text-primary">{healthLabel}</div>
-        <div className="text-[11px] text-text-muted mt-1">{clients.length} clientes activos</div>
+        <div className="text-[11px] text-text-muted mt-1">{clients.filter(isActiveClient).length} clientes activos</div>
       </div>
       </aside>
     </>

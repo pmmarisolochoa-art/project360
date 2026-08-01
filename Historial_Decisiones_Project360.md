@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-08-01 — Ninguna escritura fallida vuelve a perderse en silencio + migración 027
+
+Continuación directa de la sesión del 30-jul. Commit `969dcba`, **pusheado a `origin/main`** (`f591aab..969dcba`). *Nota: la entrada del 30-jul dice "sin pushear" — ya no aplica, los tres commits (`d7cd0d0`, `f591aab`, `969dcba`) están en prod.*
+
+**1. Decisión de arquitectura: las escrituras optimistas SIEMPRE avisan al fallar.** Al investigar el bug de `updatedAt` apareció el problema de fondo: **7 de las 9 rutas de escritura a Supabase solo hacían `console.warn` al fallar** (clientes, tareas y reuniones × crear/editar/borrar). Como la UI es optimista —pinta el cambio antes de que la BD confirme— un fallo dejaba al usuario creyendo que guardó, y el trabajo se perdía al recargar sin ningún aviso. Eso es exactamente lo que ocultó durante días que `tasks.update` devolvía 400. Las de reuniones ya avisaban bien (alguien lo resolvió en una sesión previa); se **extrajo ese patrón a un helper `onWriteError(label, mensaje)`** en `useClientStore` y se aplicó a las 9. Cero `console.warn` mudos. **Regla para adelante:** si una escritura es optimista, su `.catch` muestra toast — no basta con loguear.
+
+**2. Migración `027_tasks_updated_at.sql` escrita (⚠️ PENDIENTE DE CORRER en Supabase).** Agrega `updated_at` a `tasks` + trigger `tasks_touch`, reusando la función `touch_updated_at()` que ya existe y que ya usan `clients` y `projections` (no se inventó patrón nuevo). Aditiva e idempotente. **Decisión sobre su prioridad:** se verificó que **hoy nada en la app lee `task.updatedAt`** (cero consumidores), y el código que la escribía ya se revirtió — así que no hay nada roto esperando. La migración es para **desactivar la mina**: `taskToRow()` sigue mapeando `updatedAt → updated_at`, así que el día que alguien vuelva a meter ese campo en un patch, revienta igual. Con la columna puesta ese camino queda cerrado y de paso se gana auditoría de "última modificación" para el equipo.
+
+**3. Playwright MCP usado para probar un camino de error, no solo el happy path.** Se interceptó `window.fetch` para forzar un `400` en `PATCH /tasks`, se marcó una tarea como completada y se verificó que el toast sale en un `role="status"`. El mock además **impidió que la prueba escribiera en la base de producción** — se confirmó al recargar que la tarea seguía pendiente. Patrón reutilizable para probar fallos sin tocar datos reales.
+
+**Pendientes:** ⚠️ **correr la migración 027** en Supabase (SQL Editor); probar el ciclo **logout→login** tras el cambio de bootstrap del 30-jul (requiere credenciales, solo lo puede hacer la founder — si aparecieran datos viejos, la causa es la caché de bootstrap); **code-splitting** del bundle (`dist/index.js` = 4 MB / 1 MB gzip en un solo archivo → varios segundos de espera en 4G para el equipo en Colombia). Plan acordado para el code-splitting, en dos pasos de menor a mayor riesgo: (a) `manualChunks` en `vite.config.ts` separando React/Supabase/framer-motion/PDF — riesgo bajo, mejora inmediata por caché de vendor; (b) `React.lazy` por ruta — el golpe grande, toca el router y puede romper navegación de forma sutil. **Se dejó para una sesión propia** por ser lo primero de estas sesiones que puede romper prod de verdad; ahora hay Playwright para verificar cada ruta después de partir el bundle.
+
+---
+
 ## 2026-07-30 — Playwright MCP como verificación en navegador + fix de "cliente activo" + bootstrap x4 → x1
 
 Primera sesión usando **Playwright MCP** para verificar la app en un navegador real. Commit `d7cd0d0` (local en `main`, **sin pushear**).

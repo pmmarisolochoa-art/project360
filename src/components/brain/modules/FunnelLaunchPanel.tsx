@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Rocket, Trash2, Play, Pause, Share2, Archive, ChevronDown, FileDown } from 'lucide-react';
-import { exportLaunchReport } from '@/services/reportsPdf';
+// jsPDF (~2 MB) solo hace falta al generar el reporte. Carga bajo demanda.
+const loadReportsPdf = () => import('@/services/reportsPdf');
 import { useClientStore } from '@/store/useClientStore';
 import { useNavigate } from 'react-router-dom';
 import type { Client } from '@/types/client';
@@ -248,10 +249,11 @@ export function FunnelLaunchPanel({ client, readOnly = false }: { client: Client
                 size="sm"
                 variant="secondary"
                 leftIcon={<FileDown className="h-3.5 w-3.5" />}
-                onClick={() => {
+                onClick={async () => {
                   try {
                     const launchPhases = useFunnelLaunchStore.getState().phases.filter((p) => p.funnelId === selectedFunnel.id);
                     const launchTasks = useClientStore.getState().tasks.filter((t) => t.funnelId === selectedFunnel.id);
+                    const { exportLaunchReport } = await loadReportsPdf();
                     exportLaunchReport({ client, funnel: selectedFunnel, phases: launchPhases, tasks: launchTasks });
                     toast.success('Reporte de lanzamiento generado');
                   } catch (e) {

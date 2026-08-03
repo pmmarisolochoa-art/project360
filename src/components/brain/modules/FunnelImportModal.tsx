@@ -3,9 +3,11 @@ import { FileSpreadsheet, FileText, Workflow, Upload, Info } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/store/useToastStore';
-import { marked } from 'marked';
-import mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
+// xlsx + mammoth + marked solo hacen falta cuando el usuario sube un archivo,
+// no al abrir el modal. Carga bajo demanda (los call sites están en try/catch).
+const loadMarked = () => import('marked');
+const loadMammoth = () => import('mammoth');
+const loadXLSX = () => import('xlsx');
 
 /**
  * Modal para importar embudos desde fuentes externas.
@@ -87,6 +89,7 @@ function CsvTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (rows:
       let text: string;
       if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
         const buf = await file.arrayBuffer();
+        const XLSX = await loadXLSX();
         const wb = XLSX.read(buf, { type: 'array' });
         const firstSheet = wb.Sheets[wb.SheetNames[0]];
         if (!firstSheet) { setError('El archivo Excel está vacío o no se pudo leer.'); return; }
@@ -179,10 +182,12 @@ function DocTab({ onCancel, onExtracted }: { onCancel: () => void; onExtracted: 
       let plain = '';
       if (name.endsWith('.md') || name.endsWith('.markdown')) {
         const raw = await file.text();
+        const { marked } = await loadMarked();
         const html = await marked.parse(raw);
         plain = String(html).replace(/<[^>]+>/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
       } else if (name.endsWith('.docx')) {
         const buf = await file.arrayBuffer();
+        const mammoth = (await loadMammoth()).default;
         const result = await mammoth.extractRawText({ arrayBuffer: buf });
         plain = result.value.trim();
       } else {
@@ -253,6 +258,7 @@ function AsanaTab({ onCancel, onParsed }: { onCancel: () => void; onParsed: (row
       let text: string;
       if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
         const buf = await file.arrayBuffer();
+        const XLSX = await loadXLSX();
         const wb = XLSX.read(buf, { type: 'array' });
         const firstSheet = wb.Sheets[wb.SheetNames[0]];
         if (!firstSheet) { setError('Excel vacío'); return; }

@@ -8,7 +8,18 @@ import { Input } from '@/components/ui/Input';
 import {
   SOP_BLOCKS, SOP_QUESTIONS, type SopAssessment,
 } from '@/types/viability';
-import { exportSopReport } from '@/services/sopPdf';
+// jsPDF solo hace falta al descargar el informe. Carga bajo demanda.
+const loadSopPdf = () => import('@/services/sopPdf');
+
+/** Descarga el informe SOP cargando jsPDF al vuelo. Avisa si algo falla. */
+async function downloadSopReport(assessment: SopAssessment): Promise<void> {
+  try {
+    (await loadSopPdf()).exportSopReport(assessment);
+  } catch (e) {
+    console.warn('[sopPdf]', e);
+    toast.error('No se pudo generar el informe');
+  }
+}
 import { toast } from '@/store/useToastStore';
 
 export function SopAgentPage() {
@@ -108,7 +119,10 @@ export function SopAgentPage() {
                       />
                     </td>
                     <td className="py-2.5 pr-3 flex items-center gap-1">
-                      <button onClick={() => exportSopReport(a)} className="h-7 w-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-elevated inline-flex items-center justify-center">
+                      <button
+                        onClick={() => void downloadSopReport(a)}
+                        className="h-7 w-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-elevated inline-flex items-center justify-center"
+                      >
                         <Download className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => { remove(a.id); toast.success('Eliminado'); }} className="h-7 w-7 rounded-md text-text-muted hover:text-status-danger hover:bg-bg-elevated">
@@ -265,7 +279,7 @@ function SopResult({ assessment, onReset }: { assessment: SopAssessment; onReset
         <Button variant="secondary" leftIcon={<Sparkles className="h-4 w-4" />} onClick={onReset}>
           Nuevo análisis
         </Button>
-        <Button leftIcon={<Download className="h-4 w-4" />} onClick={() => exportSopReport(assessment)}>
+        <Button leftIcon={<Download className="h-4 w-4" />} onClick={() => void downloadSopReport(assessment)}>
           Descargar informe PDF
         </Button>
       </div>

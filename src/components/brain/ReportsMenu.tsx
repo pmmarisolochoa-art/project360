@@ -7,11 +7,11 @@ import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { useRopreStore } from '@/store/useRopreStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
-import {
-  exportMonthlyReport,
-  exportLaunchReport,
-} from '@/services/reportsPdf';
-import { exportWeeklyReportHTML, exportMeetingReportHTML } from '@/services/htmlReport';
+// jsPDF + html2canvas pesan ~2 MB y solo hacen falta al pedir un reporte, no al
+// abrir el cerebro. Se cargan bajo demanda (el `run()` de abajo ya captura el
+// fallo con toast, incluido el caso de que no cargue el chunk).
+const loadReportsPdf = () => import('@/services/reportsPdf');
+const loadHtmlReport = () => import('@/services/htmlReport');
 
 /**
  * Menú compacto en el header del cerebro: 4 reportes PDF.
@@ -99,7 +99,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                       ? funnels.find((f) => f.id === client.activeFunnelId) ?? null
                       : funnels[0] ?? null;
                     run(
-                      () => exportWeeklyReportHTML({ client, tasks, meetings, funnel: activeFunnel, ropreItems, phases: allPhases.filter((p) => activeFunnel != null && p.funnelId === activeFunnel.id) }),
+                      async () => (await loadHtmlReport()).exportWeeklyReportHTML({ client, tasks, meetings, funnel: activeFunnel, ropreItems, phases: allPhases.filter((p) => activeFunnel != null && p.funnelId === activeFunnel.id) }),
                       'Reporte semanal',
                     );
                   }}
@@ -108,7 +108,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                   icon={<CalendarRange className="h-3.5 w-3.5" />}
                   label="Reporte mensual"
                   hint="KPIs + pendientes del mes"
-                  onClick={() => run(() => exportMonthlyReport({ client, tasks, meetings }), 'Reporte mensual')}
+                  onClick={() => run(async () => (await loadReportsPdf()).exportMonthlyReport({ client, tasks, meetings }), 'Reporte mensual')}
                 />
                 <MenuItem
                   icon={<Mic className="h-3.5 w-3.5" />}
@@ -141,7 +141,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                         icon={<Mic className="h-3.5 w-3.5" />}
                         label={m.title}
                         hint={new Date(m.scheduledAt).toLocaleDateString('es')}
-                        onClick={() => run(() => exportMeetingReportHTML({ client, meeting: m }), 'Reporte de reunión')}
+                        onClick={() => run(async () => (await loadHtmlReport()).exportMeetingReportHTML({ client, meeting: m }), 'Reporte de reunión')}
                       />
                     ))}
                 </div>
@@ -159,7 +159,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                       label={f.name}
                       hint={f.status}
                       onClick={() => run(
-                        () => exportLaunchReport({
+                        async () => (await loadReportsPdf()).exportLaunchReport({
                           client,
                           funnel: f,
                           phases: allPhases.filter((p) => p.funnelId === f.id),

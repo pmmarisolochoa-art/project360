@@ -15,7 +15,9 @@ import type { FunnelInputs, OKR, ProjectPhase, KeyResult, InvestmentLine, AdMetr
 import { Modal } from '@/components/ui/Modal';
 import { useProjectionStore, calculateFunnel, SCENARIO_META } from '@/store/useProjectionStore';
 import { getBenchmark } from '@/services/benchmarks';
-import { exportProjectionToPdf, exportDebriefingToPdf } from '@/services/projectionPdf';
+// jsPDF solo hace falta al exportar. Se carga bajo demanda (ambos call sites
+// están en try/catch con toast, así que un fallo de chunk queda cubierto).
+const loadProjectionPdf = () => import('@/services/projectionPdf');
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
@@ -96,7 +98,7 @@ export function ProjectionsModule({ client, readOnly = false }: { client: Client
   const handleExport = async () => {
     setExporting(true);
     try {
-      await exportProjectionToPdf({ client, state });
+      await (await loadProjectionPdf()).exportProjectionToPdf({ client, state });
       toast.success('PDF descargado');
     } catch (e) {
       console.error(e);
@@ -1640,7 +1642,7 @@ function DebriefingSection({ client, accent, readOnly = false }: { client: Clien
   const handleExportDebrief = async () => {
     setExporting(true);
     try {
-      await exportDebriefingToPdf({ client, state });
+      await (await loadProjectionPdf()).exportDebriefingToPdf({ client, state });
       toast.success('Debriefing PDF descargado');
     } catch (e) {
       console.error(e);

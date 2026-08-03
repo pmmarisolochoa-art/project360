@@ -4,10 +4,13 @@ import { motion } from 'framer-motion';
 import {
   X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain, Send,
 } from 'lucide-react';
-import { downloadMeetingReportPdf } from '@/services/meetingReportEditorial';
 import { sendMeetingReport } from '@/services/sendMeetingReport';
-import { marked } from 'marked';
-import mammoth from 'mammoth';
+// Cargas bajo demanda: el PDF arrastra jsPDF+html2canvas (~2 MB) y solo se usa
+// al pulsar "PDF"; marked/mammoth solo al subir un .md/.docx. Ninguno hace
+// falta para abrir el drawer. Todos los call sites están en try/catch con toast.
+const loadMeetingPdf = () => import('@/services/meetingReportEditorial');
+const loadMarked = () => import('marked');
+const loadMammoth = () => import('mammoth');
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Meeting, MeetingType } from '@/types/meeting';
@@ -193,6 +196,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
       let plainText = '';
       if (name.endsWith('.md') || name.endsWith('.markdown')) {
         const raw = await file.text();
+        const { marked } = await loadMarked();
         const html = await marked.parse(raw);
         plainText = String(html)
           .replace(/<[^>]+>/g, '\n')
@@ -200,6 +204,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           .trim();
       } else if (name.endsWith('.docx')) {
         const arrayBuffer = await file.arrayBuffer();
+        const mammoth = (await loadMammoth()).default;
         const result = await mammoth.extractRawText({ arrayBuffer });
         plainText = result.value.trim();
       } else {
@@ -803,7 +808,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                 onClick={async () => {
                   try {
                     toast.info('Generando el reporte ejecutivo…');
-                    await downloadMeetingReportPdf(client, meeting);
+                    await (await loadMeetingPdf()).downloadMeetingReportPdf(client, meeting);
                     toast.success('Reporte de reunión generado');
                   } catch (e) {
                     console.warn('[meetingPdf]', e);

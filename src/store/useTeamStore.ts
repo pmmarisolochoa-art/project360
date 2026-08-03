@@ -2,9 +2,14 @@ import { create } from 'zustand';
 import type { RoleAssignment, TeamRoleSlug } from '@/types/team';
 import { ROLE_DEFS } from '@/types/team';
 import { TeamRepo } from '@/services/repositories';
+import { isPersistableId } from '@/utils/persistableId';
 
 const upsertTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function scheduleUpsert(a: RoleAssignment) {
+  // Los clientes del seed no existen en Supabase y su id no es uuid: escribirlos
+  // solo produce 400s. El estado en memoria ya se actualizó, que es lo que la
+  // UI local necesita.
+  if (!isPersistableId(a.clientId)) return;
   const key = `${a.clientId}:${a.roleSlug}`;
   const existing = upsertTimers.get(key);
   if (existing) clearTimeout(existing);
@@ -119,7 +124,10 @@ export const useTeamStore = create<TeamState>((set, get) => ({
         kpiValues: seedKpiValues(clientId, r.slug),
       }));
     set((s) => ({ assignments: [...s.assignments, ...toCreate] }));
-    // Persist los nuevos a Supabase (sin debounce — primera vez)
+    // Persist los nuevos a Supabase (sin debounce — primera vez). Los clientes
+    // del seed se quedan solo en memoria: su id no es uuid y la escritura
+    // fallaría con 22P02.
+    if (!isPersistableId(clientId)) return;
     toCreate.forEach((a) => void TeamRepo.upsert(a).catch((e) => console.warn('[team.upsert:initial]', e)));
   },
   update: (clientId, roleSlug, patch) => {

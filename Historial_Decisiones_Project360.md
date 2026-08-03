@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-08-03 — Code-splitting: carga inicial 3.9 MB → 1.33 MB (402 KB gzip)
+
+Commit `439b19a`, **pusheado a prod**. El bundle entero viajaba en un solo `index.js` de 3.9 MB aunque abrieras solo el dashboard — varios segundos en 4G antes de ver nada, que es lo que sufre el equipo en Colombia.
+
+**1. Corrección al plan que se había escrito el 01-ago.** El plan decía "`manualChunks` primero por ser el de mayor impacto". **Era incorrecto y se verificó midiendo:** `manualChunks` solo mejora el caché entre deploys; si todo se importa estáticamente el navegador lo descarga igual, así que **no reduce la primera carga**. Lo que sí la reduce es `import()` dinámico y `React.lazy`. Se hizo en ese orden y se midió cada paso.
+
+**2. Librerías pesadas a `import()` dinámico** (3.9 → 3.0 MB). jsPDF, html2canvas, xlsx, mammoth y marked solo hacen falta al pulsar "exportar" o subir un archivo, nunca al cargar una página. Convertidas en `ReportsMenu`, `ProjectionsModule`, `FunnelLaunchPanel`, `SopAgentPage`, `MeetingDrawer` y `FunnelImportModal`. **Todos los call sites ya estaban en try/catch con toast** (gracias al trabajo del 01-ago), así que un fallo al bajar el chunk queda cubierto; solo en `SopAgentPage` faltaba el catch y se añadió. **El typecheck atrapó un segundo uso de `exportSopReport`** que el grep inicial no vio — sin él habría quedado un botón roto.
+
+**3. Rutas con `React.lazy` + `Suspense`** (3.0 → 1.33 MB). `DashboardMacro` y `LoginPage` siguen eager por ser los puntos de entrada reales (hacerlas lazy solo añadiría parpadeo). El resto baja al navegar — esto saca `recharts` y el `ClientBrainPage` (1 MB él solo) del arranque. Los `.then` mapean el export nombrado al `default` que `lazy` espera.
+
+**4. `manualChunks`** para lo que sí sirve: react/supabase/recharts/framer-motion en chunks propios, para que un deploy nuevo no obligue a re-descargarlos.
+
+**Verificación (medida, no estimada):** con Playwright sobre el **build de producción**, `performance.getEntriesByType('resource')` → 4 archivos, 1.33 MB sin comprimir, **402 KB transferidos** (antes 3.9 MB / ~1.08 MB). Y logueado: las 9 rutas montan sin pantallas en blanco —incluida `/team`, que carga recharts desde su chunk con las 2 gráficas renderizando—, `ClientBrainPage` abre por clic, y el `import()` dinámico se probó **end-to-end generando un Reporte Mensual real** (PDF de 3 páginas). 34 chunks en total.
+
+**Hallazgo lateral (NO es del cambio, ya existía):** `/team` lanza **39 errores 400** contra `client_team_members` — `22P02: invalid input syntax for type uuid: "c_escueladigital"`. Son **IDs del seed in-memory** (`src/data/seed.ts`: `c_fitmind`, `c_kuroko`, `c_escueladigital`) que `useTeamStore` intenta hacer upsert contra columnas uuid de Supabase. Ruidoso e inútil, pero no rompe la UI. **Pendiente de limpiar.**
+
+**Pendientes:** limpiar los upserts del seed que ensucian `/team` con 39 errores; probar el ciclo **logout→login** (sigue sin verificarse; ojo: la sesión de Supabase caducó a mitad de esta sesión con `Invalid Refresh Token`, comportamiento normal de expiración).
+
+---
+
 ## 2026-08-01 — Ninguna escritura fallida vuelve a perderse en silencio + migración 027
 
 Continuación directa de la sesión del 30-jul. Commit `969dcba`, **pusheado a `origin/main`** (`f591aab..969dcba`). *Nota: la entrada del 30-jul dice "sin pushear" — ya no aplica, los tres commits (`d7cd0d0`, `f591aab`, `969dcba`) están en prod.*

@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-08-03 (tarde) — El seed nunca se escribe en Supabase (39 errores 400 en /team → 0)
+
+Commit `34d2170`, **pusheado a prod**. Cierra el hallazgo lateral de la entrada anterior.
+
+**Causa raíz:** `TeamPage` llama a `ensureForClient()` para **todos** los clientes del store, y antes de hidratar el store son los del **seed in-memory** (`src/data/seed.ts`), cuyos ids son legibles (`c_fitmind`, `c_kuroko`, `c_escueladigital`) y no uuid. Cada asignación generada intentaba persistirse contra columnas uuid de Supabase y moría con `22P02`. 39 peticiones fallidas cada vez que alguien abría Equipo.
+
+**Decisión: el guard vive en `utils/`, no en el store.** Nuevo `src/utils/persistableId.ts` con `isPersistableId()` (test de forma uuid). Se puso ahí en vez de dentro de `useTeamStore` porque **cualquier store que persista por `clientId` puede caer en lo mismo** — hay 7 stores con escrituras a repos. Aplicado en los **dos** caminos de escritura de `useTeamStore`: el upsert inicial de `ensureForClient()` y el debounced de `update()`. **El estado en memoria se sigue creando igual**, así que la UI en modo local (sin Supabase) no cambia en nada.
+
+**Verificación:** `/team` pasa de 39 errores a **0**, renderizando idéntico — 2 gráficas y 2476 chars de texto, exactamente los mismos números que antes del cambio (cero regresión). El guard se probó contra el uuid real de Ikigai (persiste), los 3 ids del seed y `null`/`undefined`/vacío (no persisten). De paso se confirmó en la pestaña de red que los `PATCH /tasks` ahora devuelven **204** — evidencia adicional de que la migración 027 dejó sano el guardado de tareas.
+
+---
+
 ## 2026-08-03 — Code-splitting: carga inicial 3.9 MB → 1.33 MB (402 KB gzip)
 
 Commit `439b19a`, **pusheado a prod**. El bundle entero viajaba en un solo `index.js` de 3.9 MB aunque abrieras solo el dashboard — varios segundos en 4G antes de ver nada, que es lo que sufre el equipo en Colombia.

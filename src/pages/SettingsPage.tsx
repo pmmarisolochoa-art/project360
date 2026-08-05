@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { IntegrationsModal } from '@/components/dashboard/IntegrationsModal';
+import { ApiKeysSection } from '@/components/settings/ApiKeysSection';
 import { toast } from '@/store/useToastStore';
 
 const TIMEZONES = [
@@ -87,6 +88,10 @@ export function SettingsPage() {
           <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" />
         </Link>
       </section>
+
+      {/* API pública v1 — solo la ve/usa la dueña de la agencia (el endpoint
+          responde 403 a los miembros y la sección queda vacía). */}
+      <ApiKeysSection />
 
       <section className="surface p-5">
         <header className="flex items-center gap-2 mb-4">

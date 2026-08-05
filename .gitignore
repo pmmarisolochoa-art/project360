@@ -6,6 +6,7 @@ dist
 *.log
 tsconfig.tsbuildinfo
 tsconfig.node.tsbuildinfo
+tsconfig.api.tsbuildinfo
 .claude/
 vite.config.d.ts
 vite.config.js

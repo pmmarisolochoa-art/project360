@@ -1,0 +1,30 @@
+{
+  // Las funciones de `api/` corren en el Edge Runtime de Vercel: tienen las
+  // APIs web (Request, Response, crypto.subtle) pero NO el DOM ni Node.
+  //
+  // Existe porque hasta ahora `api/` no estaba en NINGÚN tsconfig: el código
+  // que habla con la service key de Supabase era justo el único que nadie
+  // revisaba. El script `typecheck` lo compila aparte, así que el CI lo cubre.
+  //
+  // NO es un proyecto referenciado desde tsconfig.json a propósito: TypeScript
+  // exige que los referenciados emitan (TS6310), y eso llenaría `api/` de
+  // archivos .d.ts basura. Con `noEmit` + una invocación propia, se revisa sin
+  // ensuciar nada.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    // `process.env` es la única API de Node que usan estas funciones (leer
+    // variables de entorno); Vercel la expone también en el Edge Runtime.
+    "types": ["node"]
+  },
+  "include": ["api"]
+}

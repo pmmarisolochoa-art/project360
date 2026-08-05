@@ -1,0 +1,47 @@
+name: CI
+
+# Red de seguridad de Ikigai Agencia (Project360).
+#
+# En cada push a main y en cada Pull Request revisa que el código compile
+# (typecheck), pase el linter y construya (build). Si algo falla, GitHub lo
+# marca en rojo — y se ve ANTES de que llegue a producción.
+#
+# Existe porque hasta ahora todo dependía de que alguien se acordara de correr
+# `tsc` y `build` a mano antes de subir.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Si llega un push nuevo, cancela la corrida vieja del mismo branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck · Lint · Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Traer el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Typecheck (¿compila TypeScript?)
+        run: npm run typecheck
+
+      - name: Lint (¿código limpio?)
+        run: npm run lint
+
+      - name: Build (¿construye la app?)
+        run: npm run build

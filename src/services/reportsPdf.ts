@@ -8,6 +8,7 @@ import type { Meeting } from '@/types/meeting';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { RopreItem } from '@/types/ropre';
 import { generateWeeklyReport, generateRopreWeekly } from '@/services/claudeApi';
+import { BRAND } from '@/config/brand';
 import { resolveRoleLabel } from '@/utils/roleResolver';
 
 /**
@@ -34,7 +35,7 @@ function header(doc: jsPDF, client: Client, kind: string, accentRgb: [number, nu
   doc.setFillColor(...accentRgb);
   doc.rect(0, 0, 8, pageH, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(120, 120, 140);
-  doc.text(`SALES BRAIN OS — ${kind}`, 22, 28);
+  doc.text(`${BRAND.name} — ${kind}`, 22, 28);
   doc.setFontSize(28); doc.setTextColor(20, 20, 30);
   doc.text(client.name, 22, 70);
   doc.setFontSize(10); doc.setTextColor(100, 100, 120);
@@ -49,7 +50,7 @@ function footer(doc: jsPDF) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150, 150, 160);
     doc.text(`Página ${i} de ${total}`, pageW - 18, pageH - 8, { align: 'right' });
-    doc.text('Sales Brain OS', 18, pageH - 8);
+    doc.text(BRAND.label, 18, pageH - 8);
   }
 }
 
@@ -71,7 +72,7 @@ function fileName(client: Client, kind: string) {
  * Es async porque llama a Claude. Si Claude falla, usa fallback heurístico
  * y el PDF se genera igual (nunca bloquea la descarga).
  */
-export async function exportWeeklyReport({ client, tasks, meetings, funnel, needFromClient, ropreItems }: {
+export async function exportWeeklyReport({ client, tasks: tasksIn, meetings: meetingsIn, funnel, needFromClient, ropreItems }: {
   client: Client;
   tasks: Task[];
   meetings: Meeting[];
@@ -79,6 +80,9 @@ export async function exportWeeklyReport({ client, tasks, meetings, funnel, need
   needFromClient?: string;
   ropreItems?: RopreItem[];
 }): Promise<void> {
+  // Regla 5D: lo privado nunca sale en un reporte.
+  const tasks = tasksIn.filter((t) => !t.esPrivada);
+  const meetings = meetingsIn.filter((m) => !m.esPrivada);
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -155,7 +159,7 @@ export async function exportWeeklyReport({ client, tasks, meetings, funnel, need
     pageW / 2, 135, { align: 'center' },
   );
   doc.setFontSize(10);
-  doc.text('Preparado por: Marisol Ochoa  |  Project360', pageW / 2, pageH - 30, { align: 'center' });
+  doc.text(`Preparado por: Marisol Ochoa  |  ${BRAND.label}`, pageW / 2, pageH - 30, { align: 'center' });
 
   /* ═══ P1: RESUMEN EJECUTIVO ═══ */
   doc.addPage();
@@ -437,7 +441,7 @@ export async function exportWeeklyReport({ client, tasks, meetings, funnel, need
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 160);
     doc.text(
-      `Preparado por Project360 para ${client.name}  |  Semana del ${format(weekStart, 'd MMM', { locale: es })}  |  Confidencial`,
+      `Preparado por ${BRAND.label} para ${client.name}  |  Semana del ${format(weekStart, 'd MMM', { locale: es })}  |  Confidencial`,
       pageW / 2, pageH - 8, { align: 'center' },
     );
     doc.text(`${i - 1} de ${total - 1}`, pageW - 18, pageH - 8, { align: 'right' });
@@ -449,11 +453,14 @@ export async function exportWeeklyReport({ client, tasks, meetings, funnel, need
 
 /* ───────────────────────── 2) REPORTE MENSUAL ───────────────────────── */
 
-export function exportMonthlyReport({ client, tasks, meetings }: {
+export function exportMonthlyReport({ client, tasks: tasksIn, meetings: meetingsIn }: {
   client: Client;
   tasks: Task[];
   meetings: Meeting[];
 }) {
+  // Regla 5D: lo privado nunca sale en un reporte.
+  const tasks = tasksIn.filter((t) => !t.esPrivada);
+  const meetings = meetingsIn.filter((m) => !m.esPrivada);
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const accent = hexToRgb(client.primaryColor);
   const monthStart = startOfMonth(new Date());
@@ -479,7 +486,7 @@ export function exportMonthlyReport({ client, tasks, meetings }: {
   autoTable(doc, {
     head: [['Indicador', 'Valor']],
     body: [
-      ['ROAS', client.metrics.roas !== null ? `${client.metrics.roas.toFixed(2)}x` : '—'],
+      ['ROAS', client.metrics.roas != null ? `${client.metrics.roas.toFixed(2)}x` : '—'],
       ['Invertido este mes', client.metrics.invertedThisMonth ? `$${client.metrics.invertedThisMonth.toLocaleString('es')}` : '—'],
       ['Ventas', client.metrics.salesCount ? `${client.metrics.salesCount}` : '—'],
       ['Facturado acumulado', client.metrics.revenueAccumulated ? `$${client.metrics.revenueAccumulated.toLocaleString('es')}` : '—'],

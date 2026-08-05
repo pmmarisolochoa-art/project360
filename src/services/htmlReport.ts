@@ -8,6 +8,8 @@ import type { Meeting } from '@/types/meeting';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { RopreItem } from '@/types/ropre';
 import { generateWeeklyReport } from '@/services/claudeApi';
+// Alias: en este archivo `BRAND` ya es la paleta de colores del reporte.
+import { BRAND as AGENCY } from '@/config/brand';
 import { resolveRoleLabel } from '@/utils/roleResolver';
 
 /**
@@ -60,7 +62,21 @@ export function escapeReport(s: unknown): string {
 }
 
 export async function exportWeeklyReportHTML(input: WeeklyHtmlInput): Promise<void> {
-  await renderReport(await buildReportModel(input));
+  await renderReport(await buildReportModel(sinPrivadas(input)));
+}
+
+/**
+ * Regla 5D: lo privado NUNCA sale en un reporte, ni siquiera en el de su
+ * propio dueño — un reporte se comparte con el cliente y con el equipo.
+ * El corte se hace aquí, en la entrada del reporte, para que valga para todos
+ * los que lo llaman y no haya que acordarse en cada punto.
+ */
+export function sinPrivadas<T extends { tasks: Task[]; meetings: Meeting[] }>(input: T): T {
+  return {
+    ...input,
+    tasks: input.tasks.filter((t) => !t.esPrivada),
+    meetings: input.meetings.filter((m) => !m.esPrivada),
+  };
 }
 
 /**
@@ -177,7 +193,7 @@ function drawFooter(doc: jsPDF, m: ReportModel) {
   doc.line(14, PH - 12, PW - 14, PH - 12);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(140, 147, 164);
   doc.text(m.footerLeft, 14, PH - 7);
-  doc.text('Project360 · Confidencial · No distribuir', PW - 14, PH - 7, { align: 'right' });
+  doc.text(`${AGENCY.label} · Confidencial · No distribuir`, PW - 14, PH - 7, { align: 'right' });
 }
 
 /* ───────────────────────── Modelo + bloques HTML ───────────────────────── */
@@ -205,7 +221,7 @@ async function buildReportModel(input: WeeklyHtmlInput): Promise<ReportModel> {
 
   const goals = (client.onboardingData.goals ?? {}) as { revenue3m?: number; launchGoal?: string };
   const biz = (client.onboardingData.business ?? {}) as { averageTicket?: number; currency?: string };
-  const agency = ((client.onboardingData.team ?? {}) as { agency?: string }).agency ?? 'Project360';
+  const agency = ((client.onboardingData.team ?? {}) as { agency?: string }).agency ?? AGENCY.label;
   const money = (n: number) => `$${new Intl.NumberFormat('en-US').format(Math.round(n))}`;
 
   const ai = await generateWeeklyReport({
@@ -436,7 +452,7 @@ export async function exportMeetingReportHTML(input: MeetingHtmlInput): Promise<
   const typeLabel = MEETING_TYPE_LABEL[meeting.type] ?? meeting.type;
   const participants = meeting.participants.map((p) => p.name).filter(Boolean);
   const tasks = meeting.extractedTasks ?? [];
-  const agency = ((client.onboardingData.team ?? {}) as { agency?: string }).agency ?? 'Project360';
+  const agency = ((client.onboardingData.team ?? {}) as { agency?: string }).agency ?? AGENCY.label;
 
   let secN = 0;
   const sh = (title: string, tag?: string) =>

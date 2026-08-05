@@ -1,16 +1,43 @@
 import { supabase } from './supabase';
 
 /** Un link/entregable que el equipo sube a una tarea (tabla task_links, migración 019). */
+export type TaskLinkTipo = 'entregable' | 'referencia' | 'drive' | 'notion' | 'loom' | 'web' | 'otro';
+/** Revisión del PM. */
+export type TaskLinkEstado = 'pendiente' | 'aprobado' | 'correcciones';
+/** De dónde salió el link. */
+export type TaskLinkFuente = 'tarea' | 'manual';
+
 export interface TaskLink {
   id: string;
-  taskId: string;
+  /** Null en los links manuales, que no nacen de una tarea. */
+  taskId: string | null;
   clientId: string;
   nombre: string;
   url: string;
-  tipo: 'entregable' | 'referencia' | 'drive' | 'notion' | 'loom' | 'web' | 'otro';
+  tipo: TaskLinkTipo;
   createdBy: string | null;
+  /** Nombre visible de quien lo subió (copiado al insertar). */
+  createdByNombre: string | null;
   createdAt: string;
+  /* ── Trazabilidad (migración 031) ─────────────────────────────────────── */
+  fuente: TaskLinkFuente;
+  estado: TaskLinkEstado;
+  /** Reunión de la que venía la tarea que originó el entregable. */
+  meetingId: string | null;
+  notas?: string;
 }
+
+export const TASK_LINK_ESTADO_LABEL: Record<TaskLinkEstado, string> = {
+  pendiente: 'Pendiente revisión',
+  aprobado: 'Aprobado',
+  correcciones: 'Con correcciones',
+};
+
+export const TASK_LINK_ESTADO_TONE: Record<TaskLinkEstado, 'neutral' | 'success' | 'warning'> = {
+  pendiente: 'neutral',
+  aprobado: 'success',
+  correcciones: 'warning',
+};
 
 function rowToLink(r: Record<string, unknown>): TaskLink {
   const x = r as Record<string, any>;
@@ -22,7 +49,12 @@ function rowToLink(r: Record<string, unknown>): TaskLink {
     url: x.url,
     tipo: x.tipo ?? 'entregable',
     createdBy: x.created_by ?? null,
+    createdByNombre: x.created_by_nombre ?? null,
     createdAt: x.created_at,
+    fuente: x.fuente ?? 'tarea',
+    estado: x.estado ?? 'pendiente',
+    meetingId: x.meeting_id ?? null,
+    notas: x.notas ?? undefined,
   };
 }
 
@@ -62,11 +94,18 @@ export const TaskLinksRepo = {
    * auth.uid(), migración 019b). Lanza si falla, para que la UI lo muestre.
    */
   async create(input: {
-    taskId: string;
+    /** Null solo en links manuales del PM. */
+    taskId: string | null;
     clientId: string;
     nombre: string;
     url: string;
-    tipo?: TaskLink['tipo'];
+    tipo?: TaskLinkTipo;
+    fuente?: TaskLinkFuente;
+    /** Reunión de origen. Si no se pasa y hay tarea, se hereda de la tarea. */
+    meetingId?: string | null;
+    notas?: string;
+    /** Nombre visible de quien sube. Se copia para no depender de un join. */
+    createdByNombre?: string;
   }): Promise<TaskLink | null> {
     if (!supabase) return null;
     const { data, error } = await supabase
@@ -77,6 +116,10 @@ export const TaskLinksRepo = {
         nombre: input.nombre,
         url: input.url,
         tipo: input.tipo ?? 'entregable',
+        fuente: input.fuente ?? (input.taskId ? 'tarea' : 'manual'),
+        meeting_id: input.meetingId ?? null,
+        notas: input.notas ?? null,
+        created_by_nombre: input.createdByNombre ?? null,
       })
       .select('*')
       .single();
@@ -85,6 +128,16 @@ export const TaskLinksRepo = {
       throw new Error(error.message);
     }
     return rowToLink(data);
+  },
+
+  /** Revisión del PM: aprobar o pedir correcciones (policy nueva de la 031). */
+  async setEstado(id: string, estado: TaskLinkEstado): Promise<void> {
+    if (!supabase) return;
+    const { error } = await supabase.from('task_links').update({ estado }).eq('id', id);
+    if (error) {
+      console.warn('[taskLinks.setEstado]', error);
+      throw new Error(error.message);
+    }
   },
 
   async remove(id: string): Promise<void> {

@@ -207,7 +207,9 @@ export function ApiActividad({ keys }: { keys: ApiKeyRow[] }) {
             </tbody>
           </table>
           <p className="text-xs text-text-muted mt-2">
-            Mostrando las {filas.length} llamadas más recientes.
+            Mostrando las {filas.length} llamadas más recientes. Los intentos con una llave
+            <strong> desconocida</strong> no aparecen acá: sin una llave válida no hay forma de saber a qué
+            agencia atribuirlos. Sí aparecen los de llaves tuyas revocadas o expiradas.
           </p>
         </div>
       )}

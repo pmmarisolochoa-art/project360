@@ -231,6 +231,27 @@ logueado = estado.requests[0]?.request_body;
 ok(logueado.api_key === '[redactado]', 'un secreto mandado por error queda REDACTADO en el log');
 ok(!JSON.stringify(estado.requests[0]).includes(KEY_OK.slice(8)), 'la llave no aparece en ninguna parte del log');
 
+// ═══ ATRIBUCIÓN DEL LOG ═══
+seccion('Atribución del audit log');
+reset({ keys: [keyBase({ activa: false })] });
+r = await pedir(tasks);
+await new Promise((r) => setTimeout(r, 10));
+ok(r.status === 401, 'llave revocada → 401');
+ok(estado.requests[0]?.agencia_id === AG_A,
+   'la llamada de una llave REVOCADA se atribuye a su agencia (si no, sería invisible en el panel)');
+ok(estado.requests[0]?.api_key_id === 'key-1', 'y se sabe qué llave fue');
+
+reset({ keys: [keyBase({ expira_en: new Date(Date.now() - 1000).toISOString() })] });
+await pedir(tasks);
+await new Promise((r) => setTimeout(r, 10));
+ok(estado.requests[0]?.agencia_id === AG_A, 'igual con una llave EXPIRADA');
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { key: 'pk_live_' + 'q'.repeat(32) });
+await new Promise((r) => setTimeout(r, 10));
+ok(estado.requests[0]?.agencia_id === null,
+   'una llave DESCONOCIDA queda sin agencia — no hay a quién atribuírsela (limitación conocida)');
+
 console.log(`\n${'═'.repeat(62)}`);
 console.log(fallos === 0 ? `🟢 ${total}/${total} PASARON` : `🔴 ${fallos} de ${total} FALLARON`);
 process.exit(fallos ? 1 : 0);

@@ -222,6 +222,25 @@ export function proteger(opts: Opciones) {
         return res;
       }
 
+      // Se atribuye la llamada a su llave EN CUANTO se sabe de cuál es, aunque
+      // el intento vaya a fallar. Antes esto pasaba después del control de
+      // `activa`, y el resultado era que las llamadas de una llave REVOCADA se
+      // guardaban con `agencia_id` nulo — y la policy de lectura exige que no
+      // lo sea, así que quedaban invisibles en el panel.
+      //
+      // Justo el caso que más se va a dar en la vida real: una integración a la
+      // que le revocaron la llave y sigue llamando cada minuto. Su dueña tiene
+      // que poder verlo; si no, la alerta de "posible ataque" no se dispara
+      // nunca para el escenario más probable.
+      //
+      // Ojo: esto NO cambia lo que ve quien llama. La respuesta sigue siendo
+      // idéntica para "no existe" y para "revocada"; lo que cambia es lo que
+      // queda anotado de nuestro lado.
+      if (fila) {
+        keyId = fila.id as string;
+        agenciaId = fila.agencia_id as string;
+      }
+
       // Mismo mensaje para "no existe" y para "revocada": distinguirlos le
       // diría a un atacante cuándo acertó una key que alguna vez fue real.
       if (!fila || fila.activa !== true) {
@@ -229,9 +248,6 @@ export function proteger(opts: Opciones) {
         registrar(res, admin);
         return res;
       }
-
-      keyId = fila.id as string;
-      agenciaId = fila.agencia_id as string;
 
       // La expiración sí se distingue: el dueño legítimo necesita saber que
       // su key venció, y saberlo no le sirve de nada a un atacante.

@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { KeyRound, Plus, Copy, Check, AlertTriangle, Ban, ShieldCheck } from 'lucide-react';
+import { KeyRound, Plus, Copy, Check, AlertTriangle, Ban, ShieldCheck, BookOpen, ChevronDown } from 'lucide-react';
 import { ApiActividad } from './ApiActividad';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -59,6 +59,7 @@ export function ApiKeysSection() {
   const [cargando, setCargando] = useState(true);
   const [modalAbierto, setModalAbierto] = useState(false);
   const [tab, setTab] = useState<'llaves' | 'actividad'>('llaves');
+  const [docsAbiertas, setDocsAbiertas] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -206,6 +207,44 @@ export function ApiKeysSection() {
           {activas} activa{activas === 1 ? '' : 's'}. Las llaves nunca ven tareas ni reuniones privadas.
         </p>
       )}
+
+      {/* Resumen para desarrolladores. La documentación completa que se le
+          ENVÍA a la gente de fuera vive en API_PUBLICA.md — acá solo lo justo
+          para responder sin ir a buscar el archivo. */}
+      <div className="mt-4 rounded-[10px] border border-border-subtle">
+        <button
+          onClick={() => setDocsAbiertas((v) => !v)}
+          aria-expanded={docsAbiertas}
+          className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-sm focus-ring"
+        >
+          <span className="flex items-center gap-2">
+            <BookOpen className="h-3.5 w-3.5 text-accent-violet" />
+            ¿Qué le mando a quien va a integrar?
+          </span>
+          <ChevronDown className={`h-4 w-4 text-text-muted transition-transform ${docsAbiertas ? 'rotate-180' : ''}`} />
+        </button>
+        {docsAbiertas && (
+          <div className="px-4 pb-4 pt-1 text-sm text-text-secondary space-y-2.5 border-t border-border-subtle">
+            <p>
+              Mándale el archivo <code className="text-xs">API_PUBLICA.md</code> del repositorio: tiene los
+              7 endpoints, los códigos de error y ejemplos listos para copiar.
+            </p>
+            <div>
+              <div className="text-xs font-medium text-text-primary mb-1">Lo esencial</div>
+              <ul className="text-xs space-y-1 list-disc list-inside">
+                <li>Base: <code>{typeof window !== 'undefined' ? window.location.origin : ''}/api/v1</code></li>
+                <li>Cabecera: <code>Authorization: Bearer pk_live_…</code></li>
+                <li>Solo desde su servidor — no funciona desde un navegador.</li>
+                <li>Que use siempre <code>external_id</code> al crear tareas: evita duplicados.</li>
+              </ul>
+            </div>
+            <p className="text-xs">
+              Empieza dándole una llave de <strong>solo lectura</strong>. Cuando la integración funcione,
+              emites otra con escritura — no hace falta tocar nada más.
+            </p>
+          </div>
+        )}
+      </div>
 
       </>
       )}

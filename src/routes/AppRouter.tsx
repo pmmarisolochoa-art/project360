@@ -19,8 +19,6 @@ import { LoginPage } from '@/pages/LoginPage';
  */
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
 const ClientBrainPage = lazy(() => import('@/pages/ClientBrainPage').then((m) => ({ default: m.ClientBrainPage })));
-const DeliverablesRepoPage = lazy(() => import('@/pages/DeliverablesRepoPage').then((m) => ({ default: m.DeliverablesRepoPage })));
-const LinksRepoPage = lazy(() => import('@/pages/LinksRepoPage').then((m) => ({ default: m.LinksRepoPage })));
 const SopAgentPage = lazy(() => import('@/pages/SopAgentPage').then((m) => ({ default: m.SopAgentPage })));
 const AllTasksPage = lazy(() => import('@/pages/AllTasksPage').then((m) => ({ default: m.AllTasksPage })));
 const ClientsPage = lazy(() => import('@/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
@@ -29,6 +27,23 @@ const TeamPage = lazy(() => import('@/pages/TeamPage').then((m) => ({ default: m
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const ClientPortalFunnelPage = lazy(() => import('@/pages/ClientPortalFunnelPage').then((m) => ({ default: m.ClientPortalFunnelPage })));
 const MiEspacio = lazy(() => import('@/pages/MiEspacio').then((m) => ({ default: m.MiEspacio })));
+const LinksEntregablesPage = lazy(() => import('@/pages/LinksEntregablesPage').then((m) => ({ default: m.LinksEntregablesPage })));
+
+/**
+ * Rutas viejas (inglés) → nuevas (español). Se mantienen como redirecciones
+ * permanentes para no romper enlaces guardados, correos ya enviados ni los
+ * deep-links del buscador. Se pueden borrar cuando ya nadie las use.
+ */
+const REDIRECCIONES: Array<[string, string]> = [
+  ['/clients', '/clientes'],
+  ['/agenda', '/agenda-global'],
+  ['/team', '/equipo'],
+  ['/settings', '/configuracion'],
+  ['/tasks', '/tareas'],
+  ['/repositorio/entregables', '/links-entregables'],
+  ['/repositorio/links', '/links-entregables'],
+  ['/agente-sop', '/configuracion'],
+];
 
 /** Spinner mientras baja el chunk de la ruta. Mismo look que el de AuthGate. */
 function RouteFallback() {
@@ -73,19 +88,28 @@ export function AppRouter() {
         {/* Portal cliente — público (sin Layout) para que el cliente final acceda sin login */}
         <Route path="client-portal/funnel/:token" element={<ClientPortalFunnelPage />} />
         <Route element={<Layout />}>
-          <Route index element={<DashboardMacro />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="agenda" element={<AgendaPage />} />
-          <Route path="team" element={<TeamPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="repositorio/entregables" element={<DeliverablesRepoPage />} />
-          <Route path="repositorio/links" element={<LinksRepoPage />} />
-          <Route path="agente-sop" element={<SopAgentPage />} />
-          <Route path="tasks" element={<AllTasksPage />} />
+          {/* Los 7 ítems del sidebar (Capa 0) */}
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardMacro />} />
+          <Route path="clientes" element={<ClientsPage />} />
+          <Route path="agenda-global" element={<AgendaPage />} />
+          <Route path="tareas" element={<AllTasksPage />} />
+          <Route path="equipo" element={<TeamPage />} />
+          <Route path="links-entregables" element={<LinksEntregablesPage />} />
+          <Route path="configuracion" element={<SettingsPage />} />
+
+          {/* Fuera del sidebar pero accesibles */}
           <Route path="onboarding" element={<OnboardingPage />} />
+          <Route path="configuracion/agente-sop" element={<SopAgentPage />} />
           <Route path="client/:id" element={<ClientBrainPage />} />
           <Route path="client/:id/:module" element={<ClientBrainPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+
+          {/* Compatibilidad: rutas viejas → nuevas */}
+          {REDIRECCIONES.map(([vieja, nueva]) => (
+            <Route key={vieja} path={vieja.slice(1)} element={<Navigate to={nueva} replace />} />
+          ))}
+
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
         </Routes>
       </Suspense>

@@ -6,6 +6,7 @@ import { FunnelLaunchRepo } from '@/services/repositories';
 import { FunnelRoadmap } from '@/components/dashboard/FunnelRoadmap';
 import type { Funnel } from '@/types/funnel';
 import type { Task } from '@/types/task';
+import { BRAND } from '@/config/brand';
 
 /**
  * Vista pública para el cliente final.
@@ -105,7 +106,7 @@ export function ClientPortalFunnelPage() {
             <div className="text-[10px] uppercase tracking-[0.22em] text-text-muted">Portal cliente</div>
             <h1 className="heading text-lg font-bold">{state.clientName}</h1>
           </div>
-          <div className="text-[10px] text-text-muted">Sales Brain OS</div>
+          <div className="text-[10px] text-text-muted">{BRAND.label}</div>
         </div>
       </header>
       <main className="max-w-5xl mx-auto p-6 lg:p-8">

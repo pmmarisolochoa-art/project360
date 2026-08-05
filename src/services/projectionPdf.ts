@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { calculateFunnel } from '@/store/useProjectionStore';
 import { getBenchmark } from '@/services/benchmarks';
+import { BRAND } from '@/config/brand';
 
 /**
  * Exporta a PDF el módulo de Proyección con contenido textual real
@@ -154,11 +155,11 @@ function drawCover(doc: jsPDF, client: Client, subtitle: string) {
   doc.setFillColor(r, g, b);
   doc.rect(0, 0, 8, pageH, 'F');
 
-  // Marca SALES BRAIN OS
+  // Marca de la agencia
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(120, 120, 140);
-  doc.text('SALES BRAIN OS', 22, 28);
+  doc.text(BRAND.name, 22, 28);
 
   // Nombre cliente (H1 grande)
   doc.setFont('helvetica', 'bold');

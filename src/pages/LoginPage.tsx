@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { toast } from '@/store/useToastStore';
+import { BRAND } from '@/config/brand';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export function LoginPage() {
       >
         <header className="mb-6 text-center">
           <div className="text-[11px] uppercase tracking-[0.22em] text-text-muted mb-2">
-            Sales Brain OS
+            {BRAND.name}
           </div>
           <h1 className="heading text-2xl lg:text-3xl font-bold">
             <span className="gradient-text">Iniciar sesión</span>

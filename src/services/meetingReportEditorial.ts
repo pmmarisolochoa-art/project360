@@ -5,6 +5,7 @@ import type { Meeting } from '@/types/meeting';
 import { generateMeetingReport, type MeetingReportData } from '@/services/claudeApi';
 import { resolveRoleLabel } from '@/utils/roleResolver';
 import { composeReport, escapeReport as esc, type ReportModel } from '@/services/htmlReport';
+import { BRAND } from '@/config/brand';
 
 /**
  * Reporte ejecutivo de reunión (PM experto) en PDF.
@@ -208,7 +209,7 @@ export async function buildReportFromMeeting(
   meeting: Meeting,
   commitmentsOverride?: Commitment[],
 ): Promise<BuildReportResult> {
-  const agency = ((client.onboardingData?.team ?? {}) as { agency?: string }).agency ?? 'Project360';
+  const agency = ((client.onboardingData?.team ?? {}) as { agency?: string }).agency ?? BRAND.label;
   const commitments: Commitment[] = commitmentsOverride ?? (meeting.extractedTasks ?? []).map((t) => ({
     title: t.title,
     responsible: resolveRoleLabel(t.responsibleRole, client.id) ?? t.responsibleRole,

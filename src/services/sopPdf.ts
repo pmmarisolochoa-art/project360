@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { SOP_BLOCKS, SOP_QUESTIONS, type SopAssessment } from '@/types/viability';
+import { BRAND } from '@/config/brand';
 
 const VERDICT_LABEL: Record<SopAssessment['verdict'], { label: string; color: [number, number, number] }> = {
   ideal:   { label: 'CLIENTE IDEAL', color: [16, 185, 129] },
@@ -18,7 +19,7 @@ export function exportSopReport(a: SopAssessment) {
   doc.setFillColor(...v.color);
   doc.rect(0, 0, 8, pageH, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(120, 120, 140);
-  doc.text('SALES BRAIN OS — SOP de viabilidad', 22, 28);
+  doc.text(`${BRAND.name} — SOP de viabilidad`, 22, 28);
   doc.setFontSize(28); doc.setTextColor(20, 20, 30);
   doc.text(a.prospectName, 22, 70);
   doc.setFontSize(16); doc.setTextColor(...v.color);

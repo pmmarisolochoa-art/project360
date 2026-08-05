@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-08-05 (tarde) — El repo por fin tiene red de seguridad automática: CI verde a la primera
+
+Commits `112ff89`, `eac5084` y `09584f2`, **los tres en `origin/main`**. Hasta hoy el repo **no tenía ninguna verificación automática**: que el código compilara dependía de que alguien se acordara de correr `tsc` y `build` a mano.
+
+**1. Decisión de criterio del linter: bloquear solo lo que es un bug real.** `eslint.config.js` deja en `error` únicamente `react-hooks/rules-of-hooks` (un hook dentro de un `if` rompe React de forma impredecible); todo lo demás —`no-explicit-any`, `no-unused-vars`, las reglas del react-compiler— entra como **aviso**. Razón: son ~62 warnings sobre código que nunca se lint-eó, y **un linter que grita por todo se termina ignorando**, que es peor que no tenerlo. La regla para adelante: a medida que se limpie una categoría, se sube de `warn` a `error` para que no vuelva a colarse. Se ignoran `api/` y `supabase/` porque corren en Node/Postgres, no en el navegador.
+
+**2. GitHub Actions en cada push a `main` y cada PR:** typecheck → lint → build, con `cancel-in-progress` para no gastar minutos en commits ya superados. **Primera corrida: verde en 1m21s** (run `31038363285`).
+
+**3. Se resolvió el misterio de las ramas fantasma `ci/safety-net`.** Desde el 27-jul aparecían ramas nuevas y el branch cambiaba entre commits; la entrada de esa fecha lo anotó como "proceso externo, revisar". **No era un proceso externo: era este mismo trabajo fallando al subir.** El token de git no tenía el scope `workflow` y GitHub rechaza cualquier push que cree o modifique un archivo en `.github/workflows/`. El commit del CI quedaba varado en local y se abría rama nueva. Trampa a recordar: **el mensaje del commit `eac5084` daba por resuelto el scope, pero el push había fallado** — un commit hecho no es un commit subido.
+
+**4. Hallazgo del entorno: hay un `GITHUB_TOKEN` inválido exportado en el shell** y tiene prioridad sobre la sesión buena del llavero, así que `gh` respondía `401 Bad credentials` aunque la autenticación estuviera bien. Se trabajó con `env -u GITHUB_TOKEN` delante de cada comando. El arreglo definitivo (borrarlo del `~/.zshrc`) queda pendiente.
+
+**5. Limpieza de los 7 warnings auto-fixeables** (69 → 62): dos `let` que nunca se reasignan → `const`, y cinco `eslint-disable` inertes (apuntaban a reglas que nuestra config no activa). **Decisión de detalle:** los dos `eslint-disable react-hooks/exhaustive-deps` de `MiEspacio.tsx` **no se borraron a secas** — se reemplazaron por un comentario normal, porque la razón de por qué esas dependencias se omiten a propósito es información que vale la pena conservar aunque el linter ya no la pida. Los 62 warnings restantes son casi todos `no-explicit-any`: deuda real, no auto-fixeable, sin urgencia.
+
+**Por qué:** es la prioridad ② del workspace (estabilizar lo construido). Con la app ya operando clientes reales, un error de compilación que llegue a producción cuesta más que los 90 segundos de CI.
+
+**Próximos pasos:**
+- **Pendiente de la founder:** borrar el `GITHUB_TOKEN` inválido del `~/.zshrc` (o `~/.zprofile`).
+- Subir `actions/checkout` y `actions/setup-node` a `@v5` — GitHub ya avisa que Node 20 está deprecado en los runners. Funciona hoy; hacerlo la próxima vez que se toque el workflow.
+- Ir bajando los `any` por módulo y subiendo la regla a `error` cuando una zona quede limpia.
+
+---
+
 ## 2026-08-05 — Reestructuración a "Ikigai Agencia": 7 commits, 4 migraciones, y la tarea como fuente de verdad
 
 Sesión larga de cambios estructurales. **7 commits en la rama `feat/ikigai-agencia-estructura`, sin pushear.** Las 4 migraciones (028–031) **sí están corridas en prod** y verificadas. Verificado `tsc -b` limpio y `npm run build`; la founder validó a mano las 7 rutas.

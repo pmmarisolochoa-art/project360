@@ -230,14 +230,17 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
           </div>
         )}
 
-        {/* Métricas rápidas — 2 cols × 3 filas */}
+        {/* Métricas rápidas — 2 cols × 3 filas.
+            Ojo: las comparaciones van con `!= null` (no `!== null`) porque un
+            cliente recién creado llega sin métricas y `undefined !== null` es
+            true — eso hacía reventar `.toFixed()`. */}
         <div className="grid grid-cols-2 gap-2 mb-3">
           <Metric
             icon={<TrendingUp className="h-3.5 w-3.5" />}
             label="ROAS"
-            value={client.metrics.roas !== null ? `${client.metrics.roas.toFixed(1)}x` : '—'}
+            value={client.metrics.roas != null ? `${client.metrics.roas.toFixed(1)}x` : '—'}
             accent={accent}
-            dim={client.metrics.roas === null}
+            dim={client.metrics.roas == null}
           />
           <Metric
             icon={<CheckCircle2 className="h-3.5 w-3.5" />}

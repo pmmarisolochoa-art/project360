@@ -511,7 +511,17 @@ function rowToClient(row: Record<string, unknown>): Client {
     projectType: r.project_type,
     onboardingData: r.onboarding_data ?? {},
     aiBrainData: r.ai_brain_data ?? {},
-    metrics: r.metrics ?? { roas: null, pendingTasksToday: 0, nextMeetingAt: null, progressPercent: 0 },
+    // Los defaults se MEZCLAN, no se reemplazan: un cliente recién creado llega
+    // con `metrics = {}` (default de la columna) y `{}` no es nullish, así que
+    // un `??` dejaba roas/progressPercent en undefined. Eso reventaba en
+    // `client.metrics.roas.toFixed()`, porque `undefined !== null` es true.
+    metrics: {
+      roas: null,
+      pendingTasksToday: 0,
+      nextMeetingAt: null,
+      progressPercent: 0,
+      ...(r.metrics ?? {}),
+    },
     adsConnected: r.ads_connected ?? { meta: false, google: false, tiktok: false, ga4: false },
     monthlyAdsBudget: Number(r.monthly_ads_budget ?? 0),
     activeFunnelId: r.active_funnel_id ?? undefined,
@@ -583,6 +593,12 @@ function rowToTask(row: Record<string, unknown>): Task {
     createdAt: r.created_at,
     updatedAt: r.updated_at ?? undefined,
     externalId: r.external_id ?? undefined,
+    origen: r.origen ?? undefined,
+    meetingId: r.meeting_id ?? undefined,
+    meetingNombre: r.meeting_nombre ?? undefined,
+    meetingFecha: r.meeting_fecha ?? undefined,
+    esPrivada: r.es_privada ?? false,
+    propietarioId: r.propietario_id ?? undefined,
   };
 }
 
@@ -619,6 +635,12 @@ function taskToRow(t: Partial<Task>, partial = false): Record<string, unknown> {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     externalId: 'external_id',
+    origen: 'origen',
+    meetingId: 'meeting_id',
+    meetingNombre: 'meeting_nombre',
+    meetingFecha: 'meeting_fecha',
+    esPrivada: 'es_privada',
+    propietarioId: 'propietario_id',
   };
   const row: Record<string, unknown> = {};
   for (const key of Object.keys(t) as Array<keyof Task>) {
@@ -647,6 +669,8 @@ function rowToMeeting(row: Record<string, unknown>): Meeting {
     notes: r.notes ?? undefined,
     notesUpdatedAt: r.notes_updated_at ?? undefined,
     completed: r.completed ?? undefined,
+    esPrivada: r.es_privada ?? false,
+    propietarioId: r.propietario_id ?? undefined,
   };
 }
 
@@ -668,6 +692,8 @@ function meetingToRow(m: Partial<Meeting>, partial = false): Record<string, unkn
     notes: 'notes',
     notesUpdatedAt: 'notes_updated_at',
     completed: 'completed',
+    esPrivada: 'es_privada',
+    propietarioId: 'propietario_id',
   };
   const row: Record<string, unknown> = {};
   for (const key of Object.keys(m) as Array<keyof Meeting>) {

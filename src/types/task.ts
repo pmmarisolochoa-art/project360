@@ -47,7 +47,35 @@ export interface Task {
   /** ID de esta tarea en la plataforma externa (integración). Evita duplicados
    *  en la sincronización de ida-y-vuelta. Vacío = creada dentro de Project360. */
   externalId?: string;
+
+  /* ── Trazabilidad de origen (migración 029) ────────────────────────────────
+   * OJO: `origin` (arriba, jsonb) es el enlace a ROPRE. `origen` (aquí, texto)
+   * es la CATEGORÍA de dónde nació la tarea. No son lo mismo.                */
+  /** De dónde nació la tarea. Default 'manual'. */
+  origen?: TaskOrigen;
+  /** Reunión de la que salió (solo si origen = 'reunion'). */
+  meetingId?: string;
+  /** Nombre de esa reunión, copiado para mostrarlo sin cargarla. */
+  meetingNombre?: string;
+  /** Fecha de esa reunión (ISO). */
+  meetingFecha?: string;
+
+  /* ── Espacio privado (migración 030) ───────────────────────────────────── */
+  /** true = solo la ve su propietario. No sale en vistas ni reportes del equipo. */
+  esPrivada?: boolean;
+  /** auth.users.id del dueño de la tarea privada. */
+  propietarioId?: string;
 }
+
+/** De dónde nació una tarea. Debe coincidir con el CHECK de `tasks.origen`. */
+export type TaskOrigen = 'manual' | 'reunion' | 'embudo' | 'ia';
+
+export const TASK_ORIGEN_LABEL: Record<TaskOrigen, string> = {
+  manual: 'Tarea manual',
+  reunion: 'De una reunión',
+  embudo: 'Del embudo',
+  ia: 'Generada por IA',
+};
 
 export type TaskTag = 'ads' | 'content' | 'strategy' | 'meeting' | 'deliverable' | 'ropre' | 'other';
 

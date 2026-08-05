@@ -29,4 +29,10 @@ export interface Meeting {
   notes?: string;
   notesUpdatedAt?: string;
   completed?: boolean;
+
+  /* ── Espacio privado (migración 030) ───────────────────────────────────── */
+  /** true = solo la ve su propietario. No sale en la agenda del equipo. */
+  esPrivada?: boolean;
+  /** auth.users.id del dueño de la reunión privada. */
+  propietarioId?: string;
 }

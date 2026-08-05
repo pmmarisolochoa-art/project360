@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import {
   Plus, Filter, Clock, AlertTriangle, Trash2, ArrowRight, MessageSquare, Link2,
   LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen, ChevronDown, Send, CheckCircle2,
+  CalendarDays,
 } from 'lucide-react';
 import {
   differenceInDays, differenceInHours, format, parseISO,
@@ -11,8 +12,8 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
-import type { Task, TaskPriority, TaskStatus } from '@/types/task';
-import { TASK_TAG_LABEL } from '@/types/task';
+import type { Task, TaskPriority, TaskStatus, TaskOrigen } from '@/types/task';
+import { TASK_TAG_LABEL, TASK_ORIGEN_LABEL } from '@/types/task';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -101,15 +102,52 @@ function kpiResult(meta: string | undefined, resultado: string | undefined): { l
   return { label: 'Resultado registrado', emoji: '🟢', color: '#10B981' };
 }
 
-export function TasksModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
+/**
+ * Módulo de Tareas — se usa en DOS modos con el MISMO comportamiento
+ * (tabs rápidos, 4 filtros, Kanban/Lista/Gantt, recordatorios, dedupe):
+ *
+ *  · Modo cliente  — `client` es un cliente → solo sus tareas.
+ *  · Modo global   — `client` es null → tareas de TODOS los clientes, con un
+ *    filtro extra "Todos los clientes" y un badge de cliente en cada tarjeta.
+ *
+ * Es un solo componente a propósito: tener dos copias garantizaba que los
+ * filtros de la vista global se quedaran atrás respecto a los del cliente.
+ */
+export function TasksModule({ client, readOnly = false }: { client: Client | null; readOnly?: boolean }) {
   const navigate = useNavigate();
+  const isGlobal = client === null;
+  const allClients = useClientStore((s) => s.clients);
+  // En modo global el usuario elige cliente desde la barra de filtros.
+  const [filterClient, setFilterClient] = useState<string>('');
+  /**
+   * Espacio privado (S5): 'equipo' = lo compartido; 'privado' = solo mis tareas
+   * privadas. Son dos conjuntos DISJUNTOS: una tarea privada nunca aparece en
+   * el modo equipo, ni siquiera para su dueño, para que no se confunda con el
+   * trabajo que el equipo sí ve.
+   */
+  const [espacio, setEspacio] = useState<'equipo' | 'privado'>('equipo');
+  const authUserId = useAuthStore((s) => s.user?.id);
   // IMPORTANTE: el selector debe devolver una referencia estable.
   // Filtrar dentro del selector crea un array nuevo en cada render y
   // dispara "Maximum update depth exceeded" en Zustand + StrictMode.
   const allTasks = useClientStore((s) => s.tasks);
   const tasks = useMemo(
-    () => allTasks.filter((t) => t.clientId === client.id),
-    [allTasks, client.id],
+    () => {
+      const porCliente = isGlobal
+        ? (filterClient ? allTasks.filter((t) => t.clientId === filterClient) : allTasks)
+        : allTasks.filter((t) => t.clientId === client.id);
+      // Corte de privacidad. La BD ya no entrega lo privado ajeno (policies de
+      // la 030); esto separa además MIS privadas del trabajo del equipo.
+      return espacio === 'privado'
+        ? porCliente.filter((t) => t.esPrivada && t.propietarioId === authUserId)
+        : porCliente.filter((t) => !t.esPrivada);
+    },
+    [allTasks, isGlobal, filterClient, client, espacio, authUserId],
+  );
+  /** Cliente al que pertenece una tarea — en modo cliente siempre es el mismo. */
+  const clientById = useMemo(
+    () => Object.fromEntries(allClients.map((c) => [c.id, c])),
+    [allClients],
   );
   const addTask = useClientStore((s) => s.addTask);
   const updateTask = useClientStore((s) => s.updateTask);
@@ -121,9 +159,9 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   // Cómo ordenar las tareas activas (las completadas siempre van al final).
   const [sortMode, setSortMode] = useState<'overdue' | 'priority' | 'recent'>('overdue');
   // Filtro por programa (4D) — recuerda la última selección por cliente.
-  const programs = useProgramsStore((s) => s.programs).filter((p) => p.clientId === client.id);
+  const programs = useProgramsStore((s) => s.programs).filter((p) => (client ? p.clientId === client.id : true));
   const funnels = useFunnelLaunchStore((s) => s.funnels);
-  const programFilterKey = `p360.program.${client.id}`;
+  const programFilterKey = `p360.program.${client?.id ?? 'global'}`;
   const [filterProgram, setFilterProgram] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
     return window.localStorage.getItem(programFilterKey) ?? '';
@@ -203,9 +241,15 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
 
   // Equipo real del cliente — alimenta los filtros de rol y de persona.
   const allMembers = useTeamMembersStore((s) => s.members);
+  // En modo global el equipo es el de todos los clientes (o el del cliente
+  // elegido en el filtro), para que "Todos los roles"/"Todas las personas"
+  // ofrezcan las mismas opciones que dentro del cerebro.
   const clientMembers = useMemo(
-    () => allMembers.filter((m) => m.clientId === client.id),
-    [allMembers, client.id],
+    () => {
+      const scope = client?.id ?? filterClient;
+      return scope ? allMembers.filter((m) => m.clientId === scope) : allMembers;
+    },
+    [allMembers, client, filterClient],
   );
 
   // ── Identidad del usuario que mira ──
@@ -217,19 +261,21 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   const isMember = authRole === 'member';
   // Coordinador = miembro con el flag "ve todas las tareas" en ESTE cliente.
   // Ve todo el equipo, como el owner. El resto de miembros solo ve lo suyo.
-  const isCoordinator = isMember && clientAccesses.some((a) => a.clientId === client.id && a.veTodasTareas);
+  const isCoordinator = isMember && clientAccesses.some(
+    (a) => (client ? a.clientId === client.id : true) && a.veTodasTareas,
+  );
   const scopeToMine = isMember && !isCoordinator; // true → solo mis tareas
   const myNames = useMemo(() => {
     const set = new Set<string>();
     if (isMember) {
       for (const a of clientAccesses) {
-        if (a.clientId === client.id && a.nombre) set.add(a.nombre.trim().toLowerCase());
+        if ((client ? a.clientId === client.id : true) && a.nombre) set.add(a.nombre.trim().toLowerCase());
       }
     } else if (currentUser?.name) {
       set.add(currentUser.name.trim().toLowerCase());
     }
     return set;
-  }, [isMember, clientAccesses, currentUser, client.id]);
+  }, [isMember, clientAccesses, currentUser, client]);
   // Roles que tiene el usuario en este cliente → sus tareas asignadas por rol.
   const myRoleSlugs = useMemo(
     () => new Set<string>(
@@ -241,7 +287,9 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     const an = (t.assignedTo ?? '').trim().toLowerCase();
     if (an && myNames.has(an)) return true;
     if (isRoleSlug(t.assignedTo) && myRoleSlugs.has(t.assignedTo)) return true;
-    const resolved = resolveAssignee(t.assignedTo, client.id).trim().toLowerCase();
+    // Se resuelve con el cliente DE LA TAREA (no el del módulo): en modo global
+    // las tareas vienen de varios clientes.
+    const resolved = resolveAssignee(t.assignedTo, t.clientId).trim().toLowerCase();
     return myNames.has(resolved);
   };
 
@@ -266,13 +314,13 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   const personOptions = useMemo(() => {
     const names = new Set<string>(clientMembers.map((m) => m.nombre));
     for (const t of tasks) {
-      const resolved = resolveAssignee(t.assignedTo, client.id);
+      const resolved = resolveAssignee(t.assignedTo, t.clientId);
       if (resolved && resolved !== 'Sin asignar' && !ROLE_DEFS.some((r) => r.title === resolved)) {
         names.add(resolved);
       }
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'es'));
-  }, [clientMembers, tasks, client.id]);
+  }, [clientMembers, tasks]);
 
   // Filtro de responsable, en dos ejes independientes:
   //  - ROL: matchea si CUALQUIERA de los roles del responsable coincide
@@ -316,7 +364,12 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleTasks, filterAssignee, filterPerson, filterPriority, programFunnelIds, quickFilter, myNames, myRoleSlugs]);
 
-  const accent = client.primaryColor;
+  // En modo global no hay un color de cliente: se usa el violeta de la marca y
+  // cada tarjeta lleva el color de SU cliente en el badge.
+  const accent = client?.primaryColor ?? '#8B5CF6';
+  /** Cliente destino al crear una tarea. En global sale del filtro; si el
+   *  filtro está en "Todos", no se puede crear (no sabríamos de quién es). */
+  const targetClientId = client?.id ?? filterClient;
 
   // Ordena: completadas SIEMPRE al final (separadas); activas según sortMode.
   // Default 'overdue' = las que llevan más tiempo vencidas van primero (dueDate asc).
@@ -349,12 +402,31 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
     }
     setSendingReminder(true);
     try {
-      const r = await sendTaskReminders({
-        clientId: client.id,
-        tasks: remindable.map((t) => ({
-          id: t.id, title: t.title, assignedTo: t.assignedTo, dueDate: t.dueDate,
-        })),
-      });
+      // El endpoint resuelve correos contra el equipo de UN cliente, así que en
+      // modo global se manda una tanda por cliente y se suman los resultados.
+      const porCliente = new Map<string, typeof remindable>();
+      for (const t of remindable) {
+        const list = porCliente.get(t.clientId) ?? [];
+        list.push(t);
+        porCliente.set(t.clientId, list);
+      }
+      const resultados = await Promise.all(
+        Array.from(porCliente.entries()).map(([cid, list]) =>
+          sendTaskReminders({
+            clientId: cid,
+            tasks: list.map((t) => ({
+              id: t.id, title: t.title, assignedTo: t.assignedTo, dueDate: t.dueDate,
+            })),
+          }),
+        ),
+      );
+      const r = resultados.reduce((acc, x) => ({
+        sent: acc.sent + (x.sent ?? 0),
+        people: acc.people + (x.people ?? 0),
+        whatsapp: acc.whatsapp + (x.whatsapp ?? 0),
+        missing: [...acc.missing, ...(x.missing ?? [])],
+        note: acc.note || x.note,
+      }), { sent: 0, people: 0, whatsapp: 0, missing: [] as string[], note: '' as string | undefined });
       if (r.sent > 0) {
         toast.success(
           `Recordatorio enviado a ${r.people} persona${r.people === 1 ? '' : 's'} ✓` +
@@ -437,9 +509,47 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
 
       {/* Toolbar */}
       <div className="surface p-3 flex flex-wrap items-center gap-2">
+        {/* Espacio: equipo (compartido) vs privado (solo yo). */}
+        <div className="inline-flex rounded-[10px] border border-border-subtle p-0.5 mr-1">
+          {([
+            { id: 'equipo' as const, label: '🌐 Equipo' },
+            { id: 'privado' as const, label: '🔒 Mis tareas privadas' },
+          ]).map((o) => (
+            <button
+              key={o.id}
+              onClick={() => setEspacio(o.id)}
+              aria-pressed={espacio === o.id}
+              className={cn(
+                'px-2.5 py-1 text-xs rounded-md transition',
+                espacio === o.id
+                  ? 'bg-bg-elevated text-text-primary font-medium'
+                  : 'text-text-secondary hover:text-text-primary',
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-1.5 text-xs text-text-muted mr-2">
           <Filter className="h-3.5 w-3.5" /> Filtros
         </div>
+        {/* Solo en la vista global: de qué cliente son las tareas. */}
+        {isGlobal && (
+          <Select
+            options={[
+              { value: '', label: 'Todos los clientes' },
+              ...allClients
+                .filter((c) => !c.isAgency)
+                .map((c) => ({ value: c.id, label: c.name })),
+              ...allClients
+                .filter((c) => c.isAgency)
+                .map((c) => ({ value: c.id, label: `${c.name} (interno)` })),
+            ]}
+            value={filterClient}
+            onChange={(e) => setFilterClient(e.target.value)}
+            className="min-w-[200px]"
+          />
+        )}
         {/* Filtros de rol y persona: solo para el owner (un miembro ve solo lo suyo). */}
         {!scopeToMine && (
         <Select
@@ -527,7 +637,15 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
             </Button>
           )}
           {!readOnly && (
-            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreating(true)}>
+            <Button
+              size="sm"
+              leftIcon={<Plus className="h-4 w-4" />}
+              // En global con "Todos los clientes" no sabríamos de quién sería
+              // la tarea nueva: primero hay que elegir cliente en el filtro.
+              disabled={!targetClientId}
+              title={targetClientId ? undefined : 'Elige un cliente en el filtro para crear una tarea'}
+              onClick={() => setCreating(true)}
+            >
               Nueva tarea
             </Button>
           )}
@@ -552,7 +670,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => navigate(`/client/${client.id}/planning`)}
+                  onClick={() => navigate(`/client/${targetClientId}/planning`)}
                 >
                   Elegir embudo
                 </Button>
@@ -636,7 +754,8 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
                         task={task}
                         accent={accent}
                         index={idx}
-                        clientId={client.id}
+                        clientId={task.clientId}
+                        clientLabel={isGlobal ? clientBadge(clientById[task.clientId]) : undefined}
                         allTasks={tasks}
                         readOnly={readOnly}
                         isDragging={draggedTaskId === task.id}
@@ -688,7 +807,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
           task={editing}
           accent={accent}
           allTasks={tasks}
-          clientId={client.id}
+          clientId={editing.clientId}
           readOnly={readOnly}
           onClose={() => setEditing(null)}
           onSave={(patch) => {
@@ -706,12 +825,13 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
         <TaskModal
           accent={accent}
           allTasks={tasks}
-          clientId={client.id}
+          clientId={targetClientId}
+          defaultPrivada={espacio === 'privado'}
           onClose={() => setCreating(false)}
           onSave={(patch) => {
             addTask({
               id: genId(),
-              clientId: client.id,
+              clientId: targetClientId,
               title: patch.title ?? '',
               description: patch.description,
               status: (patch.status as TaskStatus) ?? 'pending',
@@ -785,6 +905,71 @@ export function TasksModule({ client, readOnly = false }: { client: Client; read
   );
 }
 
+/**
+ * Panel "Origen" del detalle de la tarea — de dónde salió y quién la creó.
+ * Si vino de una reunión, permite saltar a esa reunión en la Agenda Global.
+ */
+function TaskOrigenPanel({ task, onClose }: { task: Task; onClose: () => void }) {
+  const navigate = useNavigate();
+  const funnels = useFunnelLaunchStore((s) => s.funnels);
+  const origen: TaskOrigen = task.origen ?? 'manual';
+
+  const verReunion = () => {
+    onClose();
+    // La Agenda Global abre el drawer de la reunión con ?meeting=<id>.
+    navigate(`/agenda-global?meeting=${task.meetingId}`);
+  };
+
+  return (
+    <div className="rounded-lg border border-border-subtle bg-bg-base/40 px-3 py-2.5 space-y-1.5">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">Origen</div>
+
+      {origen === 'reunion' && task.meetingNombre ? (
+        <>
+          <div className="flex items-center gap-1.5 text-xs text-text-primary">
+            <CalendarDays className="h-3 w-3 shrink-0 text-text-muted" />
+            <span className="truncate">Reunión: <b>{task.meetingNombre}</b></span>
+          </div>
+          {task.meetingFecha && (
+            <div className="text-[11px] text-text-secondary pl-[18px]">
+              {format(parseISO(task.meetingFecha), "d 'de' MMMM yyyy", { locale: es })}
+            </div>
+          )}
+          {task.meetingId && (
+            <button
+              onClick={verReunion}
+              className="pl-[18px] text-[11px] text-accent-violet hover:underline focus-ring rounded"
+            >
+              Ver reunión →
+            </button>
+          )}
+        </>
+      ) : origen === 'embudo' ? (
+        <div className="text-xs text-text-primary">
+          Del embudo
+          {task.funnelId && `: ${funnels.find((f) => f.id === task.funnelId)?.name ?? task.funnelId}`}
+        </div>
+      ) : (
+        <div className="text-xs text-text-primary">{TASK_ORIGEN_LABEL[origen]}</div>
+      )}
+
+      <div className="text-[11px] text-text-secondary pt-0.5">
+        Creada el {format(parseISO(task.createdAt), "d MMM yyyy", { locale: es })}
+      </div>
+    </div>
+  );
+}
+
+/** Nombre corto para el badge de cliente en la vista global: "David G.". */
+function clientBadge(c: Client | undefined): { name: string; color: string } | undefined {
+  if (!c) return undefined;
+  const [nombre, apellido] = c.name.split(/\s+/);
+  return {
+    name: apellido ? `${nombre} ${apellido.charAt(0)}.` : nombre,
+    color: c.primaryColor,
+  };
+}
+
 function advanceStatus(task: Task, updateTask: (id: string, p: Partial<Task>) => void) {
   const flow: TaskStatus[] = ['pending', 'in_progress', 'in_review', 'completed'];
   const i = flow.indexOf(task.status);
@@ -801,11 +986,13 @@ function advanceStatus(task: Task, updateTask: (id: string, p: Partial<Task>) =>
 function TaskCard({
   task, accent, index, onOpen, onAdvance, onDelete, clientId, allTasks, readOnly,
   isDragging, onDragStart, onDragEnd,
-  isSelected, anySelected, onToggleSelected,
+  isSelected, anySelected, onToggleSelected, clientLabel,
 }: {
   task: Task;
   accent: string;
   index: number;
+  /** Solo en la vista global: de qué cliente es esta tarea. */
+  clientLabel?: { name: string; color: string };
   onOpen: () => void;
   onAdvance?: () => void;
   onDelete?: () => void;
@@ -824,6 +1011,7 @@ function TaskCard({
   const hoursUntil = differenceInHours(parseISO(task.dueDate), new Date());
   const dueSoon = hoursUntil >= 0 && hoursUntil <= 24 && task.status !== 'completed';
   const fromRopre = task.origin?.type === 'ropre';
+  const fromMeeting = task.origen === 'reunion' && !!task.meetingNombre;
   const blockingDeps = (task.dependsOn ?? []).map((id) => allTasks.find((t) => t.id === id)).filter((t): t is Task => !!t && t.status !== 'completed');
   const dependentsCount = allTasks.filter((t) => t.dependsOn?.includes(task.id)).length;
 
@@ -918,6 +1106,16 @@ function TaskCard({
           <Badge tone={PRIORITY_TONE[task.priority]} className="shrink-0">
             {task.priority}
           </Badge>
+          {clientLabel && (
+            <span
+              className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+              style={{ background: `${clientLabel.color}1F`, color: clientLabel.color }}
+              title={clientLabel.name}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: clientLabel.color }} />
+              {clientLabel.name}
+            </span>
+          )}
           {fromRopre && (
             <span
               role="button"
@@ -948,6 +1146,17 @@ function TaskCard({
       <div className="text-sm text-text-primary leading-snug mb-2 line-clamp-3">
         {task.title}
       </div>
+
+      {/* Reunión de origen — discreto, para saber de dónde salió el compromiso. */}
+      {fromMeeting && (
+        <div className="mb-2 flex items-center gap-1 text-[10px] text-text-muted truncate">
+          <CalendarDays className="h-2.5 w-2.5 shrink-0" />
+          <span className="truncate">
+            De: {task.meetingNombre}
+            {task.meetingFecha && ` · ${format(parseISO(task.meetingFecha), 'd MMM', { locale: es })}`}
+          </span>
+        </div>
+      )}
 
       {/* KPI de resultado (5C): meta visible siempre; resultado en COMPLETADO. */}
       {task.kpiNombre && (
@@ -1065,6 +1274,7 @@ function TaskCard({
 
 function TaskModal({
   task, accent, onClose, onSave, onDelete, allTasks, clientId, readOnly = false,
+  defaultPrivada = false,
 }: {
   task?: Task;
   accent: string;
@@ -1074,7 +1284,11 @@ function TaskModal({
   allTasks: Task[];
   clientId: string;
   readOnly?: boolean;
+  /** Al crear desde el espacio privado, la casilla viene marcada. */
+  defaultPrivada?: boolean;
 }) {
+  const authUserId = useAuthStore((s) => s.user?.id);
+  const [esPrivada, setEsPrivada] = useState<boolean>(task?.esPrivada ?? defaultPrivada ?? false);
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
 
@@ -1210,6 +1424,10 @@ function TaskModal({
                 dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
                 subtasks,
                 comments,
+                esPrivada,
+                // Sin dueño la fila sería invisible para todos (lo impide el
+                // CHECK de la 030), así que se sella al marcarla privada.
+                propietarioId: esPrivada ? authUserId : undefined,
               })
             }
           >
@@ -1220,12 +1438,30 @@ function TaskModal({
       }
     >
       <div className="space-y-4">
+        {task && <TaskOrigenPanel task={task} onClose={onClose} />}
         <Input
           label="Título"
           required
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
+
+        {!readOnly && (
+          <label className="flex items-start gap-2.5 rounded-lg border border-border-subtle px-3 py-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={esPrivada}
+              onChange={(e) => setEsPrivada(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-accent-violet"
+            />
+            <span>
+              <span className="block text-xs font-medium text-text-primary">🔒 Tarea privada (solo yo la veo)</span>
+              <span className="block text-[11px] text-text-secondary mt-0.5">
+                No aparece en el Kanban del equipo, ni en el del cliente, ni en los reportes.
+              </span>
+            </span>
+          </label>
+        )}
         {duplicateOf && (
           <div className="-mt-2 flex items-start gap-2 rounded-md border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-text-secondary">
             <AlertTriangle className="h-3.5 w-3.5 text-status-warning shrink-0 mt-0.5" />

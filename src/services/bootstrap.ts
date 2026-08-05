@@ -109,13 +109,11 @@ async function runBootstrap(): Promise<BootstrapResult> {
         if (programs.length > 0) useProgramsStore.getState().hydrate(programs);
         if (funnelData.funnels.length > 0) useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
         if (links.length > 0) useLinksStore.getState().hydrate(links);
-        // eslint-disable-next-line no-console
         console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
       } catch (e) {
         console.warn('[bootstrap] Falló hidratación parcial — UI usa estado local.', e);
       }
     } else {
-      // eslint-disable-next-line no-console
       console.info('[bootstrap] Sin clientes en esta agencia — usando seed in-memory.');
     }
     useClientStore.getState().setHydrated(true);

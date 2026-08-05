@@ -13,7 +13,6 @@ const anonKey = sanitize(import.meta.env.VITE_SUPABASE_ANON_KEY as string | unde
 
 if (typeof window !== 'undefined') {
   // Debug: estado de las env vars (sin imprimir secretos)
-  // eslint-disable-next-line no-console
   console.info(
     '[supabase] init',
     JSON.stringify({

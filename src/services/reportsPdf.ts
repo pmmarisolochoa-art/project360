@@ -575,7 +575,7 @@ export function exportMeetingReport({ client, meeting }: { client: Client; meeti
   // Agenda
   if (meeting.agenda) {
     // @ts-expect-error lastAutoTable
-    let y = (doc.lastAutoTable.finalY ?? 60) + 10;
+    const y = (doc.lastAutoTable.finalY ?? 60) + 10;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
     doc.text('Agenda', 18, y);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(40, 40, 60);
@@ -659,7 +659,7 @@ export function exportLaunchReport({ client, funnel, phases, tasks }: {
 
   // Fases con % avance
   // @ts-expect-error lastAutoTable
-  let y = (doc.lastAutoTable.finalY ?? 60) + 10;
+  const y = (doc.lastAutoTable.finalY ?? 60) + 10;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
   doc.text('Avance por fase', 18, y);
   autoTable(doc, {

@@ -84,7 +84,7 @@ export function MiEspacio() {
       setLinks(all.slice(0, 5));
     });
     return () => { cancel = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Solo depende de myClientIds a propósito: re-consultar por cada cambio de links dispararía un bucle.
   }, [myClientIds]);
 
   // Subtítulo contextual del saludo.
@@ -145,7 +145,7 @@ export function MiEspacio() {
         return { client: c, meetings: [...upcoming, ...past], upcomingCount: upcoming.length };
       })
       .filter((g) => g.meetings.length > 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Deps explícitas a propósito: el resto son helpers estables.
   }, [allMeetings, myClientIds, myClients]);
 
   const markDone = (t: Task) => {

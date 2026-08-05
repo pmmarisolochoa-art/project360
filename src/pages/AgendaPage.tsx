@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { Settings, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import {
@@ -17,7 +18,9 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useClientStore } from '@/store/useClientStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
+import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
@@ -43,6 +46,8 @@ const TYPE_LABEL: Record<MeetingType, string> = {
 export function AgendaPage() {
   const meetings = useClientStore((s) => s.meetings);
   const clients = useClientStore((s) => s.clients);
+  const tasks = useClientStore((s) => s.tasks);
+  const [searchParams, setSearchParams] = useSearchParams();
   const meetingId = useUIDrawerStore((s) => s.meetingId);
   const openMeeting = useUIDrawerStore((s) => s.openMeeting);
   const closeMeeting = useUIDrawerStore((s) => s.closeMeeting);
@@ -54,6 +59,9 @@ export function AgendaPage() {
   const [fType, setFType] = useState('');
   const [fStatus, setFStatus] = useState('');
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  /** Agenda del equipo vs mi agenda privada (S5). Conjuntos disjuntos. */
+  const [espacio, setEspacio] = useState<'equipo' | 'privado'>('equipo');
+  const authUserId = useAuthStore((s) => s.user?.id);
 
   const range = useMemo(() => {
     if (view === 'week') {
@@ -66,6 +74,13 @@ export function AgendaPage() {
     () =>
       meetings
         .filter((m) => {
+          // Corte de privacidad (S5). La BD ya no entrega lo privado ajeno
+          // (policies de la 030); esto separa MI agenda privada de la del equipo.
+          if (espacio === 'privado') {
+            if (!m.esPrivada || m.propietarioId !== authUserId) return false;
+          } else if (m.esPrivada) {
+            return false;
+          }
           const d = parseISO(m.scheduledAt);
           if (!isWithinInterval(d, range)) return false;
           if (fClient && m.clientId !== fClient) return false;
@@ -75,10 +90,41 @@ export function AgendaPage() {
           return true;
         })
         .sort((a, b) => +parseISO(a.scheduledAt) - +parseISO(b.scheduledAt)),
-    [meetings, range, fClient, fType, fStatus],
+    [meetings, range, fClient, fType, fStatus, espacio, authUserId],
   );
 
   const activeMeeting = meetingId ? meetings.find((m) => m.id === meetingId) : null;
+
+  /**
+   * Cuántas tareas nació de cada reunión (migración 029). Se cuenta contra
+   * `meetingId` de la tarea, que es el vínculo real — no contra
+   * `meeting.extractedTasks`, que es el registro de compromisos y puede diferir
+   * si alguien borró o agregó tareas después.
+   */
+  const tareasPorReunion = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const t of tasks) {
+      if (t.meetingId) acc[t.meetingId] = (acc[t.meetingId] ?? 0) + 1;
+    }
+    return acc;
+  }, [tasks]);
+
+  /**
+   * Deep-link: /agenda-global?meeting=<id> abre esa reunión directo.
+   * Lo usa el panel "Origen" del detalle de una tarea ("Ver reunión →").
+   */
+  useEffect(() => {
+    const id = searchParams.get('meeting');
+    if (!id || id === meetingId) return;
+    if (!meetings.some((m) => m.id === id)) return;
+    openMeeting(id);
+    // Limpia el parámetro para que cerrar el drawer no lo vuelva a abrir.
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('meeting');
+      return next;
+    }, { replace: true });
+  }, [searchParams, meetings, meetingId, openMeeting, setSearchParams]);
 
   const goPrev = () => setAnchor((d) => (view === 'week' ? addWeeks(d, -1) : addMonths(d, -1)));
   const goNext = () => setAnchor((d) => (view === 'week' ? addWeeks(d, 1) : addMonths(d, 1)));
@@ -138,6 +184,27 @@ export function AgendaPage() {
           {format(range.start, "d MMM", { locale: es })} – {format(range.end, "d MMM yyyy", { locale: es })}
         </span>
         <div className="flex-1" />
+        {/* Espacio: agenda del equipo vs mi agenda privada. */}
+        <div className="inline-flex rounded-[10px] border border-border-subtle p-0.5">
+          {([
+            { id: 'equipo' as const, label: '🌐 Agenda del equipo' },
+            { id: 'privado' as const, label: '🔒 Mi agenda privada' },
+          ]).map((o) => (
+            <button
+              key={o.id}
+              onClick={() => setEspacio(o.id)}
+              aria-pressed={espacio === o.id}
+              className={cn(
+                'px-2.5 py-1 text-xs rounded-md transition',
+                espacio === o.id
+                  ? 'bg-bg-elevated text-text-primary font-medium'
+                  : 'text-text-secondary hover:text-text-primary',
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
         <Select
           value={fClient}
           onChange={(e) => setFClient(e.target.value)}
@@ -177,6 +244,7 @@ export function AgendaPage() {
             {filtered.map((m) => {
               const c = clientById[m.clientId];
               const t = parseISO(m.scheduledAt);
+              const nTareas = tareasPorReunion[m.id] ?? 0;
               return (
                 <li key={m.id}>
                   <button
@@ -186,11 +254,29 @@ export function AgendaPage() {
                     <span className="text-[10px] uppercase tracking-wider text-text-muted w-32 shrink-0">
                       {format(t, "EEE d 'de' MMM · HH:mm", { locale: es })}
                     </span>
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: c?.primaryColor ?? '#8B5CF6' }} />
                     <span className="text-sm text-text-primary font-medium truncate flex-1">{m.title}</span>
                     <Badge tone="info">{TYPE_LABEL[m.type]}</Badge>
-                    <span className="text-xs text-text-muted truncate max-w-[140px]">{c?.name ?? '—'}</span>
-                    {m.completed && <Badge tone="success">✓</Badge>}
+                    {/* Badge del cliente: color + nombre */}
+                    <span
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium max-w-[160px]"
+                      style={{
+                        background: withAlpha(c?.primaryColor ?? '#8B5CF6', 0.15),
+                        color: c?.primaryColor ?? '#8B5CF6',
+                      }}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: c?.primaryColor ?? '#8B5CF6' }} />
+                      <span className="truncate">{c?.name ?? '—'}</span>
+                    </span>
+                    {/* Estado: con tareas > realizada > programada */}
+                    {nTareas > 0 ? (
+                      <Badge tone="success" className="shrink-0">
+                        {nTareas} tarea{nTareas === 1 ? '' : 's'}
+                      </Badge>
+                    ) : m.completed ? (
+                      <Badge tone="success" className="shrink-0">Completada</Badge>
+                    ) : (
+                      <Badge tone="neutral" className="shrink-0">Programada</Badge>
+                    )}
                   </button>
                 </li>
               );

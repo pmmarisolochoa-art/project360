@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useToastStore } from '@/store/useToastStore';
+import { BRAND } from '@/config/brand';
 
 export function Layout() {
   const user = useAuthStore((s) => s.user);
@@ -27,7 +28,7 @@ export function Layout() {
       : 'bienvenida';
     useToastStore.getState().show({
       tone: 'info',
-      message: `Bienvenida a Project360, ${firstName} 👋 — Tu sistema de operaciones está listo.`,
+      message: `Bienvenida a ${BRAND.label}, ${firstName} 👋 — Tu sistema de operaciones está listo.`,
       duration: 4000,
     });
     sessionStorage.setItem('p360.welcomed', 'true');

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useClientStore } from '@/store/useClientStore';
 import { TaskLinksRepo, type TaskLink } from '@/services/taskLinks';
 import { DeliverableDrawer } from '@/components/member/DeliverableDrawer';
+import { useLinksStore } from '@/store/useLinksStore';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from '@/store/useToastStore';
 import { cn } from '@/utils/cn';
@@ -292,6 +293,8 @@ export function MiEspacio() {
                       <FolderUp className="h-3.5 w-3.5" /> Subir entregable
                     </button>
                   )}
+                  {/* 7B: los links ya subidos a esta tarea, a un clic. */}
+                  <LinksDeTarea taskId={t.id} />
                 </div>
               );
             })}
@@ -414,7 +417,13 @@ export function MiEspacio() {
 
       {deliverableTask && (
         <DeliverableDrawer
-          task={{ id: deliverableTask.id, clientId: deliverableTask.clientId, title: deliverableTask.title, driveLink: deliverableTask.driveLink }}
+          task={{
+            id: deliverableTask.id,
+            clientId: deliverableTask.clientId,
+            title: deliverableTask.title,
+            driveLink: deliverableTask.driveLink,
+            meetingId: deliverableTask.meetingId,
+          }}
           onClose={() => setDeliverableTask(null)}
           onSaved={refreshLinks}
         />
@@ -452,5 +461,32 @@ function MetricCard({
     >
       {content}
     </button>
+  );
+}
+
+/**
+ * Links ya subidos a una tarea (7B). Lee del store global de `task_links`, que
+ * es la misma fila que ve el PM en /links-entregables — no una copia.
+ */
+function LinksDeTarea({ taskId }: { taskId: string }) {
+  const links = useLinksStore((s) => s.links);
+  const propios = links.filter((l) => l.taskId === taskId);
+  if (propios.length === 0) return null;
+  return (
+    <div className="basis-full flex flex-wrap items-center gap-1.5 pl-1">
+      {propios.map((l) => (
+        <a
+          key={l.id}
+          href={l.url}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={l.nombre}
+          className="inline-flex items-center gap-1 rounded-md bg-bg-base/60 px-1.5 py-0.5 text-[10px] text-text-secondary hover:text-accent-violet max-w-[200px]"
+        >
+          📎 <span className="truncate">{l.nombre}</span>
+        </a>
+      ))}
+    </div>
   );
 }

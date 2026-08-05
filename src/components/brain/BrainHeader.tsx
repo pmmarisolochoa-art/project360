@@ -87,7 +87,7 @@ export function BrainHeader({ client }: { client: Client }) {
             <Kpi
               icon={<TrendingUp className="h-3.5 w-3.5" />}
               label="ROAS"
-              value={client.metrics.roas !== null ? `${client.metrics.roas.toFixed(1)}x` : '—'}
+              value={client.metrics.roas != null ? `${client.metrics.roas.toFixed(1)}x` : '—'}
               accent={accent}
             />
             <Kpi

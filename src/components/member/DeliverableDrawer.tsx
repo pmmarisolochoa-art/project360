@@ -7,6 +7,8 @@ import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { useClientStore } from '@/store/useClientStore';
 import { TaskLinksRepo } from '@/services/taskLinks';
+import { useLinksStore } from '@/store/useLinksStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { toast } from '@/store/useToastStore';
 
 type ExtraLink = { nombre: string; url: string; tipo: 'referencia' | 'drive' | 'notion' | 'loom' | 'web' | 'otro' };
@@ -22,7 +24,8 @@ export function DeliverableDrawer({
   onClose,
   onSaved,
 }: {
-  task: { id: string; clientId: string; title: string; driveLink?: string };
+  // `meetingId` viaja para heredarlo al entregable (trazabilidad 7D).
+  task: { id: string; clientId: string; title: string; driveLink?: string; meetingId?: string };
   onClose: () => void;
   onSaved?: () => void;
 }) {
@@ -33,6 +36,16 @@ export function DeliverableDrawer({
   const [notas, setNotas] = useState('');
   const [extras, setExtras] = useState<ExtraLink[]>([]);
   const [saving, setSaving] = useState(false);
+  // Propagación: el link entra al store global y aparece al instante en
+  // /links-entregables y en el buscador, sin recargar.
+  const addLink = useLinksStore((s) => s.add);
+  // Nombre visible de quien sube: se copia a la fila para que /links-entregables
+  // pueda mostrar "Subido por" sin un join contra auth.users.
+  const miNombre = useAuthStore((s) =>
+    s.clientAccesses.find((a) => a.clientId === task.clientId)?.nombre
+    ?? (s.user?.email ?? '').split('@')[0]
+    ?? undefined,
+  );
 
   const addExtra = () => setExtras((e) => [...e, { nombre: '', url: '', tipo: 'referencia' }]);
   const patchExtra = (i: number, patch: Partial<ExtraLink>) =>
@@ -46,24 +59,32 @@ export function DeliverableDrawer({
     setSaving(true);
     try {
       // 1. Registro persistente del entregable (created_by lo pone el servidor).
-      await TaskLinksRepo.create({
+      //    La reunión se HEREDA de la tarea: así se puede preguntar después
+      //    "dame los entregables de la reunión del 15 de junio" (trazabilidad 7D).
+      const creado = await TaskLinksRepo.create({
         taskId: task.id,
         clientId: task.clientId,
         nombre: nombre.trim() || task.title,
         url: driveUrl.trim(),
         tipo: 'entregable',
+        meetingId: task.meetingId ?? null,
+        createdByNombre: miNombre,
       });
+      if (creado) addLink(creado);
 
       // 2. Links adicionales.
       for (const ex of extras) {
         if (!ex.url.trim()) continue;
-        await TaskLinksRepo.create({
+        const extra = await TaskLinksRepo.create({
           taskId: task.id,
           clientId: task.clientId,
           nombre: ex.nombre.trim() || ex.url.trim(),
           url: ex.url.trim(),
           tipo: ex.tipo,
+          meetingId: task.meetingId ?? null,
+          createdByNombre: miNombre,
         });
+        if (extra) addLink(extra);
       }
 
       // 3. El link de Drive queda en la tarea (visible para el PM en el Kanban).

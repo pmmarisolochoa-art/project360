@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { User as UserIcon, Database, Bell, LogOut, AlertTriangle, Check, X, Sliders, Moon, Sun, Palette } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { User as UserIcon, Database, Bell, LogOut, AlertTriangle, Check, X, Sliders, Moon, Sun, Palette, ClipboardCheck, ArrowRight } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { useIntegrationsStore } from '@/store/useIntegrationsStore';
 import { usingRemote } from '@/services/supabase';
@@ -66,6 +67,26 @@ export function SettingsPage() {
           Perfil, preferencias, integraciones y backend.
         </p>
       </header>
+
+      {/* Agente SOP — salió del sidebar (Capa 0 tiene 7 ítems) y vive acá. */}
+      <section className="surface p-5">
+        <header className="flex items-center gap-2 mb-4">
+          <ClipboardCheck className="h-4 w-4 text-accent-violet" />
+          <h2 className="heading text-base font-semibold">Herramientas</h2>
+        </header>
+        <Link
+          to="/configuracion/agente-sop"
+          className="flex items-center justify-between gap-3 rounded-[10px] border border-border-subtle px-4 py-3 transition-colors hover:border-accent-primary/50 focus-ring"
+        >
+          <span>
+            <span className="block text-sm font-medium text-text-primary">Agente SOP</span>
+            <span className="block text-xs text-text-secondary mt-0.5">
+              Evalúa la viabilidad de un prospecto antes de aceptarlo como cliente
+            </span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-text-muted" />
+        </Link>
+      </section>
 
       <section className="surface p-5">
         <header className="flex items-center gap-2 mb-4">

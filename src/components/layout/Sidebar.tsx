@@ -3,47 +3,52 @@ import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
-  Calendar,
-  UsersRound,
+  CalendarDays,
+  CheckSquare,
+  UserCheck,
+  FolderOpen,
   Settings,
   Sparkles,
-  Package,
-  Link as LinkIcon,
-  ClipboardCheck,
-  Building2,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { BRAND } from '@/config/brand';
 import { useClientStore } from '@/store/useClientStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { avanceForClient } from '@/utils/avance';
 import { healthFromMetrics } from '@/utils/metricsCalculator';
 import { isActiveClient } from '@/types/client';
 
+/**
+ * Capa 0 — navegación de la agencia. EXACTAMENTE 7 ítems, sin secciones extra.
+ *
+ * Lo que se fue y a dónde:
+ *  · "Repositorios Globales" (Entregables + Links) → fusionado en /links-entregables
+ *  · "Agente SOP"                                  → vive dentro de Configuración
+ *  · Acceso directo al Espacio de Agencia          → se entra por Clientes
+ */
 const nav = [
-  { to: '/', label: 'Dashboard Macro', icon: LayoutDashboard, end: true },
-  { to: '/clients', label: 'Clientes', icon: Users, end: false },
-  { to: '/agenda', label: 'Agenda Global', icon: Calendar, end: false },
-  { to: '/team', label: 'Equipo', icon: UsersRound, end: false },
-  { to: '/settings', label: 'Configuración', icon: Settings, end: false },
-];
-
-const globalNav = [
-  { to: '/repositorio/entregables', label: 'Entregables', icon: Package },
-  { to: '/repositorio/links',       label: 'Links',       icon: LinkIcon },
-  { to: '/agente-sop',              label: 'Agente SOP',  icon: ClipboardCheck },
+  { to: '/dashboard',        label: 'Dashboard',           icon: LayoutDashboard, end: false },
+  { to: '/clientes',         label: 'Clientes',            icon: Users,           end: false },
+  { to: '/agenda-global',    label: 'Agenda Global',       icon: CalendarDays,    end: false },
+  { to: '/tareas',           label: 'Tareas',              icon: CheckSquare,     end: false },
+  { to: '/equipo',           label: 'Equipo',              icon: UserCheck,       end: false },
+  { to: '/links-entregables',label: 'Links y Entregables', icon: FolderOpen,      end: false },
+  { to: '/configuracion',    label: 'Configuración',       icon: Settings,        end: false },
 ];
 
 export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const clients = useClientStore((s) => s.clients);
   const tasks = useClientStore((s) => s.tasks);
-  // El espacio de Agencia (si existe) va como entrada aparte, no como cliente.
-  const agencyClient = clients.find((c) => c.isAgency);
-  const navItems = agencyClient
-    ? [
-        ...nav.slice(0, 2),
-        { to: `/client/${agencyClient.id}`, label: 'Agencia', icon: Building2, end: false },
-        ...nav.slice(2),
-      ]
-    : nav;
+  const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
+  const navItems = nav;
+
+  // Nombre visible: lo que haya antes de la @ del correo, capitalizado.
+  const handle = (user?.email ?? '').split('@')[0] ?? '';
+  const userName = handle
+    ? handle.charAt(0).toUpperCase() + handle.slice(1)
+    : 'Sin sesión';
+  const userInitials = (userName.match(/\b[A-Za-zÁÉÍÓÚÑ]/g) ?? ['?']).slice(0, 2).join('').toUpperCase();
   // Salud global del portafolio: peor estado entre clientes reales (sin agencia).
   const worstHealth = clients.reduce<'green' | 'yellow' | 'red'>((acc, c) => {
     if (c.isAgency) return acc;
@@ -92,8 +97,8 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
           </div>
         </motion.div>
         <div>
-          <div className="heading text-sm font-bold leading-tight">SALES BRAIN</div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-text-muted">Operating System</div>
+          <div className="heading text-sm font-bold leading-tight">{BRAND.name}</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-text-muted">{BRAND.subtitle}</div>
         </div>
       </div>
 
@@ -122,33 +127,6 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
         ))}
       </nav>
 
-      <div className="px-3 pb-2">
-        <div className="text-[9px] uppercase tracking-[0.22em] text-text-muted px-3 mb-1.5">Repositorios globales</div>
-        <div className="space-y-1">
-          {globalNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={onClose}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-[10px] px-3 py-2 text-xs transition-all focus-ring',
-                  isActive ? 'font-medium' : 'text-text-secondary hover:text-text-primary',
-                )
-              }
-              style={({ isActive }) =>
-                isActive
-                  ? { background: 'var(--sidebar-item-active-bg)', color: 'var(--sidebar-item-active-text)' }
-                  : undefined
-              }
-            >
-              <item.icon className="h-3.5 w-3.5" />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </div>
-      </div>
-
       <div className="m-3 surface p-3">
         <div className="flex items-center gap-2 mb-1">
           <span className={cn('h-2 w-2 rounded-full', healthDot)} />
@@ -156,6 +134,20 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
         </div>
         <div className="text-sm text-text-primary">{healthLabel}</div>
         <div className="text-[11px] text-text-muted mt-1">{clients.filter(isActiveClient).length} clientes activos</div>
+      </div>
+
+      {/* Pie: quién está logueado. */}
+      <div
+        className="flex items-center gap-2.5 px-4 py-3 border-t"
+        style={{ borderColor: 'var(--sidebar-border)' }}
+      >
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-accent text-[11px] font-bold text-white">
+          {userInitials}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium text-text-primary">{userName}</div>
+          <div className="text-[10px] text-text-muted">{role === 'owner' ? 'Dueña de agencia' : 'Equipo'}</div>
+        </div>
       </div>
       </aside>
     </>

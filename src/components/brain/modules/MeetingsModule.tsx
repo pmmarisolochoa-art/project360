@@ -13,6 +13,7 @@ import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
 import type { Meeting, MeetingType } from '@/types/meeting';
 import { useClientStore } from '@/store/useClientStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { MeetingDrawer } from '@/components/dashboard/MeetingDrawer';
 import { Button } from '@/components/ui/Button';
@@ -131,6 +132,9 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
   const filtered = useMemo(() => {
     const now = new Date();
     return meetings.filter((m) => {
+      // La agenda del cliente es siempre del equipo: lo privado vive solo en
+      // "Mi agenda privada" de la Agenda Global (S5).
+      if (m.esPrivada) return false;
       if (fScope === 'internal' && !isInternalMeeting(m.type)) return false;
       if (fScope === 'client' && isInternalMeeting(m.type)) return false;
       if (fType && m.type !== fType) return false;
@@ -467,6 +471,8 @@ function NewMeetingModal({ clientId, clientName, defaultType = 'weekly_metrics',
   const [duration, setDuration] = useState(45);
   const [link, setLink] = useState('');
   const [titleTouched, setTitleTouched] = useState(false);
+  const [esPrivada, setEsPrivada] = useState(false);
+  const authUserId = useAuthStore((s) => s.user?.id);
 
   // Título auto-generado a partir de tipo + cliente + fecha.
   // Si el usuario lo edita manualmente (titleTouched), respetamos su valor.
@@ -491,6 +497,9 @@ function NewMeetingModal({ clientId, clientName, defaultType = 'weekly_metrics',
       participants: [],
       videoCallLink: link.trim() || undefined,
       completed: false,
+      esPrivada,
+      // Sin dueño la fila sería invisible para todos (CHECK de la 030).
+      propietarioId: esPrivada ? authUserId : undefined,
     };
     onCreate(meeting);
   }
@@ -536,6 +545,20 @@ function NewMeetingModal({ clientId, clientName, defaultType = 'weekly_metrics',
         <label className="block">
           <span className="text-[10px] uppercase tracking-wider text-text-muted mb-1 block">Link videollamada (opcional)</span>
           <Input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://meet.google.com/..." />
+        </label>
+        <label className="flex items-start gap-2.5 rounded-lg border border-border-subtle px-3 py-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={esPrivada}
+            onChange={(e) => setEsPrivada(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-accent-violet"
+          />
+          <span>
+            <span className="block text-xs font-medium text-text-primary">🔒 Reunión privada (solo yo la veo)</span>
+            <span className="block text-[11px] text-text-secondary mt-0.5">
+              No aparece en la agenda del equipo ni en los reportes.
+            </span>
+          </span>
         </label>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>

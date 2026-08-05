@@ -3,6 +3,7 @@ import { Sparkles, LogOut, LayoutGrid, Sun, Moon } from 'lucide-react';
 import { signOut } from '@/services/auth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useAppStore } from '@/store/useAppStore';
+import { BRAND } from '@/config/brand';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 
 /**
@@ -36,7 +37,7 @@ export function MemberLayout() {
             <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-accent shrink-0">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
-            <div className="heading text-sm font-bold leading-tight">Project360</div>
+            <div className="heading text-sm font-bold leading-tight">{BRAND.name}</div>
           </div>
           <NavLink
             to="/mi-espacio"

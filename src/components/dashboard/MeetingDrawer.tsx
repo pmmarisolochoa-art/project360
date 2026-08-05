@@ -56,6 +56,20 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
   const consumeAutoGen = useUIDrawerStore((s) => s.consumeAutoGen);
   const accent = client?.primaryColor ?? '#8B5CF6';
 
+  /**
+   * Sello de origen que se copia en TODA tarea creada desde esta reunión.
+   * Va en los dos puntos de extracción (automática al marcar como realizada, y
+   * manual al confirmar el borrador) para que ninguna tarea nazca huérfana.
+   * El nombre y la fecha se guardan copiados: así la tarjeta muestra su origen
+   * sin cargar la reunión, y el dato sobrevive si la reunión se borra.
+   */
+  const origenReunion = {
+    origen: 'reunion' as const,
+    meetingId: meeting.id,
+    meetingNombre: meeting.title?.trim() || TYPE_LABEL[meeting.type],
+    meetingFecha: meeting.scheduledAt,
+  };
+
   const [videoLink, setVideoLink] = useState(meeting.videoCallLink ?? '');
   const [agenda, setAgenda] = useState(meeting.agenda ?? '');
   const [notes, setNotes] = useState(meeting.notes ?? '');
@@ -402,6 +416,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
             moduleTag: 'meeting',
             tag: t.tag ?? 'meeting',
             createdAt: new Date().toISOString(),
+            ...origenReunion,
           };
           addTask(task);
           extractedCount++;
@@ -749,6 +764,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                       tag: t.tag ?? 'meeting',
                       origin: undefined,
                       createdAt: new Date().toISOString(),
+                      ...origenReunion,
                     };
                     addTask(task);
                     created.push({ id: task.id, title: task.title, assignedTo: task.assignedTo, dueDate: task.dueDate });

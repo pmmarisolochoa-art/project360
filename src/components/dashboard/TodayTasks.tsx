@@ -47,7 +47,7 @@ export function TodayTasks() {
           <Badge tone={tasks.length > 0 ? 'danger' : 'success'}>{tasks.length}</Badge>
           <span className="text-xs text-text-muted">{todayCap}</span>
         </div>
-        <Link to="/tasks" className="text-xs text-text-secondary hover:text-text-primary inline-flex items-center gap-1">
+        <Link to="/tareas" className="text-xs text-text-secondary hover:text-text-primary inline-flex items-center gap-1">
           Ver todas <ArrowRight className="h-3 w-3" />
         </Link>
       </header>

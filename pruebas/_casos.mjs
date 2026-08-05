@@ -199,6 +199,38 @@ ok(estado.requests.length === 1 && estado.requests[0].status_code === 401,
    'los intentos FALLIDOS también se registran (sirve para detectar ataques)');
 ok(!JSON.stringify(estado.requests[0]).includes('zzzz'), 'la key intentada NO se guarda en el log');
 
+// ═══ SANEAMIENTO (S5D) ═══
+seccion('Saneamiento de entrada y de logs');
+reset({ keys: [keyBase()] });
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Tarea\u0000 con byte nulo' } });
+ok(r.status === 201 || r.status === 200, `título con byte nulo → aceptado, no 500 (fue ${r.status})`);
+let arg = estado.llamadasRpc.find((l) => l.nombre === 'api_tarea_crear')?.args;
+ok(arg && !arg.p_titulo.includes('\u0000'), 'el byte nulo se quitó antes de llegar a Postgres');
+
+reset({ keys: [keyBase()] });
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: '   \u0007\u001b   ' } });
+ok(r.status === 400, 'título de solo caracteres invisibles → 400 (cuenta como vacío)');
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: "'; DROP TABLE tasks; --" } });
+arg = estado.llamadasRpc.find((l) => l.nombre === 'api_tarea_crear')?.args;
+ok(arg?.p_titulo === "'; DROP TABLE tasks; --",
+   'intento de inyección SQL viaja como parámetro, sin concatenar (se guarda como texto)');
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Normal', descripcion: 'x'.repeat(3000) } });
+await new Promise((r) => setTimeout(r, 10));
+let logueado = estado.requests[0]?.request_body;
+ok(String(logueado.descripcion).length < 600, 'el audit log recorta valores largos');
+ok(String(logueado.descripcion).includes('recortado'), 'y marca que fueron recortados');
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'X', api_key: KEY_OK } });
+await new Promise((r) => setTimeout(r, 10));
+logueado = estado.requests[0]?.request_body;
+ok(logueado.api_key === '[redactado]', 'un secreto mandado por error queda REDACTADO en el log');
+ok(!JSON.stringify(estado.requests[0]).includes(KEY_OK.slice(8)), 'la llave no aparece en ninguna parte del log');
+
 console.log(`\n${'═'.repeat(62)}`);
 console.log(fallos === 0 ? `🟢 ${total}/${total} PASARON` : `🔴 ${fallos} de ${total} FALLARON`);
 process.exit(fallos ? 1 : 0);

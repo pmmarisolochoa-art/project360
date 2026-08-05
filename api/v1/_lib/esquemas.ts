@@ -42,12 +42,42 @@ export const TIPOS_REUNION = [
 ] as const;
 
 /**
- * Texto de entrada: recorta espacios y limita el largo.
+ * Texto de entrada: limpia, recorta espacios y limita el largo.
  *
- * El límite no es cosmético — sin él, un título de 2 MB entra en la base y
- * después revienta cada PDF y cada vista que lo intente pintar.
+ * SOBRE "SANITIZAR": la inyección SQL aquí no es posible por construcción. La
+ * API no arma consultas concatenando texto — llama funciones de Postgres con
+ * parámetros, así que un valor como `'; drop table tasks; --` se guarda como
+ * lo que es: un título feo. No hay nada que escapar.
+ *
+ * Lo que sí hay que limpiar son los caracteres de control:
+ *
+ *   · El byte nulo (`\u0000`) NO se puede guardar en una columna `text` de
+ *     Postgres. Un JSON que lo traiga hace fallar el INSERT con un error
+ *     críptico (22P05) que se vería como un 500 nuestro cuando en realidad es
+ *     un dato malo de quien llama.
+ *   · El resto de caracteres de control no se ven pero rompen la interfaz, los
+ *     PDF y los correos. Se quitan sin avisar: no aportan nada y nadie los
+ *     escribe a propósito.
+ *
+ * El límite de largo tampoco es cosmético — sin él, un título de 2 MB entra en
+ * la base y después revienta cada PDF y cada vista que lo intente pintar.
  */
-const texto = (max: number) => z.string().trim().max(max);
+const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+
+const limpiar = (s: string) => s.replace(CONTROL, '').trim();
+
+/**
+ * `min` va como parámetro y no encadenado con `.min()` porque después del
+ * `.transform()` el esquema ya no es un `ZodString` y ese método no existe.
+ * Además así el largo se mide sobre el texto YA limpio: un título hecho solo
+ * de caracteres invisibles cuenta como vacío, que es lo correcto.
+ */
+const texto = (max: number, min = 0) =>
+  z
+    .string()
+    .transform(limpiar)
+    .refine((v) => v.length >= min, { message: 'No puede estar vacío.' })
+    .refine((v) => v.length <= max, { message: `Máximo ${max} caracteres.` });
 
 /** uuid: la forma que espera Postgres. Un id mal formado da error 22P02. */
 const uuid = z.string().uuid('El id debe ser un uuid válido.');
@@ -80,7 +110,7 @@ export const filtrosReuniones = z.object({
 export const crearTarea = z
   .object({
     client_id: uuid,
-    titulo: texto(300).min(1, 'El título no puede estar vacío.'),
+    titulo: texto(300, 1),
     descripcion: texto(5000).optional(),
     prioridad: z.enum(PRIORIDADES).default('P2'),
     asignado_a: texto(120).optional(),
@@ -106,7 +136,7 @@ export const cambiarEstado = z
 export const crearReunion = z
   .object({
     client_id: uuid,
-    titulo: texto(300).min(1, 'El título no puede estar vacío.'),
+    titulo: texto(300, 1),
     tipo: z.enum(TIPOS_REUNION, {
       errorMap: () => ({ message: `Tipo inválido. Valores permitidos: ${TIPOS_REUNION.join(', ')}.` }),
     }),

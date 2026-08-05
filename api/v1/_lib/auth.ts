@@ -56,6 +56,45 @@ export interface Contexto {
 /** Máximo del cuerpo de un request: 100 KB. */
 const MAX_BODY_BYTES = 100 * 1024;
 
+/**
+ * Nombres de campo que NUNCA se guardan en el audit log, ni siquiera si
+ * alguien los manda por error.
+ *
+ * El log existe para investigar problemas, y se consulta desde el panel de
+ * Configuración. Si una integración mal escrita mandara su propia API key
+ * dentro del body, quedaría guardada en claro y visible en pantalla — un
+ * secreto filtrado por el mismísimo sistema que debía vigilarlo.
+ */
+const CAMPOS_SENSIBLES = /(key|token|secret|password|contrasen|authorization|auth)/i;
+
+/** Cuánto texto se guarda de cada valor. Un log no necesita el dato completo. */
+const MAX_VALOR_LOG = 500;
+
+/**
+ * Deja el body en algo seguro de guardar: redacta lo sensible y recorta lo
+ * largo. Solo baja un nivel — los cuerpos de esta API son planos, y bajar en
+ * profundidad arbitraria invitaría a que un JSON anidado a propósito consuma
+ * CPU en cada llamada.
+ */
+function sanearParaLog(body: unknown): unknown {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return null;
+
+  const salida: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
+    if (CAMPOS_SENSIBLES.test(k)) {
+      salida[k] = '[redactado]';
+    } else if (typeof v === 'string') {
+      salida[k] = v.length > MAX_VALOR_LOG ? `${v.slice(0, MAX_VALOR_LOG)}…[recortado]` : v;
+    } else if (typeof v === 'number' || typeof v === 'boolean' || v === null) {
+      salida[k] = v;
+    } else {
+      // Objetos y arrays anidados: se anota que venían, no su contenido.
+      salida[k] = '[objeto]';
+    }
+  }
+  return salida;
+}
+
 /** Ventana del rate limit. */
 const VENTANA_SEGUNDOS = 60;
 
@@ -271,7 +310,7 @@ export function proteger(opts: Opciones) {
           registrar(res, admin);
           return res;
         }
-        bodyParaLog = body;
+        bodyParaLog = sanearParaLog(body);
       }
 
       // ── PASO 6: ejecutar y registrar ──────────────────────────────────────

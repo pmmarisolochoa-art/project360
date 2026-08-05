@@ -43,5 +43,8 @@ jobs:
       - name: Lint (¿código limpio?)
         run: npm run lint
 
+      - name: Pruebas de la API pública (¿sigue siendo segura?)
+        run: npm run test:api
+
       - name: Build (¿construye la app?)
         run: npm run build

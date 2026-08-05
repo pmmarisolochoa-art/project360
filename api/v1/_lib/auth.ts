@@ -41,8 +41,16 @@ export interface Contexto {
   body: unknown;
   /** Parámetros de la URL. */
   params: URLSearchParams;
-  /** Segmento final de la ruta, para /tasks/:id. Cadena vacía si no hay. */
-  id: string;
+  /**
+   * Segmentos de la ruta después de `/api/v1/`. Para `/tasks/<uuid>/status`
+   * sería `['tasks', '<uuid>', 'status']`.
+   *
+   * Se calculan de la URL en vez de usar los parámetros dinámicos de Vercel
+   * porque en el Edge Runtime el handler solo recibe el `Request`. Cada
+   * endpoint toma el segmento que le toca: en `/tasks/:id` el id es el último,
+   * pero en `/tasks/:id/status` es el penúltimo.
+   */
+  segmentos: string[];
 }
 
 /** Máximo del cuerpo de un request: 100 KB. */
@@ -51,14 +59,21 @@ const MAX_BODY_BYTES = 100 * 1024;
 /** Ventana del rate limit. */
 const VENTANA_SEGUNDOS = 60;
 
-interface Opciones {
-  /** Métodos que acepta este endpoint. */
-  metodos: string[];
+/** Qué hace un endpoint para un método concreto, y con qué permiso. */
+interface Ruta {
   /** Permiso necesario. Sin él, la llamada muere en el paso 4. */
   scope: Scope;
   /** La lógica del endpoint. Solo corre si todo lo anterior pasó. */
   ejecutar: (ctx: Contexto) => Promise<Response>;
 }
+
+/**
+ * El scope se declara POR MÉTODO, no por archivo. `/tasks` sirve GET y POST
+ * desde el mismo módulo, y son permisos distintos: una key de solo lectura
+ * tiene que poder listar y NO poder crear. Un scope por archivo obligaría a
+ * darle el permiso más alto de los dos.
+ */
+type Opciones = Partial<Record<'GET' | 'POST' | 'PATCH', Ruta>>;
 
 /**
  * Envuelve un endpoint con todos los controles.
@@ -67,6 +82,7 @@ interface Opciones {
  * o pasada de límite: para cuando corre, todo eso ya se resolvió.
  */
 export function proteger(opts: Opciones) {
+  const metodos = Object.keys(opts);
   return async function handler(req: Request): Promise<Response> {
     const inicio = Date.now();
     const url = new URL(req.url);
@@ -106,12 +122,13 @@ export function proteger(opts: Opciones) {
         return new Response(null, { status: 204, headers: HEADERS_SEGURIDAD });
       }
 
-      if (!opts.metodos.includes(req.method)) {
+      const ruta = opts[req.method as 'GET' | 'POST' | 'PATCH'];
+      if (!ruta) {
         return error(
           CODIGOS.METODO_NO_PERMITIDO,
-          `Este endpoint solo acepta ${opts.metodos.join(', ')}.`,
+          `Este endpoint solo acepta ${metodos.join(', ')}.`,
           405,
-          { Allow: opts.metodos.join(', ') },
+          { Allow: metodos.join(', ') },
         );
       }
 
@@ -192,10 +209,10 @@ export function proteger(opts: Opciones) {
       const scopes = (fila.scopes as string[]) ?? [];
 
       // ── PASO 4: ¿tiene el permiso? ────────────────────────────────────────
-      if (!scopes.includes(opts.scope)) {
+      if (!scopes.includes(ruta.scope)) {
         const res = error(
           CODIGOS.PERMISO_INSUFICIENTE,
-          `Esta API key no tiene el permiso "${opts.scope}".`,
+          `Esta API key no tiene el permiso "${ruta.scope}".`,
           403,
         );
         registrar(res, admin);
@@ -258,7 +275,6 @@ export function proteger(opts: Opciones) {
       }
 
       // ── PASO 6: ejecutar y registrar ──────────────────────────────────────
-      const partes = url.pathname.split('/').filter(Boolean);
       const ctx: Contexto = {
         admin,
         agenciaId,
@@ -266,10 +282,10 @@ export function proteger(opts: Opciones) {
         scopes,
         body,
         params: url.searchParams,
-        id: partes[partes.length - 1] ?? '',
+        segmentos: url.pathname.replace(/^\/api\/v1\/?/, '').split('/').filter(Boolean),
       };
 
-      const res = await opts.ejecutar(ctx);
+      const res = await ruta.ejecutar(ctx);
 
       // Marca de uso, para que en el panel se vea qué keys siguen vivas.
       void admin

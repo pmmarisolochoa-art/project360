@@ -10,3 +10,6 @@ tsconfig.api.tsbuildinfo
 .claude/
 vite.config.d.ts
 vite.config.js
+
+# Compilados temporales de las pruebas
+pruebas/.build/

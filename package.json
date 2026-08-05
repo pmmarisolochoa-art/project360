@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -b && tsc -p tsconfig.api.json",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run lint"
+    "check": "npm run typecheck && npm run lint && npm run test:api",
+    "test:api": "node pruebas/api-v1.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

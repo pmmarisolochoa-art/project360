@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { KeyRound, Plus, Copy, Check, AlertTriangle, Ban, ShieldCheck } from 'lucide-react';
+import { ApiActividad } from './ApiActividad';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -57,6 +58,7 @@ export function ApiKeysSection() {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [cargando, setCargando] = useState(true);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [tab, setTab] = useState<'llaves' | 'actividad'>('llaves');
 
   const cargar = useCallback(async () => {
     try {
@@ -99,10 +101,33 @@ export function ApiKeysSection() {
             </p>
           </div>
         </div>
-        <Button size="sm" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setModalAbierto(true)}>
-          Generar nueva API Key
-        </Button>
+        {tab === 'llaves' && (
+          <Button size="sm" leftIcon={<Plus className="h-3.5 w-3.5" />} onClick={() => setModalAbierto(true)}>
+            Generar nueva API Key
+          </Button>
+        )}
       </header>
+
+      {/* Pestañas. La de Actividad es el audit log: quién llamó, cuándo y cómo salió. */}
+      <div className="inline-flex rounded-[10px] border border-border-default bg-bg-base/40 p-1 mb-4">
+        {([['llaves', 'Llaves'], ['actividad', 'Actividad']] as const).map(([id, etiqueta]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            aria-pressed={tab === id}
+            className={`h-8 px-4 rounded-md text-sm font-medium transition-all ${
+              tab === id ? 'bg-accent-indigo text-white shadow-sm' : 'text-text-muted hover:text-text-primary'
+            }`}
+          >
+            {etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'actividad' ? (
+        <ApiActividad keys={keys} />
+      ) : (
+      <>
 
       {cargando ? (
         <p className="text-sm text-text-muted py-4">Cargando…</p>
@@ -180,6 +205,9 @@ export function ApiKeysSection() {
           <ShieldCheck className="h-3.5 w-3.5" />
           {activas} activa{activas === 1 ? '' : 's'}. Las llaves nunca ven tareas ni reuniones privadas.
         </p>
+      )}
+
+      </>
       )}
 
       <NuevaKeyModal

@@ -330,10 +330,13 @@ export function proteger(opts: Opciones) {
       }
 
       // ── PASO 6: ejecutar y registrar ──────────────────────────────────────
+      // Se leen de `fila` y no de las variables de auditoría: para este punto
+      // los controles ya garantizaron que la llave existe y está viva, pero
+      // `keyId`/`agenciaId` son `let` que TypeScript no puede estrechar solo.
       const ctx: Contexto = {
         admin,
-        agenciaId,
-        keyId,
+        agenciaId: fila.agencia_id as string,
+        keyId: fila.id as string,
         scopes,
         body,
         params: url.searchParams,

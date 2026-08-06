@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-08-06 — API pública v1 EN PRODUCCIÓN: Tareas y Agenda para aplicaciones externas
+
+10 commits, todos en `main` y desplegados. Migraciones **032 y 033 corridas en prod** y verificadas. **Probada contra producción con una llave real: 24/24.**
+
+**Contexto:** cierra el lado nuestro de la integración con Paralelo (Ikigai GM), abierta desde el 29-jul. Alcance deliberadamente estrecho: **solo Tareas y Agenda**. Clientes, métricas, entregables, equipo y ROPRE no se exponen.
+
+**1. Decisión de arquitectura: el multi-tenant ya existía, un nivel más abajo.** El spec proponía activar `agencia_id` en todas las tablas o renunciar al aislamiento. Ninguna de las dos: `clients.agency_id` existe desde el `schema.sql` original, y `tasks`/`meetings` cuelgan de `client_id`. La API deriva la agencia por ese camino. **Cero migraciones de columnas, cero backfill** — y sobre todo, cero filas que se queden con `agencia_id` nulo, que es exactamente cómo un multi-tenant a medias termina filtrando datos.
+
+**2. Decisión de seguridad, la que sostiene todo: el aislamiento vive en la BASE, no en JavaScript.** El spec pedía RLS "como respaldo del filtro del middleware". **Eso no funciona:** la service key de Supabase se salta RLS por diseño, así que las policies de la 030 no frenan a la API. Si el filtro viviera solo en el middleware, sería la única barrera. Solución: la API **no consulta `tasks` ni `meetings`** — llama 7 funciones `security definer` (migración 033) que reciben el `agencia_id` de la llave y filtran por dentro. Para servir una fila ajena habría que editar el SQL a propósito. Las 3 reglas que cumplen todas: filtran por agencia, excluyen `es_privada`, y devuelven columnas explícitas (nunca `select *`, para que una columna sensible nueva no se filtre sola).
+
+**3. Decisión sobre las llaves: se guarda el hash, nunca la llave.** SHA-256; en claro existe un solo instante, en la respuesta de creación. Robar la base no da llaves usables. Aleatoriedad con `crypto.getRandomValues` y rechazo de muestras para no sesgar el alfabeto. **La migración 032 NO tiene policy de INSERT sobre `api_keys` a propósito:** si el frontend pudiera insertar, elegiría el hash y la autenticación dejaría de significar nada.
+
+**4. Decisión de alcance: los 7 endpoints de una, pero la escritura se entrega cuando la founder quiera.** El scope es opcional por llave, así que se puede dar una llave de solo lectura hoy y otra con escritura cuando la integración esté probada, sin tocar código. Barreras de escritura acordadas: **ningún endpoint borra**; `PATCH` solo mueve `status` (no es "editar tarea", una integración con bug no puede reescribir títulos ni fechas); no toca `in_review` (409); todo lo creado queda con `origen='api'` para poder aislarlo y limpiarlo con un `WHERE`; `POST` idempotente por `external_id` para que un reintento no duplique.
+
+**5. Decisión de privacidad: la agenda NO expone transcripción, notas ni tareas extraídas.** Es lo más sensible que guarda la app —la conversación literal del equipo y del cliente— y ninguna integración de agenda la necesita. Si algún día hace falta, será un permiso aparte y una decisión consciente.
+
+**6. TRAMPA EVITADA (la de siempre):** la 029 dejó el CHECK de `tasks.origen` en `(manual, reunion, embudo, ia)`. Marcar las filas de la API con `'api'` habría sido **rechazado en silencio** desde el cliente REST. La 033 amplía el CHECK ANTES de que exista el endpoint. Tercera vez que esta trampa aparece en el proyecto.
+
+**7. Tres fallos que SOLO aparecieron probando en producción** — ninguno lo habrían encontrado las 69 pruebas automáticas, y vale la pena recordarlo:
+
+- **Las llamadas de llaves revocadas eran invisibles en el panel.** Se guardaban con `agencia_id` nulo y la policy de lectura exige que no lo sea. La alerta de "posible ataque" no se habría disparado nunca en el caso más probable: una integración con la llave revocada llamando cada minuto.
+- **El audit log perdía filas y se saltaba dos caminos.** Se escribía sin esperar confirmación, y en Vercel la función se apaga al responder llevándose la escritura pendiente (6 de 126 perdidas). Además el 405 y el rechazo por HTTP devolvían sin registrar. **Consecuencia real de seguridad: el rate limit cuenta esa tabla, así que no protegía.** Arreglo: UNA sola salida —el envoltorio registra, ningún camino lo hace por su cuenta— y la escritura se espera (~100 ms por llamada; es el precio de que el registro y el límite sean de verdad).
+- **La prueba del rate limit era incapaz de disparar.** 110 llamadas en secuencia a ~0.9 s cada una se reparten en ~100 s contra una ventana de 60: nunca había más de ~65 dentro. El código estaba bien. Verificado en paralelo: 150 llamadas contra un límite de 100 → 102 pasaron, 48 frenadas. **Este fallo enmascaró al anterior durante dos rondas.**
+
+**Regla que sale de esto:** un aviso amarillo ("no se alcanzó el tope, no es un fallo") es lo que dejó pasar el problema dos veces. Si una comprobación de seguridad no se cumple, es **fallo**, no aviso.
+
+**8. Decisión de proceso: `api/` no estaba en NINGÚN tsconfig.** El código que habla con la service key era el único que nadie revisaba. Nuevo `tsconfig.api.json`; `typecheck` corre los dos proyectos. No se referencia desde `tsconfig.json` porque los proyectos referenciados deben emitir (TS6310) y llenaría `api/` de `.d.ts`. Y otra regla aprendida a golpes: **verificar con `npm run typecheck | tail -2 && …` no verifica nada** — el pipe hace que el estado de salida sea el de `tail`, siempre 0. Se subió un error de tipos así; el CI lo atrapó en 47 s.
+
+**9. Herramientas nuevas de verificación, ambas en el repo:** `npm run test:api` (69 pruebas que compilan los endpoints REALES con un Supabase falso; ya en el CI) y `pruebas/probar_api_produccion.sh` (24 comprobaciones contra producción con una llave real). Y `supabase/verificacion_seguridad_api.sql`, de solo lectura, que comprueba RLS, que las funciones sean `security definer` con `search_path` fijo, que `anon` no pueda ejecutarlas, y hace una prueba real de aislamiento.
+
+**10. Se descartó un proyecto del alcance.** Se eliminaron sus menciones del código, pruebas, documentación e historial (única excepción hecha a la regla de que este log no se reescribe; el nombre sigue en el historial de git, que no se reescribió por no ser un dato sensible). **La regla que ilustraba se mantiene:** un proyecto que exista en la app externa y no esté dado de alta en Project360 se rechaza con 400 — ni fila huérfana ni descarte silencioso.
+
+**Pendientes:**
+- **Revocar la llave de prueba** (`pk_live_hS9s…`): quedó expuesta en la conversación de trabajo.
+- **Decidir quién escribe el lado de Paralelo** — es lo único que falta para que la integración funcione. Project360 ya expone todo. Tres escenarios: hay acceso al código de Ikigai GM / lo hace un equipo de Ikigai / es herramienta de terceros y no se puede tocar. **Es coordinación entre proyectos: va por el Maestro, no por esta terminal.**
+- Entregar `API_PUBLICA.md` + una llave de **solo lectura** a quien integre; la de escritura, después.
+
+---
+
 ## 2026-08-05 (tarde) — El repo por fin tiene red de seguridad automática: CI verde a la primera
 
 Commits `112ff89`, `eac5084` y `09584f2`, **los tres en `origin/main`**. Hasta hoy el repo **no tenía ninguna verificación automática**: que el código compilara dependía de que alguien se acordara de correr `tsc` y `build` a mano.

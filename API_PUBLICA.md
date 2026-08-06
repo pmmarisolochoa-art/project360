@@ -333,7 +333,7 @@ Un tipo fuera de esta lista devuelve `400` con los valores permitidos.
 | 401 | `key_expirada` | La llave venció | Pide una nueva |
 | 403 | `permiso_insuficiente` | Tu llave no tiene ese permiso | Pide que te lo añadan (implica llave nueva) |
 | 404 | `no_encontrado` | El recurso no existe o no es de tu agencia | Verifica el id |
-| 405 | `metodo_no_permitido` | Método incorrecto | Revisa la cabecera `Allow` |
+| 405 | `metodo_no_permitido` | Método incorrecto en esa ruta | Revisa la cabecera `Allow` |
 | 409 | `datos_invalidos` | Tarea en revisión | No la toques |
 | 413 | `payload_muy_grande` | Body de más de 100 KB | Divídelo |
 | 429 | `demasiadas_solicitudes` | Superaste tu límite | Espera lo que diga `Retry-After` |
@@ -346,6 +346,11 @@ tarea no se guardó en ningún lado.
 
 **Sobre el 404:** un recurso de otra agencia devuelve 404, no 403. Es a
 propósito: un 403 confirmaría que ese id existe.
+
+**Sobre el orden de los errores:** sin una llave válida siempre recibes `401`,
+aunque además el método o los datos estén mal. La API se autentica primero y
+solo después mira el resto — a quien no se ha identificado no se le cuenta qué
+métodos existen.
 
 ---
 

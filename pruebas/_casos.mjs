@@ -252,6 +252,42 @@ await new Promise((r) => setTimeout(r, 10));
 ok(estado.requests[0]?.agencia_id === null,
    'una llave DESCONOCIDA queda sin agencia — no hay a quién atribuírsela (limitación conocida)');
 
+// ═══ TODO CAMINO REGISTRA (regresión del 06-ago) ═══
+seccion('Ningún camino se salta el registro');
+// El 405 no se registraba: su `return` era el único sin llamada al log. Se
+// descubrió en producción, no acá — de ahí esta prueba.
+reset({ keys: [keyBase()] });
+r = await pedir(tasks, { metodo: 'DELETE' });
+ok(r.status === 405, 'DELETE → 405');
+ok(estado.requests.length === 1, 'el 405 SÍ queda registrado (antes se perdía)');
+ok(estado.requests[0]?.status_code === 405, 'y con su código correcto');
+
+reset({ keys: [keyBase({ scopes: ['read:tasks'] })] });
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'X' } });
+ok(estado.requests.length === 1 && estado.requests[0].status_code === 403,
+   'el 403 de permiso queda registrado (alimenta la alerta de ataque)');
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { headers: { 'x-forwarded-proto': 'http' } });
+ok(estado.requests.length === 1, 'el rechazo por HTTP también se registra');
+
+reset({ keys: [keyBase()], rpcResp: { api_tareas_listar: { data: null, error: { message: 'boom' } } } });
+await pedir(tasks);
+ok(estado.requests.length === 1 && estado.requests[0].status_code === 500,
+   'un error interno también se registra');
+
+// El registro se ESPERA: al volver de la llamada la fila ya tiene que estar.
+// Antes se lanzaba sin esperar y Vercel mataba la escritura al responder, lo
+// que además dejaba al rate limit contando de menos.
+reset({ keys: [keyBase()] });
+await pedir(tasks);
+ok(estado.requests.length === 1,
+   'la fila existe SIN esperar nada más (el registro se completó antes de responder)');
+
+reset({ keys: [keyBase()] });
+for (let i = 0; i < 12; i++) await pedir(tasks);
+ok(estado.requests.length === 12, `12 llamadas → 12 filas, ninguna perdida (fueron ${estado.requests.length})`);
+
 console.log(`\n${'═'.repeat(62)}`);
 console.log(fallos === 0 ? `🟢 ${total}/${total} PASARON` : `🔴 ${fallos} de ${total} FALLARON`);
 process.exit(fallos ? 1 : 0);

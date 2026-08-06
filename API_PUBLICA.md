@@ -56,11 +56,22 @@ Todas las llamadas deben ser **HTTPS**.
 ## 3. URL base
 
 ```
-https://<dominio-de-project360>/api/v1
+https://project360-pearl.vercel.app/api/v1
 ```
 
 La versión va en la ruta (`/v1/`). Cuando salga una v2, la v1 seguirá
 funcionando: tu integración no se romperá sola.
+
+Puedes comprobar que tienes conexión y que la llave sirve con:
+
+```bash
+curl -s "https://project360-pearl.vercel.app/api/v1/tasks?limite=1" \
+  -H "Authorization: Bearer $PROJECT360_API_KEY"
+```
+
+Si responde `{"success":true,…}` está todo listo. Si responde
+`{"success":false,"error":{"code":"key_invalida"}}`, la llave no es válida o
+fue revocada — pídela de nuevo.
 
 ---
 
@@ -382,11 +393,11 @@ Otros límites: **body máximo 100 KB**, **200 resultados** por página.
 
 ```bash
 # Listar tareas pendientes de un cliente
-curl -s "https://tu-dominio.com/api/v1/tasks?status=pending&limite=20" \
+curl -s "https://project360-pearl.vercel.app/api/v1/tasks?status=pending&limite=20" \
   -H "Authorization: Bearer $PROJECT360_API_KEY"
 
 # Crear una tarea
-curl -s -X POST "https://tu-dominio.com/api/v1/tasks" \
+curl -s -X POST "https://project360-pearl.vercel.app/api/v1/tasks" \
   -H "Authorization: Bearer $PROJECT360_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -396,7 +407,7 @@ curl -s -X POST "https://tu-dominio.com/api/v1/tasks" \
   }'
 
 # Marcar como completada
-curl -s -X PATCH "https://tu-dominio.com/api/v1/tasks/a3f1…/status" \
+curl -s -X PATCH "https://project360-pearl.vercel.app/api/v1/tasks/a3f1…/status" \
   -H "Authorization: Bearer $PROJECT360_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"estado": "completed"}'
@@ -405,7 +416,7 @@ curl -s -X PATCH "https://tu-dominio.com/api/v1/tasks/a3f1…/status" \
 ### JavaScript (Node)
 
 ```js
-const BASE = 'https://tu-dominio.com/api/v1';
+const BASE = 'https://project360-pearl.vercel.app/api/v1';
 // La llave sale del entorno, NUNCA del código.
 const KEY = process.env.PROJECT360_API_KEY;
 

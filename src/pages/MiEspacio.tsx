@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useClientStore } from '@/store/useClientStore';
 import { TaskLinksRepo, type TaskLink } from '@/services/taskLinks';
 import { DeliverableDrawer } from '@/components/member/DeliverableDrawer';
+import { MiSemana } from '@/components/member/MiSemana';
 import { useLinksStore } from '@/store/useLinksStore';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from '@/store/useToastStore';
@@ -34,6 +35,7 @@ function meetingWhen(dateStr: string): string {
 export function MiEspacio() {
   const navigate = useNavigate();
   const accesses = useAuthStore((s) => s.clientAccesses);
+  const authUserId = useAuthStore((s) => s.user?.id);
   const clients = useClientStore((s) => s.clients);
   const allTasks = useClientStore((s) => s.tasks);
   const allMeetings = useClientStore((s) => s.meetings);
@@ -55,13 +57,38 @@ export function MiEspacio() {
   );
   const clientById = useMemo(() => Object.fromEntries(myClients.map((c) => [c.id, c])), [myClients]);
 
-  // Mis tareas = de mis clientes, asignadas a mi nombre.
+  /**
+   * Mis tareas = de mis clientes, y además una de estas dos:
+   *   · asignadas a mi nombre, o
+   *   · PRIVADAS y mías.
+   *
+   * La segunda condición faltaba. Una tarea privada es de su `propietarioId`,
+   * no de su `assignedTo`: si alguien creaba una privada sin ponerse a sí mismo
+   * como responsable, desaparecía de su propio espacio. Se veía únicamente
+   * entrando al cerebro del cliente, que es justo lo que Mi Espacio evita.
+   *
+   * No hace falta excluir lo privado de OTROS: las policies de la migración 030
+   * hacen que esas filas ni lleguen al navegador.
+   */
   const myTasks = useMemo(
     () =>
-      allTasks.filter(
-        (t) => myClientIds.includes(t.clientId) && myNames.has((t.assignedTo ?? '').trim().toLowerCase()),
-      ),
-    [allTasks, myClientIds, myNames],
+      allTasks.filter((t) => {
+        if (!myClientIds.includes(t.clientId)) return false;
+        if (t.esPrivada) return t.propietarioId === authUserId;
+        return myNames.has((t.assignedTo ?? '').trim().toLowerCase());
+      }),
+    [allTasks, myClientIds, myNames, authUserId],
+  );
+
+  /** Reuniones de mis clientes. Mismo criterio para las privadas. */
+  const myMeetings = useMemo(
+    () =>
+      allMeetings.filter((m) => {
+        if (!myClientIds.includes(m.clientId)) return false;
+        if (m.esPrivada) return m.propietarioId === authUserId;
+        return true;
+      }),
+    [allMeetings, myClientIds, authUserId],
   );
 
   const pending = useMemo(() => myTasks.filter((t) => t.status !== 'completed'), [myTasks]);
@@ -131,7 +158,7 @@ export function MiEspacio() {
     return !m.completed && (isToday(d) || !isPast(d));
   };
   const meetingsByClient = useMemo(() => {
-    const mine = allMeetings.filter((m) => myClientIds.includes(m.clientId) && m.scheduledAt);
+    const mine = myMeetings.filter((m) => m.scheduledAt);
     return myClients
       .map((c) => {
         const list = mine.filter((m) => m.clientId === c.id);
@@ -146,7 +173,7 @@ export function MiEspacio() {
       })
       .filter((g) => g.meetings.length > 0);
     // Deps explícitas a propósito: el resto son helpers estables.
-  }, [allMeetings, myClientIds, myClients]);
+  }, [myMeetings, myClients]);
 
   const markDone = (t: Task) => {
     updateTask(t.id, { status: 'completed', completedAt: new Date().toISOString() });
@@ -176,6 +203,18 @@ export function MiEspacio() {
         </h1>
         <p className={cn('text-sm mt-1', overdue.length > 0 ? 'text-status-danger' : 'text-text-muted')}>{subtitle}</p>
       </div>
+
+      {/* 2. Mi semana — todo lo suyo (tareas + reuniones, de todos sus
+          clientes) en una sola rejilla. Va arriba del todo a propósito: es la
+          respuesta a "¿qué tengo esta semana?", que es con lo que se abre la
+          app por la mañana. */}
+      <MiSemana
+        tareas={myTasks}
+        reuniones={myMeetings}
+        clientePorId={clientById}
+        onAbrirTarea={setDeliverableTask}
+        onCompletar={markDone}
+      />
 
       {/* 2. Banner de alerta */}
       {overdueSinEntregar.length > 0 && (

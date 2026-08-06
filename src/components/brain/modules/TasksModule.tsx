@@ -371,6 +371,20 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
    *  filtro está en "Todos", no se puede crear (no sabríamos de quién es). */
   const targetClientId = client?.id ?? filterClient;
 
+  /**
+   * A qué cliente va la tarea NUEVA. Solo importa en la vista global: dentro
+   * del cerebro de un cliente el destino es ese cliente y no se pregunta.
+   *
+   * `'personal'` es un destino de la interfaz, no de la base: `tasks.client_id`
+   * es obligatorio, así que una tarea personal se guarda en el Espacio de
+   * Agencia marcada como privada. Nadie más la ve —tampoco la dueña— porque de
+   * eso se encargan las policies de la migración 030.
+   */
+  const espacioAgencia = allClients.find((c) => c.isAgency);
+  const [destino, setDestino] = useState('');
+  const destinoClientId =
+    destino === 'personal' ? (espacioAgencia?.id ?? '') : destino || targetClientId;
+
   // Ordena: completadas SIEMPRE al final (separadas); activas según sortMode.
   // Default 'overdue' = las que llevan más tiempo vencidas van primero (dueDate asc).
   const sorted = useMemo(() => {
@@ -640,11 +654,15 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
             <Button
               size="sm"
               leftIcon={<Plus className="h-4 w-4" />}
-              // En global con "Todos los clientes" no sabríamos de quién sería
-              // la tarea nueva: primero hay que elegir cliente en el filtro.
-              disabled={!targetClientId}
-              title={targetClientId ? undefined : 'Elige un cliente en el filtro para crear una tarea'}
-              onClick={() => setCreating(true)}
+              // Antes esto se bloqueaba con "Todos los clientes" porque no
+              // había forma de saber de quién sería la tarea. Ya la hay: el
+              // destino se elige DENTRO del formulario. En la vista de un
+              // cliente concreto sigue sin preguntarse nada.
+              disabled={!isGlobal && !targetClientId}
+              onClick={() => {
+                setDestino(targetClientId || '');
+                setCreating(true);
+              }}
             >
               Nueva tarea
             </Button>
@@ -825,23 +843,51 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
         <TaskModal
           accent={accent}
           allTasks={tasks}
-          clientId={targetClientId}
-          defaultPrivada={espacio === 'privado'}
+          clientId={destinoClientId}
+          defaultPrivada={espacio === 'privado' || destino === 'personal'}
+          // El selector de destino solo aparece en la vista global.
+          destino={isGlobal ? destino : undefined}
+          onDestino={setDestino}
+          opcionesDestino={
+            isGlobal
+              ? [
+                  ...allClients.filter((c) => !c.isAgency).map((c) => ({ value: c.id, label: c.name })),
+                  ...(espacioAgencia
+                    ? [
+                        { value: espacioAgencia.id, label: `${espacioAgencia.name} (interno)` },
+                        { value: 'personal', label: '🔒 Personal — solo yo' },
+                      ]
+                    : []),
+                ]
+              : undefined
+          }
           onClose={() => setCreating(false)}
           onSave={(patch) => {
+            // Se ESPARCE el patch entero en vez de copiar campo por campo.
+            //
+            // Antes se enumeraban 7 campos a mano y el formulario manda 20: al
+            // crear se perdían en silencio el KPI, la etiqueta, el link de
+            // Drive, las subtareas, los comentarios, las dependencias... y
+            // sobre todo `esPrivada`/`propietarioId`, así que marcar una tarea
+            // como PRIVADA al crearla no hacía nada: nacía pública. Editarla
+            // después sí funcionaba, porque ese camino sí manda el patch
+            // completo — por eso no se había notado.
+            //
+            // Los valores por defecto van ANTES del spread para que el
+            // formulario siempre gane; los obligatorios van después, con
+            // respaldo, para que el tipo `Task` quede siempre completo.
             addTask({
+              isDelayed: false,
+              delayDays: 0,
+              createdAt: new Date().toISOString(),
+              ...patch,
               id: genId(),
-              clientId: targetClientId,
+              clientId: destinoClientId,
               title: patch.title ?? '',
-              description: patch.description,
               status: (patch.status as TaskStatus) ?? 'pending',
               priority: (patch.priority as TaskPriority) ?? 'P2',
               assignedTo: patch.assignedTo ?? '',
               dueDate: patch.dueDate ?? new Date().toISOString(),
-              isDelayed: false,
-              delayDays: 0,
-              moduleTag: patch.moduleTag,
-              createdAt: new Date().toISOString(),
             });
             setCreating(false);
           }}
@@ -1274,7 +1320,7 @@ function TaskCard({
 
 function TaskModal({
   task, accent, onClose, onSave, onDelete, allTasks, clientId, readOnly = false,
-  defaultPrivada = false,
+  defaultPrivada = false, destino, onDestino, opcionesDestino,
 }: {
   task?: Task;
   accent: string;
@@ -1286,9 +1332,19 @@ function TaskModal({
   readOnly?: boolean;
   /** Al crear desde el espacio privado, la casilla viene marcada. */
   defaultPrivada?: boolean;
+  /** Destino elegido (solo al crear desde la vista global). */
+  destino?: string;
+  onDestino?: (v: string) => void;
+  /** Si viene, se muestra el selector de destino. Si no, el cliente es fijo. */
+  opcionesDestino?: Array<{ value: string; label: string }>;
 }) {
   const authUserId = useAuthStore((s) => s.user?.id);
   const [esPrivada, setEsPrivada] = useState<boolean>(task?.esPrivada ?? defaultPrivada ?? false);
+  // "Personal" ES privada por definición: se marca sola y no se puede desmarcar
+  // sin cambiar el destino. Dejar desmarcarla crearía una tarea visible para
+  // todo el equipo en el espacio interno, que es lo contrario de lo que se pidió.
+  const esPersonal = destino === 'personal';
+  const privadaEfectiva = esPersonal || esPrivada;
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
 
@@ -1409,6 +1465,10 @@ function TaskModal({
           </Button>
           <Button
             size="sm"
+            // Sin destino, la tarea se guardaría con un cliente vacío y la base
+            // la rechazaría — mejor no dejar llegar hasta ahí.
+            disabled={!!opcionesDestino && !destino}
+            title={opcionesDestino && !destino ? 'Elige primero de quién es la tarea' : undefined}
             onClick={() =>
               onSave({
                 title, description, status, priority, assignedTo,
@@ -1424,10 +1484,10 @@ function TaskModal({
                 dependsOn: dependsOn.length > 0 ? dependsOn : undefined,
                 subtasks,
                 comments,
-                esPrivada,
+                esPrivada: privadaEfectiva,
                 // Sin dueño la fila sería invisible para todos (lo impide el
                 // CHECK de la 030), así que se sella al marcarla privada.
-                propietarioId: esPrivada ? authUserId : undefined,
+                propietarioId: privadaEfectiva ? authUserId : undefined,
               })
             }
           >
@@ -1438,6 +1498,19 @@ function TaskModal({
       }
     >
       <div className="space-y-4">
+        {opcionesDestino && onDestino && (
+          <Select
+            label="¿De quién es esta tarea?"
+            options={[{ value: '', label: 'Elige un destino…' }, ...opcionesDestino]}
+            value={destino ?? ''}
+            onChange={(e) => onDestino(e.target.value)}
+            hint={
+              esPersonal
+                ? 'Solo la ves tú. No aparece para el equipo ni en los reportes.'
+                : 'Determina en qué cliente se guarda y quién puede verla.'
+            }
+          />
+        )}
         {task && <TaskOrigenPanel task={task} onClose={onClose} />}
         <Input
           label="Título"
@@ -1447,17 +1520,28 @@ function TaskModal({
         />
 
         {!readOnly && (
-          <label className="flex items-start gap-2.5 rounded-lg border border-border-subtle px-3 py-2.5 cursor-pointer">
+          <label
+            className={cn(
+              'flex items-start gap-2.5 rounded-lg border border-border-subtle px-3 py-2.5',
+              esPersonal ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer',
+            )}
+          >
             <input
               type="checkbox"
-              checked={esPrivada}
+              checked={privadaEfectiva}
+              // Con destino "Personal" la casilla queda marcada y bloqueada: una
+              // tarea personal no privada sería visible para todo el equipo en
+              // el espacio interno, justo lo contrario de lo que se pidió.
+              disabled={esPersonal}
               onChange={(e) => setEsPrivada(e.target.checked)}
               className="mt-0.5 h-4 w-4 accent-accent-violet"
             />
             <span>
               <span className="block text-xs font-medium text-text-primary">🔒 Tarea privada (solo yo la veo)</span>
               <span className="block text-[11px] text-text-secondary mt-0.5">
-                No aparece en el Kanban del equipo, ni en el del cliente, ni en los reportes.
+                {esPersonal
+                  ? 'Las tareas personales son siempre privadas.'
+                  : 'No aparece en el Kanban del equipo, ni en el del cliente, ni en los reportes.'}
               </span>
             </span>
           </label>

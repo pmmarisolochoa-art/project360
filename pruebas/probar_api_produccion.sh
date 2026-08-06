@@ -162,7 +162,10 @@ comprobar "DELETE → 405 (la API no borra nada)" 405 "$(codigo "$R")"
 
 # ── 6. Cabeceras ─────────────────────────────────────────────────────────────
 seccion "6. Cabeceras de seguridad"
-H=$(curl -s -I -m 30 "$BASE/api/v1/tasks" -H "Authorization: Bearer $KEY")
+# `-D -` vuelca las cabeceras de un GET normal. Antes se usaba `curl -I`, que
+# manda HEAD: un método que esta API no acepta, así que se estaban revisando
+# las cabeceras de un 405 y no las de una respuesta de verdad.
+H=$(curl -s -D - -o /dev/null -m 30 "$BASE/api/v1/tasks?limite=1" -H "Authorization: Bearer $KEY")
 for par in "x-content-type-options:nosniff" "x-frame-options:DENY" "cache-control:no-store"; do
   nombre="${par%%:*}"; valor="${par#*:}"
   encontrado=$(echo "$H" | grep -i "^$nombre:" | tr -d '\r' | sed "s/^$nombre: *//I")
@@ -208,12 +211,16 @@ fi
 # pequeño es esperable; uno grande significaría que el conteo va muy por detrás.
 if [ "$PASARON" -gt 0 ] && [ "$FRENADAS" -gt 0 ]; then
   MARGEN=$((PASARON - LIMITE_ESPERADO))
-  echo "     Margen sobre el límite de $LIMITE_ESPERADO: $MARGEN llamadas (carrera entre simultáneas)"
+  if [ "$MARGEN" -gt 0 ]; then
+    echo "     Se colaron $MARGEN por encima del límite de $LIMITE_ESPERADO (carrera entre simultáneas)"
+  else
+    echo "     Pasaron $PASARON de $LIMITE_ESPERADO: la ventana ya traía llamadas de antes. Correcto."
+  fi
 fi
 
 R=$(llamar GET "/api/v1/tasks?limite=1")
 if [ "$(codigo "$R")" = "429" ]; then
-  RA=$(curl -s -I -m 30 "$BASE/api/v1/tasks?limite=1" -H "Authorization: Bearer $KEY" | grep -i '^retry-after' | tr -d '\r')
+  RA=$(curl -s -D - -o /dev/null -m 30 "$BASE/api/v1/tasks?limite=1" -H "Authorization: Bearer $KEY" | grep -i '^retry-after' | tr -d '\r')
   comprobar "el 429 dice cuánto esperar" "OK" "$([ -n "$RA" ] && echo OK || echo NO)" "→ $RA"
 fi
 

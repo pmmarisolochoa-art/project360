@@ -347,6 +347,11 @@ tarea no se guardó en ningún lado.
 **Sobre el 404:** un recurso de otra agencia devuelve 404, no 403. Es a
 propósito: un 403 confirmaría que ese id existe.
 
+**Sobre `HEAD` y otros métodos:** la API solo acepta `GET`, `POST` y `PATCH`.
+Un `HEAD` —el que usan algunos monitores de disponibilidad y `curl -I`—
+responde `405`. Si necesitas comprobar que la API está viva, haz un `GET` a
+`/api/v1/tasks?limite=1`.
+
 **Sobre el orden de los errores:** sin una llave válida siempre recibes `401`,
 aunque además el método o los datos estén mal. La API se autentica primero y
 solo después mira el resto — a quien no se ha identificado no se le cuenta qué

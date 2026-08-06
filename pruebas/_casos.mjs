@@ -158,8 +158,8 @@ r = await pedir(cambiarEstado, { url: 'https://app.com/api/v1/tasks/33333333-333
 ok(r.status === 409, `tarea en revisión → 409 (fue ${r.status})`);
 
 reset({ keys: [keyBase()], rpcResp: { api_tarea_crear: { data: null, error: { message: 'cliente_no_encontrado' } } } });
-r = await pedir(tasks, { metodo: 'POST', body: { client_id: '44444444-4444-4444-8444-444444444444', titulo: 'Tarea de Floppy' } });
-ok(r.status === 400, `cliente inexistente ("Floppy") → 400 claro (fue ${r.status})`);
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: '44444444-4444-4444-8444-444444444444', titulo: 'Tarea de un proyecto que no existe acá' } });
+ok(r.status === 400, `cliente inexistente → 400 claro (fue ${r.status})`);
 ok((await r.json()).error.message.includes('client_id'), 'el mensaje explica qué revisar');
 
 // ═══ CABECERAS Y CORS ═══

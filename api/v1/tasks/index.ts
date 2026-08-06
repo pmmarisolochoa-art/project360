@@ -73,7 +73,7 @@ async function crear(ctx: Contexto): Promise<Response> {
     // fuera "no existe" y "no es tuyo" tienen que verse igual.
     //
     // Este es el camino por el que un proyecto que existe en la app externa
-    // pero no acá (el caso "Floppy") queda fuera avisando, en vez de entrar
+    // pero no está dado de alta acá queda fuera AVISANDO, en vez de entrar
     // como fila huérfana o desaparecer en silencio.
     if (e.message?.includes('cliente_no_encontrado')) {
       return error(

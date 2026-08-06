@@ -207,8 +207,8 @@ $$;
 
 -- Crear tarea. Si el cliente no es de la agencia, levanta excepción — el
 -- endpoint la traduce a un 400 que dice "cliente no encontrado". Es el camino
--- por el que "Floppy" (que existe en Paralelo pero no acá) queda fuera con un
--- mensaje claro en vez de entrar como fila huérfana.
+-- por el que un proyecto que existe en la app externa pero no acá queda fuera
+-- con un mensaje claro, en vez de entrar como fila huérfana.
 create or replace function public.api_tarea_crear(
   p_agencia     uuid,
   p_client_id   uuid,

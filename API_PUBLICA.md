@@ -362,6 +362,11 @@ Al pasarte recibes `429` con la cabecera `Retry-After: 60`. **Espera esos
 segundos y reintenta** — no reintentes de inmediato ni en bucle: cada intento
 cuenta y prolonga el bloqueo.
 
+El límite se mide sobre los últimos 60 segundos, en ventana móvil. No es exacto
+al carácter: si lanzas muchas llamadas a la vez, unas pocas pueden colarse por
+encima del límite antes de que el contador se ponga al día. No programes
+contando con ese margen — puede desaparecer.
+
 Otros límites: **body máximo 100 KB**, **200 resultados** por página.
 
 ---

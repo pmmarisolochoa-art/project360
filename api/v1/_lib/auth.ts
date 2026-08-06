@@ -333,6 +333,17 @@ async function procesar(
   // Se cuenta en Postgres, no en memoria: cada llamada puede caer en una
   // instancia distinta de la función y las instancias mueren solas, así
   // que un contador en memoria dejaría pasar tráfico de más sin avisar.
+  //
+  // NO es exacto al 100%, y no puede serlo: varias llamadas simultáneas
+  // consultan el contador antes de que las anteriores queden anotadas, así
+  // que unas pocas se cuelan por encima del límite. Medido en producción con
+  // 150 llamadas en paralelo contra un límite de 100: pasaron 102 y se
+  // frenaron 48 — un margen del 2%.
+  //
+  // Hacerlo exacto exigiría un contador atómico (un INSERT que devuelva la
+  // posición, o Redis) y una llamada más a la base por cada petición. Para lo
+  // que este límite protege —que una integración desbocada no sature -- 2%
+  // de margen no cambia nada.
   const desde = new Date(Date.now() - VENTANA_SEGUNDOS * 1000).toISOString();
   const { count, error: errCount } = await admin
     .from('api_requests')

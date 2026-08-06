@@ -172,18 +172,49 @@ CORS=$(echo "$H" | grep -ci "access-control-allow-origin")
 comprobar "sin CORS (no se puede llamar desde un navegador)" "0" "$CORS"
 
 # ── 7. Rate limit ────────────────────────────────────────────────────────────
-seccion "7. Rate limit (esto tarda ~30s)"
-echo "     Disparando 110 llamadas seguidas para forzar el tope…"
-TOPES=0
-for _ in $(seq 1 110); do
-  c=$(curl -s -o /dev/null -w '%{http_code}' -m 15 "$BASE/api/v1/tasks?limite=1" -H "Authorization: Bearer $KEY")
-  [ "$c" = "429" ] && TOPES=$((TOPES + 1))
-done
-if [ "$TOPES" -gt 0 ]; then
-  printf '  ✅ %-52s → %s llamadas frenadas con 429\n' "el rate limit frena de verdad" "$TOPES"
+# EN PARALELO, no en secuencia. La primera versión de esta prueba lanzaba 110
+# llamadas una detrás de otra y NUNCA disparaba el 429 — y el problema era la
+# prueba, no la API: cada llamada tarda ~0.9 s, así que 110 seguidas se reparten
+# en ~100 segundos y la ventana del límite es de 60. Nunca había más de ~65
+# llamadas dentro de la ventana contra un límite de 100.
+#
+# Lanzándolas a la vez sí se llena la ventana, que es además como se comportaría
+# una integración desbocada de verdad.
+seccion "7. Rate limit (esto tarda ~20s)"
+LIMITE_ESPERADO=100
+DISPAROS=150
+echo "     Lanzando $DISPAROS llamadas EN PARALELO (20 a la vez)…"
+
+TMP=$(mktemp)
+seq 1 "$DISPAROS" | xargs -P 20 -I{} \
+  curl -s -o /dev/null -w '%{http_code}\n' -m 30 \
+  "$BASE/api/v1/tasks?limite=1" -H "Authorization: Bearer $KEY" > "$TMP"
+
+FRENADAS=$(grep -c '^429$' "$TMP" || true)
+PASARON=$(grep -c '^200$' "$TMP" || true)
+rm -f "$TMP"
+
+if [ "$FRENADAS" -gt 0 ]; then
+  printf '  ✅ %-52s → %s pasaron, %s frenadas con 429\n' "el rate limit frena de verdad" "$PASARON" "$FRENADAS"
   OK=$((OK + 1))
 else
-  printf '  ⚠️  %-52s (¿límite de 300/min? no es un fallo)\n' "no se alcanzó el tope"
+  printf '  ❌ %-52s → %s pasaron, NINGUNA frenada\n' "el rate limit NO frenó" "$PASARON"
+  echo "     Si la llave es de 300/min, es normal: hacen falta más disparos."
+  FALLOS=$((FALLOS + 1))
+fi
+
+# El margen sobre el límite mide la carrera entre llamadas simultáneas: varias
+# consultan el contador antes de que las anteriores queden anotadas. Un margen
+# pequeño es esperable; uno grande significaría que el conteo va muy por detrás.
+if [ "$PASARON" -gt 0 ] && [ "$FRENADAS" -gt 0 ]; then
+  MARGEN=$((PASARON - LIMITE_ESPERADO))
+  echo "     Margen sobre el límite de $LIMITE_ESPERADO: $MARGEN llamadas (carrera entre simultáneas)"
+fi
+
+R=$(llamar GET "/api/v1/tasks?limite=1")
+if [ "$(codigo "$R")" = "429" ]; then
+  RA=$(curl -s -I -m 30 "$BASE/api/v1/tasks?limite=1" -H "Authorization: Bearer $KEY" | grep -i '^retry-after' | tr -d '\r')
+  comprobar "el 429 dice cuánto esperar" "OK" "$([ -n "$RA" ] && echo OK || echo NO)" "→ $RA"
 fi
 
 # ── Resultado ────────────────────────────────────────────────────────────────

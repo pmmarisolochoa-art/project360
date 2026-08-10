@@ -4,6 +4,70 @@
 
 ---
 
+## 2026-08-10 — 🔴 Lo privado nunca fue privado + el espacio del miembro deja de ser de solo consumo
+
+Sesión larga y con tres hallazgos que nadie buscaba. **8 commits en `main`, todo desplegado. Migraciones 034, 035, 036 y 037 corridas en prod.**
+
+### 1. AGUJERO DE SEGURIDAD: las tareas y reuniones privadas nunca lo fueron (migración 034)
+
+La 030 (05-ago) creó lo privado y reemplazó las policies **por su nombre**. Pero **en Postgres las policies permisivas se SUMAN**: basta que UNA deje ver la fila para que se vea. Quedaron tres vivas sin comprobación:
+
+- `tasks_via_client` (de la 004) — exponía lo privado a la dueña de la agencia
+- `meetings_team_via_agency` — igual
+- `meetings_team_read` — **la grave: cualquier miembro del equipo leía las reuniones de la agencia, privadas incluidas**
+
+O sea: desde el día que se lanzó la función, no funcionaba. **Se descubrió probando a mano** — no lo detectó ningún typecheck, ninguna de las 69 pruebas, ni el script de verificación de seguridad de la API, que comprobaba que RLS estuviera ENCENDIDO pero no que las policies fueran coherentes entre sí.
+
+**Arreglo:** `tasks_via_client` se borra (su reemplazo con comprobación ya existía desde la 030 — tener las dos ERA el bug); las dos de meetings se reescriben idénticas + `puede_ver_fila()`, porque son el único camino por el que el equipo ve la agenda interna.
+
+**Efecto que la founder debe saber: ahora ella tampoco ve lo privado de su equipo.** Es lo que se decidió el 05-ago ("un espacio privado que el jefe puede leer no es un espacio privado"), pero hasta hoy no era cierto.
+
+### 2. DEUDA DE FONDO: el repo no refleja la base
+
+`meetings_team_read`, `meetings_team_via_agency` y la columna `meetings.agency_id` **no están en ninguna migración** — se crearon a mano en la consola de Supabase. Por eso ninguna migración las tocó y nadie sabía que existían. **Esta fue la causa raíz del agujero**, y puede volver a morder: cualquier migración futura puede pisar algo que no sabe que existe. La 034 las deja documentadas.
+
+### 3. BUG: al crear una tarea se perdía todo menos 7 campos
+
+El formulario manda ~20 campos y el código de creación enumeraba 7 a mano. Se descartaban en silencio KPI, etiqueta, link de Drive, subtareas, comentarios, dependencias — **y `esPrivada`**. Marcar "privada" al crear NO hacía nada: la tarea nacía pública. No se había notado porque **editarla después sí funciona** (ese camino manda el patch completo). Verificado que no afectó a datos reales: 0 tareas creadas entre el 05 y el 10-ago.
+
+### 4. Lo que se construyó (Fases 1 y 2 del espacio personal)
+
+Petición: *"que cada miembro sienta un espacio donde hacer todas sus gestiones"*. Se descartó empezar por Google Calendar (lo más caro y con dependencias externas) y se hizo primero lo que ya estaba a medio construir:
+
+- **"Mi semana"**: rejilla Lun-Dom con sus tareas y reuniones de TODOS sus clientes. Antes había que entrar cliente por cliente.
+- **Selector de destino al crear** (vista global), con opción **"🔒 Personal"**.
+- **Botón "+ Nueva tarea" en Mi Espacio** con formulario corto (título, destino, fecha). El formulario completo es herramienta de PM y se queda en el módulo del cliente.
+- **"Mis tareas personales"**: lista transversal, sin depender de la semana. Vino de una crítica de la founder al probarlo: *"deberían vivir en un espacio transversal"*. Tenía razón — solo en la rejilla, una tarea sin fecha no tiene dónde vivir.
+
+**Decisión de modelo: "Personal" NO es un concepto de la base.** `tasks.client_id` es obligatorio, así que una tarea personal se guarda en el Espacio de Agencia marcada como privada. Cero migraciones de esquema. Si con uso real se queda corto, se hará la migración con datos en la mano.
+
+### 5. HALLAZGO: un miembro del equipo NUNCA pudo crear tareas (migración 035)
+
+Salió revisando las policies por el agujero anterior. Tenía SELECT y UPDATE, pero ningún INSERT. **El "espacio del miembro" era de solo consumo:** marcaba como hecho lo que le mandaban, no podía anotar lo suyo. Difícil que se sienta propio. Se añaden dos policies: sus propias filas privadas (cuelguen de donde cuelguen) y crear en sus clientes si es `editor` (no `viewer`).
+
+### 6. Tres errores míos encadenados, y su causa común
+
+Los tres se veían igual desde fuera —"la tarea se pierde"— y hicieron falta tres rondas:
+
+1. **La policy se bloqueaba a sí misma** (036): comprobaba la agencia del destino consultando `clients` a pelo. Dentro de una policy, una consulta a otra tabla con RLS **se filtra por los permisos de quien inserta** — y el miembro no puede ver el Espacio de Agencia. La comprobación puesta para que nadie escribiera en casa ajena era la que impedía escribir en la propia. → **Regla: si una policy necesita mirar algo que el usuario no puede ver, va por una función `security definer`.** El resto del proyecto ya lo hacía; acá me lo salté.
+2. **La interfaz cantaba victoria antes de tiempo:** decía "creada" sin esperar a la base. Rompí en código nuevo la regla escrita el 01-ago. Ahora `addTask` devuelve si se guardó, retira la fila optimista al fallar y deja el modal abierto con lo escrito.
+3. **Fallo de diseño, el de fondo: le di al miembro un sitio donde escribir que no puede leer.** La app carga tareas por "mis clientes" y el Espacio de Agencia no es uno de ellos: la fila se guardaba bien y no volvía nunca. Arreglado en 3 sitios con el mismo criterio: **lo privado propio entra siempre, sin mirar de qué cliente cuelga.**
+
+**Causa común de los tres: escribí reglas de permisos sin poder ejecutarlas.** Sin acceso a la base, cada regla se verifica cuando la founder la corre, y cada error se paga con un viaje de ida y vuelta. **Refuerza el pendiente de instalar el CLI de Supabase** (abierto desde el 05-ago).
+
+### 7. Regla nueva sobre las alarmas
+
+`auditar_privacidad()` (034) dio falsa alarma **dos veces** (con la policy de filas propias y con la de INSERT, que no tiene condición de lectura). Se corrigió las dos veces en vez de explicarse, porque **el agujero de la 034 sobrevivió precisamente porque nadie miraba las policies**: una comprobación en la que no se confía no se mira, y una que no se mira no sirve. Mismo criterio que con el linter el 05-ago.
+
+**Pendientes:**
+- **Probar el ciclo completo con la cuenta del miembro** tras el último despliegue (crear personal → recargar → completar desde la lista).
+- **Pieza 3: Google Calendar** — traer las citas personales a la app. Es de donde partió la petición. Requiere proyecto en Google Cloud, pantalla de consentimiento y permiso individual. **Y hay que sustituir el interruptor de mentira** de Configuración (5 integraciones que solo guardan un booleano en el navegador) antes de que alguien lo active creyendo que hizo algo.
+- **Auditar qué más hay en la base que el repo no conoce.** Es la deuda que causó el agujero.
+- Instalar el CLI de Supabase para poder probar migraciones antes de pedirlas.
+- Probar en pantalla táctil de verdad (el hover invisible se arregló a ciegas).
+
+---
+
 ## 2026-08-06 — API pública v1 EN PRODUCCIÓN: Tareas y Agenda para aplicaciones externas
 
 10 commits, todos en `main` y desplegados. Migraciones **032 y 033 corridas en prod** y verificadas. **Probada contra producción con una llave real: 24/24.**

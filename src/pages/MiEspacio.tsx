@@ -7,6 +7,7 @@ import { useClientStore } from '@/store/useClientStore';
 import { TaskLinksRepo, type TaskLink } from '@/services/taskLinks';
 import { DeliverableDrawer } from '@/components/member/DeliverableDrawer';
 import { MiSemana } from '@/components/member/MiSemana';
+import { NuevaTareaMiEspacio } from '@/components/member/NuevaTareaMiEspacio';
 import { useLinksStore } from '@/store/useLinksStore';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from '@/store/useToastStore';
@@ -204,7 +205,12 @@ export function MiEspacio() {
         <p className={cn('text-sm mt-1', overdue.length > 0 ? 'text-status-danger' : 'text-text-muted')}>{subtitle}</p>
       </div>
 
-      {/* 2. Mi semana — todo lo suyo (tareas + reuniones, de todos sus
+      {/* 2. Crear algo suyo — el espacio dejó de ser de solo consumo. */}
+      <div className="flex justify-end">
+        <NuevaTareaMiEspacio misClientes={myClients} />
+      </div>
+
+      {/* 3. Mi semana — todo lo suyo (tareas + reuniones, de todos sus
           clientes) en una sola rejilla. Va arriba del todo a propósito: es la
           respuesta a "¿qué tengo esta semana?", que es con lo que se abre la
           app por la mañana. */}

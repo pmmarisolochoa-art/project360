@@ -39,8 +39,9 @@ select
   pp.tablename     as tabla,
   pp.policyname    as regla,
   pp.cmd           as operacion,
-  case when coalesce(pp.qual, '') like '%puede_ver_fila%'
-       then '✅ comprueba' else '🔴 NO COMPRUEBA' end as estado
+  case when coalesce(pp.qual, '') like '%puede_ver_fila%'         then '✅ comprueba'
+       when coalesce(pp.qual, '') like '%propietario_id = auth.uid()%' then '✅ solo filas propias'
+       else '🔴 NO COMPRUEBA' end as estado
 from pg_policies pp
 where pp.schemaname = 'public'
   and pp.tablename in ('tasks', 'meetings')

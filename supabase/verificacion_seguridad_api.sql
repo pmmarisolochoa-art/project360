@@ -27,6 +27,25 @@ where n.nspname = 'public'
   and c.relname in ('tasks', 'meetings', 'clients', 'agencies', 'api_keys', 'api_requests')
 order by c.relname;
 
+-- ── 1b. ¿TODAS las policies comprueban la privacidad? ────────────────────────
+-- Esta comprobación faltaba y por eso el agujero de la 034 pasó desapercibido:
+-- se verificaba que RLS estuviera ENCENDIDO, pero no que las policies fueran
+-- coherentes entre sí. En Postgres las policies permisivas se SUMAN, así que
+-- una sola regla que no compruebe privacidad anula a todas las que sí.
+--
+-- Toda fila debe salir ✅. Un solo 🔴 significa que lo privado no es privado.
+select
+  '1b. Privacidad' as bloque,
+  pp.tablename     as tabla,
+  pp.policyname    as regla,
+  pp.cmd           as operacion,
+  case when coalesce(pp.qual, '') like '%puede_ver_fila%'
+       then '✅ comprueba' else '🔴 NO COMPRUEBA' end as estado
+from pg_policies pp
+where pp.schemaname = 'public'
+  and pp.tablename in ('tasks', 'meetings')
+order by pp.tablename, pp.policyname;
+
 -- ── 2. ¿Existen las 7 funciones y son security definer? ──────────────────────
 -- `security definer` es lo que les permite hacer el filtro por agencia por
 -- dentro. Si alguna quedara como `invoker`, dejaría de aislar.

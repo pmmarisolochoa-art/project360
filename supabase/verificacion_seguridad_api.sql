@@ -39,9 +39,18 @@ select
   pp.tablename     as tabla,
   pp.policyname    as regla,
   pp.cmd           as operacion,
-  case when coalesce(pp.qual, '') like '%puede_ver_fila%'         then '✅ comprueba'
-       when coalesce(pp.qual, '') like '%propietario_id = auth.uid()%' then '✅ solo filas propias'
-       else '🔴 NO COMPRUEBA' end as estado
+  case
+    -- En una policy de INSERT no hay condición de lectura: se juzga el
+    -- WITH CHECK. Miraba solo el USING y por eso daba falsas alarmas.
+    when pp.cmd = 'INSERT' then
+      case when lower(coalesce(pp.with_check, '')) like '%propietario_id = auth.uid()%'
+             then '✅ solo crea propias'
+           when lower(coalesce(pp.with_check, '')) like '%es_privada%false%'
+             then '✅ no crea privadas'
+           else '🔴 PODRÍA CREAR PRIVADAS AJENAS' end
+    when lower(coalesce(pp.qual, '')) like '%puede_ver_fila%'              then '✅ comprueba'
+    when lower(coalesce(pp.qual, '')) like '%propietario_id = auth.uid()%' then '✅ solo filas propias'
+    else '🔴 NO COMPRUEBA' end as estado
 from pg_policies pp
 where pp.schemaname = 'public'
   and pp.tablename in ('tasks', 'meetings')

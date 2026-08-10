@@ -74,16 +74,50 @@ async function runBootstrap(): Promise<BootstrapResult> {
     const tasksQuery = supabase.from('tasks').select('*');
     const meetingsQuery = supabase.from('meetings').select('*');
 
-    const [tasksRes, meetingsRes] = await Promise.all([
+    /**
+     * Tercera consulta: MIS filas privadas, cuelguen de donde cuelguen.
+     *
+     * Las dos de arriba piden "lo de mis clientes". Una tarea PERSONAL se
+     * guarda en el Espacio de Agencia, y un miembro del equipo no es miembro de
+     * ese espacio — así que su propia tarea personal no entraba por ningún
+     * lado: se guardaba bien y al recargar no volvía nunca. Parecía que se
+     * perdía.
+     *
+     * Se pide por `propietario_id`, no por cliente. Las policies ya garantizan
+     * que solo puede devolver filas de quien pregunta (`tasks_propias_privadas`,
+     * migración 036), así que esta consulta no puede traer nada ajeno.
+     */
+    const userId = useAuthStore.getState().user?.id;
+    const misPrivadasQuery = userId
+      ? supabase.from('tasks').select('*').eq('propietario_id', userId).eq('es_privada', true)
+      : null;
+
+    const [tasksRes, meetingsRes, privadasRes] = await Promise.all([
       clientIds.length > 0 ? tasksQuery.in('client_id', clientIds) : tasksQuery,
       clientIds.length > 0 ? meetingsQuery.in('client_id', clientIds) : meetingsQuery,
+      misPrivadasQuery,
     ]);
 
     if (tasksRes.error) throw tasksRes.error;
     if (meetingsRes.error) throw meetingsRes.error;
+    // Las privadas son un extra: si esta consulta falla, la app sigue
+    // funcionando con todo lo demás en vez de quedarse en blanco.
+    if (privadasRes?.error) console.warn('[bootstrap] no se pudieron cargar las tareas privadas', privadasRes.error);
 
     const clients: Client[] = (clientsRaw ?? []).map(rowToClient);
-    const tasks: Task[] = (tasksRes.data ?? []).map(rowToTask);
+
+    // Se unen las dos fuentes sin duplicar: una tarea privada de un cliente al
+    // que SÍ pertenece viene por los dos caminos.
+    const filasTareas = [...(tasksRes.data ?? []), ...(privadasRes?.data ?? [])];
+    const vistas = new Set<string>();
+    const tasks: Task[] = filasTareas
+      .filter((r) => {
+        const id = (r as { id: string }).id;
+        if (vistas.has(id)) return false;
+        vistas.add(id);
+        return true;
+      })
+      .map(rowToTask);
     const meetings: Meeting[] = (meetingsRes.data ?? []).map(rowToMeeting);
 
     if (clients.length > 0) {

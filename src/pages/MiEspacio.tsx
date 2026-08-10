@@ -74,8 +74,14 @@ export function MiEspacio() {
   const myTasks = useMemo(
     () =>
       allTasks.filter((t) => {
-        if (!myClientIds.includes(t.clientId)) return false;
+        // Lo privado propio entra SIEMPRE, sin mirar de qué cliente cuelga.
+        //
+        // Una tarea PERSONAL vive en el Espacio de Agencia, que no está entre
+        // los clientes del miembro. Al exigir primero que el cliente fuera suyo,
+        // su propia tarea personal quedaba fuera de su propio espacio: se
+        // guardaba bien y no aparecía nunca.
         if (t.esPrivada) return t.propietarioId === authUserId;
+        if (!myClientIds.includes(t.clientId)) return false;
         return myNames.has((t.assignedTo ?? '').trim().toLowerCase());
       }),
     [allTasks, myClientIds, myNames, authUserId],
@@ -85,9 +91,8 @@ export function MiEspacio() {
   const myMeetings = useMemo(
     () =>
       allMeetings.filter((m) => {
-        if (!myClientIds.includes(m.clientId)) return false;
         if (m.esPrivada) return m.propietarioId === authUserId;
-        return true;
+        return myClientIds.includes(m.clientId);
       }),
     [allMeetings, myClientIds, authUserId],
   );

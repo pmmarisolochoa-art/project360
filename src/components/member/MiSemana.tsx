@@ -230,10 +230,16 @@ function TarjetaItem({
   onCompletar: (t: Task) => void;
 }) {
   const navigate = useNavigate();
-  const color = cliente?.primaryColor ?? '#6366F1';
+  // Una tarea PERSONAL cuelga del Espacio de Agencia, que el miembro no tiene
+  // entre sus clientes: `cliente` viene vacío. No es un error — se muestra como
+  // "Personal" en vez de dejar el hueco en blanco.
+  const esPersonal = item.privada && !cliente;
+  const color = cliente?.primaryColor ?? '#8B5CF6';
 
   const abrir = () => {
     if (item.tipo === 'tarea' && item.tarea) return onAbrirTarea(item.tarea);
+    // Sin cliente al que ir, no hay adónde navegar.
+    if (esPersonal) return;
     // Las reuniones se ven en el cerebro del cliente, donde está el drawer con
     // agenda, notas y compromisos. No se duplica esa pantalla acá.
     //
@@ -281,7 +287,9 @@ function TarjetaItem({
 
       <div className="flex items-center justify-between gap-1 mt-1">
         <span className="text-[10px] text-text-muted truncate">
-          {item.tipo === 'reunion' ? format(item.cuando, 'HH:mm') : (cliente?.name ?? '')}
+          {item.tipo === 'reunion'
+            ? format(item.cuando, 'HH:mm')
+            : (cliente?.name ?? (esPersonal ? 'Personal' : ''))}
         </span>
 
         {atrasada && <Badge tone="danger">tarde</Badge>}

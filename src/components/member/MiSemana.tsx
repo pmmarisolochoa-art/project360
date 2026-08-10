@@ -304,7 +304,9 @@ function TarjetaItem({
             }}
             title="Marcar completada"
             aria-label={`Marcar "${item.titulo}" como completada`}
-            className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-text-muted hover:text-status-success transition-opacity focus-ring rounded"
+            // Visible siempre (atenuado) y no solo al pasar el ratón: en una
+            // pantalla táctil el hover no existe y el botón era inalcanzable.
+            className="opacity-40 group-hover:opacity-100 focus:opacity-100 text-text-muted hover:text-status-success transition-opacity focus-ring rounded"
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
           </button>

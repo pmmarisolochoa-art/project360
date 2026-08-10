@@ -8,6 +8,7 @@ import { TaskLinksRepo, type TaskLink } from '@/services/taskLinks';
 import { DeliverableDrawer } from '@/components/member/DeliverableDrawer';
 import { MiSemana } from '@/components/member/MiSemana';
 import { NuevaTareaMiEspacio } from '@/components/member/NuevaTareaMiEspacio';
+import { MisTareasPersonales } from '@/components/member/MisTareasPersonales';
 import { useLinksStore } from '@/store/useLinksStore';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from '@/store/useToastStore';
@@ -186,6 +187,14 @@ export function MiEspacio() {
     toast.success('Tarea completada');
   };
 
+  /** Deshacer un "completada" marcado por error. */
+  const reabrir = (t: Task) => {
+    // `completedAt` se limpia: si se quedara puesto, la tarea seguiría contando
+    // como entregada en el cumplimiento aunque esté pendiente otra vez.
+    updateTask(t.id, { status: 'pending', completedAt: undefined });
+    toast.success('Tarea reabierta');
+  };
+
   const dueColor = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isPast(d) && !isToday(d)) return '#EF4444';
@@ -215,7 +224,12 @@ export function MiEspacio() {
         <NuevaTareaMiEspacio misClientes={myClients} />
       </div>
 
-      {/* 3. Mi semana — todo lo suyo (tareas + reuniones, de todos sus
+      {/* 3. Lo personal, siempre a la vista — NO depende de la semana. Va antes
+          que la rejilla porque es lo que la persona revisa a diario y lo único
+          que no tiene otro sitio donde vivir. */}
+      <MisTareasPersonales tareas={myTasks} onCompletar={markDone} onReabrir={reabrir} />
+
+      {/* 4. Mi semana — todo lo suyo (tareas + reuniones, de todos sus
           clientes) en una sola rejilla. Va arriba del todo a propósito: es la
           respuesta a "¿qué tengo esta semana?", que es con lo que se abre la
           app por la mañana. */}

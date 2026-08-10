@@ -98,7 +98,7 @@ export function NuevaTareaMiEspacio({ misClientes }: { misClientes: Client[] }) 
     }, 200);
   };
 
-  const crear = () => {
+  const crear = async () => {
     const esPersonal = destino === PERSONAL;
     const clientId = esPersonal ? espacioPersonalId : destino;
     if (!clientId) {
@@ -113,7 +113,11 @@ export function NuevaTareaMiEspacio({ misClientes }: { misClientes: Client[] }) 
       accesses.find((a) => a.clientId === clientId)?.nombre ?? accesses[0]?.nombre ?? '';
 
     setGuardando(true);
-    addTask({
+    // Se ESPERA la confirmación de la base antes de decir que se guardó. Antes
+    // esto era optimista y cantaba "creada" aunque el guardado fallara: la
+    // tarea aparecía en pantalla y se esfumaba al recargar. Es la misma regla
+    // que ya estaba escrita para el resto de escrituras.
+    const guardada = await addTask({
       id: genId(),
       clientId,
       title: titulo.trim(),
@@ -132,6 +136,10 @@ export function NuevaTareaMiEspacio({ misClientes }: { misClientes: Client[] }) 
       propietarioId: esPersonal ? authUserId : undefined,
     });
     setGuardando(false);
+
+    // Si falló, el store ya mostró el error y retiró la fila. El modal se queda
+    // ABIERTO con lo escrito: cerrarlo obligaría a teclearlo todo otra vez.
+    if (!guardada) return;
 
     toast.success(esPersonal ? 'Tarea personal creada' : 'Tarea creada');
     cerrar();

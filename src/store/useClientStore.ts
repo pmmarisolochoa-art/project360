@@ -35,7 +35,15 @@ interface ClientState {
   deleteClient: (id: string) => void;
   getClient: (id: string) => Client | undefined;
   // Tasks CRUD
-  addTask: (t: Task) => void;
+  /**
+   * Crea la tarea. Devuelve `true` si quedó guardada en Supabase.
+   *
+   * Devuelve algo (antes era `void`) porque quien crea desde un formulario
+   * necesita saber si de verdad se guardó ANTES de decirle "listo" al usuario.
+   * Los demás sitios pueden seguir ignorando el resultado: el toast de error
+   * salta igual.
+   */
+  addTask: (t: Task) => Promise<boolean>;
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   tasksByClient: (clientId: string) => Task[];
@@ -88,9 +96,15 @@ export const useClientStore = create<ClientState>((set, get) => ({
   getClient: (id) => get().clients.find((c) => c.id === id),
   addTask: (t) => {
     set((s) => ({ tasks: [t, ...s.tasks] }));
-    void TasksRepo.create(t).catch(
-      onWriteError('tasks.create', 'No se pudo crear la tarea. El equipo no la verá hasta que se guarde.'),
-    );
+    return TasksRepo.create(t)
+      .then(() => true)
+      .catch((e) => {
+        onWriteError('tasks.create', 'No se pudo crear la tarea. El equipo no la verá hasta que se guarde.')(e);
+        // La fila optimista se retira: dejarla puesta es lo que hace creer que
+        // se guardó y luego "desaparece sola" al recargar.
+        set((s) => ({ tasks: s.tasks.filter((x) => x.id !== t.id) }));
+        return false;
+      });
   },
   updateTask: (id, patch) => {
     set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));

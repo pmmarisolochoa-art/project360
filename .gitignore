@@ -13,3 +13,6 @@ vite.config.js
 
 # Compilados temporales de las pruebas
 pruebas/.build/
+
+# Carpeta de trabajo del CLI de Supabase (no es código)
+supabase/.temp/

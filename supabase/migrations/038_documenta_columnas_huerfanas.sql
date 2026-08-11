@@ -1,8 +1,11 @@
 -- 038 — Documenta 10 columnas que existen en producción y que ninguna
 --       migración creaba.
 --
--- ⚠️  En la base actual NO CAMBIA NADA: todo es `add column if not exists` y
---     las 10 ya existen. Correrla es seguro y su efecto es cero.
+-- ✅ CORRIDA EN PRODUCCIÓN el 2026-08-11, sin incidencias.
+--
+-- ⚠️  No cambió nada, como estaba previsto: todo es `add column if not exists`
+--     y las 10 columnas ya existían. Se verificó en local ANTES de correrla
+--     (0 cambios en 259 columnas) y se confirmó al aplicarla.
 --
 -- ─────────────────────────────────────────────────────────────────────────────
 -- PARA QUÉ SIRVE ENTONCES

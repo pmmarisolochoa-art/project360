@@ -143,6 +143,14 @@ async function runBootstrap(): Promise<BootstrapResult> {
         if (programs.length > 0) useProgramsStore.getState().hydrate(programs);
         if (funnelData.funnels.length > 0) useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
         if (links.length > 0) useLinksStore.getState().hydrate(links);
+        // Se detalla cuántos son Espacio de Agencia: sin ese dato, un problema
+        // de "no aparece la opción Personal" obliga a adivinar si el cliente no
+        // llegó o si llegó sin su marca. Con esto se distingue de un vistazo.
+        const espacios = clients.filter((c) => c.isAgency);
+        console.info(
+          `[bootstrap] Espacios de agencia: ${espacios.length}`,
+          espacios.map((c) => `${c.name} (isAgency=${c.isAgency})`),
+        );
         console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
       } catch (e) {
         console.warn('[bootstrap] Falló hidratación parcial — UI usa estado local.', e);

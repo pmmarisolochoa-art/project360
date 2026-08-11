@@ -4,6 +4,62 @@
 
 ---
 
+## 2026-08-11 — La causa raíz de todo: dos traductores de fila y 13 campos que se borraban en cada recarga
+
+**5 commits en `main`, desplegados.** Sesión dedicada a los pasos B (herramienta) y A (auditoría), que terminó destapando el bug que explicaba media semana de síntomas.
+
+### 1. EL BUG (commit `36b7c0a`)
+
+Había **dos funciones distintas** traduciendo la misma fila de Supabase a objeto de la app: la de `repositories.ts` y **una copia en `bootstrap.ts`**. La carga inicial usaba la copia, y la copia se había quedado atrás. Perdía **13 campos en cada recarga**:
+
+- `esPrivada` y `propietarioId` — **en tareas Y reuniones**
+- `externalId`, `origen`, `meetingId`, `meetingNombre`, `meetingFecha`, `updatedAt`
+- `isAgency`, `sigla`, `activeFunnelId`
+
+**Lo que explica, todo de una:**
+- *"Creo una tarea privada y al recargar aparece como normal"* — la base **siempre** guardó bien; la CARGA le borraba la marca. Se persiguió media tarde entre policies, permisos y migraciones. **Nada de eso estaba mal.**
+- *"No aparece la opción Personal ni el (interno)"* — `isAgency` se perdía, así que el Espacio de Agencia era un cliente más para la app.
+- **`externalId` es el campo con el que Paralelo empareja sus tareas** y se perdía en cada carga. Esa integración habría fallado sin explicación aparente.
+
+**Arreglo:** una sola función. Se exportan los tres traductores de `repositories.ts` y se borran las copias.
+
+### 2. LA LECCIÓN, que vale más que el arreglo
+
+Por deducción NO salía: se verificó el dato (`is_agency=true`), los permisos (`clients_via_agency`), la existencia de la columna y la carga (3 clientes) — **todo correcto, y el síntoma seguía**. Cuatro diagnósticos por deducción, cuatro fallos, cuatro vueltas de la founder.
+
+Se encontró **midiendo**: imprimiendo el valor CRUDO del servidor al lado del ya traducido. Dos líneas de consola seguidas —`Ikigai Agencia=true` y `Espacios de agencia: 0`— señalaron el punto exacto en un segundo.
+
+**REGLA: cuando la deducción falla dos veces, se deja de deducir y se mide.** Los logs de diagnóstico se quedan permanentes en `bootstrap.ts`, no como temporales: responder esa pregunta costó cinco rondas.
+
+*Detalle menor con su propia lección: el primer log imprimía un array, que la consola pliega, y "léeme esta línea" se convirtió en otra vuelta. Se cambió a texto plano. Un diagnóstico que exige instrucciones para leerse no está terminado.*
+
+### 3. PASO B — herramienta (commit `a5d1b1d`)
+
+CLI de Supabase (vía brew, **no** como dependencia del proyecto: el CI se lo bajaría en cada push sin necesitarlo) + Docker Desktop. Autenticado y enlazado.
+
+Nace **`pruebas/probar_migracion.sh`**: aplica una migración contra una COPIA LOCAL del esquema real de producción, informa qué columnas y policies cambia, y comprueba idempotencia. No toca producción.
+
+**Límite conocido:** las migraciones se llaman `034_x.sql` y el CLI espera `<timestamp>_x.sql`, así que **NO se adopta `supabase db push`** — renombrar 37 archivos ya aplicados a mano sería ruidoso y arriesgado. Aplicarlas sigue siendo manual; lo que cambia es que ahora se prueban antes.
+
+### 4. PASO A — la auditoría base vs repo
+
+Se descargó el esquema real y se comparó tabla por tabla contra las 37 migraciones:
+- 20 tablas, 2 triggers, 41 policies → **todas documentadas**
+- 1 función huérfana: `rls_auto_enable()`, un disparador que activa RLS en cualquier tabla nueva. Buena red de seguridad, nadie la conocía. No se recrea (necesita superusuario) pero queda anotada para que nadie la borre.
+- **10 columnas que ninguna migración crea** y que la app usa a diario: 8 de `tasks` (`subtasks`, `comments`, `tag`, `input`, `output`, `depends_on`, `start_date`, `origin`), `meetings.agency_id` (la del agujero del 10-ago) y `task_links.created_by_nombre`.
+
+**Migración 038 (NO corrida):** las documenta. Es `add column if not exists` puro — en la base actual su efecto es CERO. **Y por primera vez, verificada ANTES de pedirla:** aplicada sobre el esquema real en local → 0 cambios en 259 columnas, e idempotente.
+
+*Nota de método: la primera versión de la auditoría buscaba el nombre de la columna en TODO el repo y daba falsos negativos (`agency_id` "existía" porque `clients` la tiene). Se rehízo comparando por par tabla+columna.*
+
+**Pendientes:**
+- **Correr la 038** (efecto cero, ya verificada).
+- **Probar el ciclo del miembro** ahora que la carga no borra la privacidad: crear personal → recargar → completar desde la lista.
+- **Pieza 3: Google Calendar** — sigue sin empezar. Incluye **sustituir el interruptor de mentira** de Configuración (5 integraciones que solo guardan un booleano en el navegador).
+- Considerar Playwright con una cuenta de pruebas: hoy el cuello de botella fue no poder mirar el navegador yo misma.
+
+---
+
 ## 2026-08-10 — 🔴 Lo privado nunca fue privado + el espacio del miembro deja de ser de solo consumo
 
 Sesión larga y con tres hallazgos que nadie buscaba. **8 commits en `main`, todo desplegado. Migraciones 034, 035, 036 y 037 corridas en prod.**

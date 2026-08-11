@@ -75,12 +75,17 @@ async function runBootstrap(): Promise<BootstrapResult> {
     // fila. Distingue tres casos que desde fuera se ven idénticos —el servidor
     // manda false, no manda la columna, o la manda bien y la app la pierde al
     // traducir— y que costaron media tarde de idas y vueltas por el navegador.
+    // Se imprime como TEXTO, no como array: la consola pliega los arrays y hay
+    // que desplegarlos a mano, lo que convertía "léeme esta línea" en otra
+    // vuelta de instrucciones.
     console.info(
-      '[bootstrap] is_agency crudo del servidor:',
-      (clientsRaw ?? []).map((c) => {
-        const r = c as Record<string, unknown>;
-        return `${r.name}: ${'is_agency' in r ? String(r.is_agency) : 'LA COLUMNA NO VIENE'}`;
-      }),
+      '[bootstrap] is_agency crudo del servidor → ' +
+        (clientsRaw ?? [])
+          .map((c) => {
+            const r = c as Record<string, unknown>;
+            return `${r.name}=${'is_agency' in r ? String(r.is_agency) : 'COLUMNA AUSENTE'}`;
+          })
+          .join(' | '),
     );
 
     const tasksQuery = supabase.from('tasks').select('*');
@@ -160,8 +165,8 @@ async function runBootstrap(): Promise<BootstrapResult> {
         // llegó o si llegó sin su marca. Con esto se distingue de un vistazo.
         const espacios = clients.filter((c) => c.isAgency);
         console.info(
-          `[bootstrap] Espacios de agencia: ${espacios.length}`,
-          espacios.map((c) => `${c.name} (isAgency=${c.isAgency})`),
+          `[bootstrap] Espacios de agencia: ${espacios.length} → ` +
+            (espacios.map((c) => c.name).join(', ') || 'ninguno'),
         );
         console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
       } catch (e) {

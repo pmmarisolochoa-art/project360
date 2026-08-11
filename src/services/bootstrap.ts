@@ -9,7 +9,7 @@ import { useProgramsStore } from '@/store/useProgramsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { useLinksStore } from '@/store/useLinksStore';
-import { ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo } from './repositories';
+import { rowToClient, rowToTask, rowToMeeting, ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo } from './repositories';
 import { TaskLinksRepo } from './taskLinks';
 import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
@@ -184,80 +184,5 @@ async function runBootstrap(): Promise<BootstrapResult> {
   }
 }
 
-function rowToClient(r: Record<string, unknown>): Client {
-  const x = r as Record<string, any>;
-  return {
-    id: x.id,
-    agencyId: x.agency_id,
-    name: x.name,
-    industry: x.industry,
-    businessType: x.business_type,
-    primaryColor: x.primary_color,
-    status: x.status,
-    projectType: x.project_type,
-    onboardingData: x.onboarding_data ?? {},
-    aiBrainData: x.ai_brain_data ?? {},
-    metrics: x.metrics ?? { roas: null, pendingTasksToday: 0, nextMeetingAt: null, progressPercent: 0 },
-    adsConnected: x.ads_connected ?? { meta: false, google: false, tiktok: false, ga4: false },
-    monthlyAdsBudget: Number(x.monthly_ads_budget ?? 0),
-    createdAt: x.created_at,
-    updatedAt: x.updated_at,
-  };
-}
 
-function rowToTask(r: Record<string, unknown>): Task {
-  const x = r as Record<string, any>;
-  return {
-    id: x.id,
-    clientId: x.client_id,
-    title: x.title,
-    description: x.description ?? undefined,
-    status: x.status,
-    priority: x.priority,
-    assignedTo: x.assigned_to,
-    dueDate: x.due_date,
-    completedAt: x.completed_at ?? undefined,
-    parentTaskId: x.parent_task_id ?? undefined,
-    moduleTag: x.module_tag ?? undefined,
-    isDelayed: !!x.is_delayed,
-    delayDays: x.delay_days ?? 0,
-    input: x.input ?? undefined,
-    output: x.output ?? undefined,
-    driveLink: x.drive_link ?? undefined,
-    dependsOn: x.depends_on ?? undefined,
-    startDate: x.start_date ?? undefined,
-    origin: x.origin ?? undefined,
-    subtasks: x.subtasks ?? [],
-    comments: x.comments ?? [],
-    tag: x.tag ?? undefined,
-    funnelId: x.funnel_id ?? undefined,
-    phaseId: x.phase_id ?? undefined,
-    kpiNombre: x.kpi_nombre ?? undefined,
-    kpiMeta: x.kpi_meta ?? undefined,
-    kpiResultado: x.kpi_resultado ?? undefined,
-    kpiTipo: x.kpi_tipo ?? undefined,
-    createdAt: x.created_at,
-  };
-}
 
-function rowToMeeting(r: Record<string, unknown>): Meeting {
-  const x = r as Record<string, any>;
-  return {
-    id: x.id,
-    clientId: x.client_id,
-    title: x.title,
-    type: x.type,
-    scheduledAt: x.scheduled_at,
-    durationMin: x.duration_min,
-    participants: x.participants ?? [],
-    agenda: x.agenda ?? undefined,
-    recordingUrl: x.recording_url ?? undefined,
-    transcription: x.transcription ?? undefined,
-    summary: x.summary ?? undefined,
-    extractedTasks: x.extracted_tasks ?? [],
-    videoCallLink: x.video_call_link ?? undefined,
-    notes: x.notes ?? undefined,
-    notesUpdatedAt: x.notes_updated_at ?? undefined,
-    completed: x.completed ?? undefined,
-  };
-}

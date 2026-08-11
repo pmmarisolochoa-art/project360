@@ -496,7 +496,15 @@ function funnelPhaseToRow(p: FunnelPhase): Record<string, unknown> {
 
 /* ─────────────── Mappers snake_case ↔ camelCase ─────────────── */
 
-function rowToClient(row: Record<string, unknown>): Client {
+/**
+ * Traductores fila→objeto. EXPORTADOS a propósito: `bootstrap.ts` tenía sus
+ * propias copias y se desincronizaron — perdían 13 campos entre las tres,
+ * incluidos `esPrivada` y `propietarioId`. Resultado: la base guardaba bien y
+ * la app olvidaba la privacidad en cada recarga.
+ *
+ * Si añades un campo, se añade AQUÍ y en ningún otro sitio.
+ */
+export function rowToClient(row: Record<string, unknown>): Client {
   const r = row as any;
   return {
     id: r.id,
@@ -559,7 +567,7 @@ function clientToRow(c: Partial<Client>, partial = false): Record<string, unknow
   return row;
 }
 
-function rowToTask(row: Record<string, unknown>): Task {
+export function rowToTask(row: Record<string, unknown>): Task {
   const r = row as any;
   return {
     id: r.id,
@@ -650,7 +658,7 @@ function taskToRow(t: Partial<Task>, partial = false): Record<string, unknown> {
   return row;
 }
 
-function rowToMeeting(row: Record<string, unknown>): Meeting {
+export function rowToMeeting(row: Record<string, unknown>): Meeting {
   const r = row as any;
   return {
     id: r.id,

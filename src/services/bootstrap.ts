@@ -71,6 +71,18 @@ async function runBootstrap(): Promise<BootstrapResult> {
 
     const clientIds = (clientsRaw ?? []).map((c) => c.id);
 
+    // Diagnóstico: qué manda el SERVIDOR para `is_agency`, antes de traducir la
+    // fila. Distingue tres casos que desde fuera se ven idénticos —el servidor
+    // manda false, no manda la columna, o la manda bien y la app la pierde al
+    // traducir— y que costaron media tarde de idas y vueltas por el navegador.
+    console.info(
+      '[bootstrap] is_agency crudo del servidor:',
+      (clientsRaw ?? []).map((c) => {
+        const r = c as Record<string, unknown>;
+        return `${r.name}: ${'is_agency' in r ? String(r.is_agency) : 'LA COLUMNA NO VIENE'}`;
+      }),
+    );
+
     const tasksQuery = supabase.from('tasks').select('*');
     const meetingsQuery = supabase.from('meetings').select('*');
 

@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-08-11 (cierre) — Verificado en producción: el espacio del miembro funciona de punta a punta
+
+La founder probó el ciclo completo con la cuenta de Juan Camilo: **crear tarea personal → recargar → sobrevive → completar → deshacer → crear para un cliente**, y desde su propia cuenta confirmó que **la tarea personal de otra persona no le aparece**.
+
+**Por qué merece entrada propia:** el punto de la recarga había fallado **cinco veces** y fue lo que destapó el bug de los dos traductores. Que ahora aguante confirma que aquello era la causa raíz y no otro parche encima.
+
+La Fase 2 pasa de *construida* a *verificada*, que no es lo mismo — de hecho, media semana de esta historia consistió justamente en descubrir que algo "construido" no funcionaba.
+
+**Queda cerrado, entonces:**
+- Lo privado es privado de verdad (agujero del 10-ago tapado y comprobado desde dos cuentas)
+- El equipo puede crear tareas — no podía en absoluto hasta el 10-ago
+- Cada persona tiene su rincón personal, transversal y no atado al calendario
+
+**Siguiente: Pieza 3, Google Calendar.** Sigue sin empezar. Antes de diseñarla faltan dos datos que la founder tiene que traer: qué abre el equipo un lunes además de Project360, y si usan Google Workspace, Outlook o están mezclados.
+
+---
+
 ## 2026-08-11 — La causa raíz de todo: dos traductores de fila y 13 campos que se borraban en cada recarga
 
 **5 commits en `main`, desplegados.** Sesión dedicada a los pasos B (herramienta) y A (auditoría), que terminó destapando el bug que explicaba media semana de síntomas.

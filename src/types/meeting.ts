@@ -35,4 +35,14 @@ export interface Meeting {
   esPrivada?: boolean;
   /** auth.users.id del dueño de la reunión privada. */
   propietarioId?: string;
+
+  /* ── Trazabilidad de origen (migración 039) ────────────────────────────── */
+  /** De dónde vino la reunión. Default 'manual'. */
+  origen?: MeetingOrigen;
+  /** ID de esta reunión en la plataforma externa. Evita reimportar duplicados.
+   *  Vacío = creada dentro de Project360. */
+  externalId?: string;
 }
+
+/** De dónde vino una reunión. Debe coincidir con el CHECK de `meetings.origen`. */
+export type MeetingOrigen = 'manual' | 'api' | 'paralelo';

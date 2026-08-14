@@ -179,10 +179,33 @@ const sinAcentos = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-
 
 /**
  * Limpia el ruido de diarización de un nombre.
- * "André (Speaker B)" → "André" · "Balita (David F)" → "Balita"
+ *
+ * Paralelo devuelve el responsable en DOS formas, y hay que distinguirlas o se
+ * tira justo el dato bueno:
+ *
+ *   "Balita (David F)"      → el nombre está FUERA  → "Balita"
+ *   "Speaker C (Mari Cruz)" → el nombre está DENTRO → "Mari Cruz"
+ *
+ * "Speaker C" no es un nombre, es la etiqueta que pone la diarización cuando no
+ * reconoce quién habla; el paréntesis trae la corrección humana. Quedarse
+ * siempre con lo de fuera dejaba 5 de las 12 tareas del 5-ago asignadas a
+ * "Speaker C" y "Speaker D" — nombres que no le dicen nada a nadie.
+ *
+ * Solo se invierte ante una etiqueta de diarización reconocible
+ * (`Speaker X`, `Hablante 2`), no ante cualquier paréntesis: "Camilo
+ * (diseñador)" tiene que seguir siendo "Camilo", no "diseñador".
  */
-export const limpiarNombreParalelo = (crudo: string): string =>
-  crudo.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+const ETIQUETA_DIARIZACION = /^(speaker|hablante|participante)\s*[a-z0-9]{1,2}$/i;
+
+export const limpiarNombreParalelo = (crudo: string): string => {
+  const fuera = crudo.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!ETIQUETA_DIARIZACION.test(fuera)) return fuera;
+
+  const dentro = crudo.match(/\(([^)]*)\)/)?.[1]?.trim();
+  // Si dentro tampoco hay nada útil, se devuelve la etiqueta: es fea pero
+  // visible, y alguien la corrige. Inventar un nombre sería peor.
+  return dentro && !ETIQUETA_DIARIZACION.test(dentro) ? dentro : fuera;
+};
 
 /**
  * Resuelve el responsable que dijo la transcripción a una persona del equipo.

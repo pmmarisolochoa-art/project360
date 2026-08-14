@@ -66,9 +66,11 @@ export const proyectoParalelo = (projectId: string | null | undefined) =>
 /**
  * Desde cuándo se traen reuniones de Paralelo.
  *
- * La integración arranca "de ahora en adelante", no con el histórico: hay 190
- * reuniones y ~950 tareas de un año entero que NO se van a importar. Solo entra
- * lo que ocurrió a partir de esta fecha.
+ * Arrancó en "de hoy en adelante" y se movió al 1 de agosto (founder, 13-ago):
+ * con el arranque en el día no había una sola reunión real que probar — la
+ * última de David fue el 5-ago — y verificar la integración con una grabación
+ * de prueba de 2 minutos no verifica nada. El histórico anterior (190 reuniones
+ * y ~950 tareas de un año) sigue fuera.
  *
  * Se compara contra la fecha REAL de la reunión (`actual_start_time`), no
  * contra cuándo Paralelo la cargó — ellos procesan en lotes y una reunión del
@@ -77,7 +79,7 @@ export const proyectoParalelo = (projectId: string | null | undefined) =>
  * Para traer histórico algún día: mover esta fecha hacia atrás, de a poco, y
  * revisar la bandeja. No hay que tocar código.
  */
-export const PARALELO_DESDE = '2026-08-13';
+export const PARALELO_DESDE = '2026-08-01';
 
 /**
  * Cuántos días hacia atrás mira cada revisión.
@@ -87,10 +89,17 @@ export const PARALELO_DESDE = '2026-08-13';
  * (la del 5 de agosto apareció el 10). Una revisión con ventana corta se salta
  * reuniones en silencio, que es el peor fallo posible: nadie se entera.
  *
- * 10 días da margen de sobra sobre el peor caso observado. Revisar de más no
- * cuesta nada: lo ya traído se descarta por `external_id`.
+ * OJO — ESTE NÚMERO Y `PARALELO_DESDE` SE PISAN. El arranque efectivo es el
+ * MAYOR de los dos (`max(hoy - ventana, DESDE)`), así que una ventana corta
+ * anula una fecha de arranque vieja: con 10 días, mover el arranque al 1 de
+ * agosto no servía de nada — el corte real habría caído el 4. Si mueves
+ * `PARALELO_DESDE` hacia atrás, mueve también esto o no pasará nada.
+ *
+ * 20 días cubre el arranque del 1 de agosto con margen de sobra sobre el peor
+ * caso observado. Revisar de más no cuesta nada: lo ya traído se descarta por
+ * `external_id`.
  */
-export const PARALELO_VENTANA_DIAS = 10;
+export const PARALELO_VENTANA_DIAS = 20;
 
 /**
  * Apodos de la transcripción → persona real del equipo.

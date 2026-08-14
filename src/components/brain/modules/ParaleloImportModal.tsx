@@ -22,6 +22,7 @@ import {
   traerReunionesParalelo,
   importarReunionesParalelo,
   type ReunionParaleloConEstado,
+  type DiagnosticoParalelo,
 } from '@/services/paralelo';
 
 interface Props {
@@ -39,13 +40,16 @@ export function ParaleloImportModal({ open, onClose, clientId, clienteNombre, pr
   const [reuniones, setReuniones] = useState<ReunionParaleloConEstado[]>([]);
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
   const [abierta, setAbierta] = useState<string | null>(null);
+  const [diagnostico, setDiagnostico] = useState<DiagnosticoParalelo | undefined>();
+  const [verDiag, setVerDiag] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setError(null);
     try {
-      const rs = await traerReunionesParalelo(projectId);
+      const { reuniones: rs, diagnostico: d } = await traerReunionesParalelo(projectId);
       setReuniones(rs);
+      setDiagnostico(d);
       // Se premarca lo nuevo: es lo que se quiere el 99% de las veces, y
       // desmarcar lo que sobra cuesta menos que marcar de a una.
       setMarcadas(new Set(rs.filter((r) => !r.yaImportada).map((r) => r.externalId)));
@@ -159,6 +163,33 @@ export function ParaleloImportModal({ open, onClose, clientId, clienteNombre, pr
             <div className="text-text-muted text-xs mt-1">
               Se miran los últimos días. Si acabas de tener una, Paralelo puede tardar en procesarla.
             </div>
+
+            {/* Vacío puede ser "no hay nada" o "algo se está comiendo las reuniones".
+                El conteo por escalón distingue las dos sin abrir el inspector. */}
+            {diagnostico && (
+              <div className="mt-4 text-left">
+                <button
+                  type="button"
+                  onClick={() => setVerDiag((v) => !v)}
+                  className="text-xs text-text-secondary hover:text-text-primary inline-flex items-center gap-1"
+                >
+                  Detalle técnico
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${verDiag ? 'rotate-180' : ''}`} />
+                </button>
+                {verDiag && (
+                  <dl className="mt-2 rounded-[8px] border border-border-subtle p-3 space-y-1">
+                    {Object.entries(diagnostico).map(([k, v]) => (
+                      <div key={k} className="flex gap-3 text-xs">
+                        <dt className="text-text-muted min-w-[11rem]">{k}</dt>
+                        <dd className="text-text-primary break-all">
+                          {Array.isArray(v) ? v.join(', ') || '—' : String(v)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
+            )}
           </div>
         )}
 

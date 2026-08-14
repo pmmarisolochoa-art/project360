@@ -53,6 +53,14 @@ export interface ReunionParaleloConEstado extends ReunionParalelo {
   yaImportada: boolean;
 }
 
+/** Conteo por escalón del filtro. Lo manda el endpoint; se muestra si algo no cuadra. */
+export type DiagnosticoParalelo = Record<string, unknown>;
+
+export interface RespuestaParalelo {
+  reuniones: ReunionParaleloConEstado[];
+  diagnostico?: DiagnosticoParalelo;
+}
+
 /**
  * Trae de Paralelo lo que hay para este proyecto y marca lo ya importado.
  *
@@ -61,9 +69,7 @@ export interface ReunionParaleloConEstado extends ReunionParalelo {
  * porque ya entró o porque nunca llegó — y esa duda es la que hace que alguien
  * la cree a mano y termine duplicada.
  */
-export async function traerReunionesParalelo(
-  projectId: string,
-): Promise<ReunionParaleloConEstado[]> {
+export async function traerReunionesParalelo(projectId: string): Promise<RespuestaParalelo> {
   if (!supabase) throw new Error('Sin conexión a Supabase.');
 
   const { data: sessionData } = await supabase.auth.getSession();
@@ -76,6 +82,7 @@ export async function traerReunionesParalelo(
 
   const data = (await res.json().catch(() => ({}))) as {
     reuniones?: ReunionParalelo[];
+    diagnostico?: DiagnosticoParalelo;
     error?: string;
   };
   if (!res.ok) throw new Error(data.error || 'No se pudieron traer las reuniones de Paralelo.');
@@ -87,7 +94,10 @@ export async function traerReunionesParalelo(
       .filter(Boolean) as string[],
   );
 
-  return (data.reuniones ?? []).map((r) => ({ ...r, yaImportada: yaEstan.has(r.externalId) }));
+  return {
+    reuniones: (data.reuniones ?? []).map((r) => ({ ...r, yaImportada: yaEstan.has(r.externalId) })),
+    diagnostico: data.diagnostico,
+  };
 }
 
 export interface ResultadoImportacion {

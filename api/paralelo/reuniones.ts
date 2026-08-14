@@ -180,9 +180,32 @@ export default async function handler(req: Request): Promise<Response> {
     .slice(0, 10);
   const desde = corte > PARALELO_DESDE ? corte : PARALELO_DESDE;
 
-  const items = (Array.isArray(reuniones) ? reuniones : [])
-    .filter((m) => m.project_id === projectId)
-    .filter((m) => m.status === 'completed')
+  /**
+   * DIAGNÓSTICO PERMANENTE — no borrar.
+   *
+   * El 13-ago la bandeja salió vacía en producción mientras el MISMO filtro,
+   * corrido contra los MISMOS datos en local, devolvía una reunión. Sin ver
+   * dónde se cae, eso son horas de adivinar entre la fecha, el token y el
+   * proyecto. Contar en cada escalón cuesta nada y responde la pregunta de una.
+   *
+   * Es la regla de la casa: cuando la deducción falla, se mide.
+   */
+  const diag: Record<string, unknown> = {
+    recibidasDeParalelo: Array.isArray(reuniones) ? reuniones.length : 0,
+    reportesRecibidos: Array.isArray(reportes) ? reportes.length : 0,
+    // Qué proyectos ve ESTA llave. Si el nuestro no está, el problema es el
+    // token (otra cuenta), no el filtro.
+    proyectosVisibles: [
+      ...new Set((Array.isArray(reuniones) ? reuniones : []).map((m) => m.project_id)),
+    ].slice(0, 20),
+  };
+
+  const paso1 = (Array.isArray(reuniones) ? reuniones : []).filter((m) => m.project_id === projectId);
+  diag.trasProyecto = paso1.length;
+  const paso2 = paso1.filter((m) => m.status === 'completed');
+  diag.trasCompleted = paso2.length;
+
+  const items = paso2
     // Se compara contra la fecha REAL de la reunión, no contra cuándo Paralelo
     // la cargó: el histórico anterior al arranque no entra nunca.
     .filter((m) => String(m.actual_start_time || m.scheduled_start_time || '').slice(0, 10) >= desde)
@@ -229,11 +252,16 @@ export default async function handler(req: Request): Promise<Response> {
     // Más recientes primero: es por donde se quiere empezar a importar.
     .sort((a, b) => String(b.fecha ?? '').localeCompare(String(a.fecha ?? '')));
 
+  diag.desdeCalculado = desde;
+  diag.hoyServidor = new Date().toISOString().slice(0, 10);
+  diag.trasFechaYBasura = items.length;
+
   return json({
     cliente: proyecto.cliente,
     projectId,
     total: items.length,
     reuniones: items,
+    diagnostico: diag,
   });
 }
 

@@ -124,7 +124,27 @@ export const PARALELO_ALIAS: Record<string, string> = {
   'david f': 'David Castaño',
   cami: 'Camilo Beltrán',
   camilo: 'Camilo Beltrán',
+  // 14-ago, founder: así la nombra el equipo en las reuniones de David Guerrero.
+  'mari cruz': 'Marisol Ochoa',
+  mari: 'Marisol Ochoa',
 };
+
+/**
+ * POR QUÉ "Speaker A" NO ESTÁ AQUÍ, aunque sepamos quién es.
+ *
+ * En la reunión del 5-ago Speaker A es Jhonatan Rengifo. En la del 12 puede ser
+ * cualquier otro: "Speaker A" no es un apodo, es el orden en que la diarización
+ * oyó las voces, y se reparte de nuevo en CADA reunión.
+ *
+ * Ponerlo aquí le asignaría a Jhonatan, en silencio y para siempre, el trabajo
+ * del primero que hable en cada reunión. Es justo el fallo que esta tabla
+ * existe para evitar: una tarea con un nombre raro se corrige en dos clics
+ * porque salta a la vista; una asignada a la persona equivocada no la corrige
+ * nadie, porque nadie sabe que está mal.
+ *
+ * Estas se corrigen a mano al importar. Si algún día Paralelo entrega un id de
+ * hablante estable por persona, se resuelve bien y se quita esta nota.
+ */
 
 /**
  * Títulos que nunca se importan: pruebas del proveedor y grabaciones sueltas.

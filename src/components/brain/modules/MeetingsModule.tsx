@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar as CalendarIcon, Plus, Clock, CheckCircle2, ChevronLeft, ChevronRight,
-  Video, Sparkles, LayoutGrid, List as ListIcon, Trash2, Download,
+  Video, Sparkles, LayoutGrid, List as ListIcon, Trash2,
 } from 'lucide-react';
 import {
   format, parseISO, addDays, startOfWeek, endOfWeek, isToday, isSameDay,
@@ -24,8 +24,7 @@ import { Select } from '@/components/ui/Select';
 import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
 import { genId } from '@/utils/id';
-import { PARALELO_PROYECTOS } from '@/config/paralelo';
-import { ParaleloImportModal } from './ParaleloImportModal';
+import { ParaleloImportButton } from './ParaleloImportButton';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff',
@@ -94,17 +93,6 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
   const [fScope, setFScope] = useState<'all' | 'client' | 'internal'>('all');
   const [creating, setCreating] = useState(false);
   const [defaultType, setDefaultType] = useState<MeetingType>('weekly_metrics');
-  const [importando, setImportando] = useState(false);
-
-  /**
-   * El puente con Paralelo se declara por NOMBRE de cliente (ver
-   * `src/config/paralelo.ts`): un cliente sin proyecto declarado no ve el botón,
-   * que es la misma regla del backend — lo que no está mapeado no se importa.
-   */
-  const proyectoParaleloDelCliente = useMemo(
-    () => PARALELO_PROYECTOS.find((p) => p.cliente.trim().toLowerCase() === client.name.trim().toLowerCase()),
-    [client.name],
-  );
 
   // Atajo desde RopreModule empty state — abre el modal con type pre-seleccionado.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -201,11 +189,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
           </div>
           {!readOnly && (
             <div className="flex gap-2 shrink-0">
-              {proyectoParaleloDelCliente && (
-                <Button variant="ghost" onClick={() => setImportando(true)}>
-                  <Download className="h-4 w-4" /> Importar de Paralelo
-                </Button>
-              )}
+              <ParaleloImportButton clientId={client.id} />
               <Button onClick={() => setCreating(true)}>
                 <Plus className="h-4 w-4" /> Nueva reunión
               </Button>
@@ -308,15 +292,6 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
         />
       )}
 
-      {proyectoParaleloDelCliente && (
-        <ParaleloImportModal
-          open={importando}
-          onClose={() => setImportando(false)}
-          clientId={client.id}
-          clienteNombre={client.name}
-          projectId={proyectoParaleloDelCliente.projectId}
-        />
-      )}
 
       <AnimatePresence>
         {activeMeeting && <MeetingDrawer meeting={activeMeeting} onClose={closeMeeting} readOnly={readOnly} />}

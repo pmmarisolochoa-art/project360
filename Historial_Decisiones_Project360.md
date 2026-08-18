@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-08-18 — Paralelo ampliado a 3 proyectos, "interna" corregido, y decisión de parar a sistematizar
+
+**5 commits en `main`.** Sesión de uso real que terminó en un cambio de rumbo.
+
+### Habilitados Andrea Torres e Ikigai
+La founder no veía en la bandeja reuniones que sí tiene en Paralelo. **Medido: agosto tiene 6 reuniones** — 2 de David (ya salían, no faltaba ninguna), 1 de Andrea y 3 de Ikigai. No era un fallo: los otros dos proyectos seguían comentados. Ikigai entra con `tipoReunion: 'management'` por ser interna. **Su histórico de 117 reuniones NO entra**: el arranque del 1-ago lo acota a 3. Floppy sigue fuera.
+
+Un proyecto declarado cuyo cliente no exista en Project360 ahora **aparece en amarillo con el motivo** en vez de filtrarse en silencio — un nombre mal escrito se convertía en "la app no trae las reuniones de X", un misterio en vez de un error. **Funcionó a la primera: "Ikigai" salió en amarillo**, así que el cliente está guardado con otro nombre. Pendiente saber cuál exactamente.
+
+### Corregido: "interna" se decidía por el TIPO de reunión
+`INTERNAL_TYPES` marcaba internas las de tipo `general` y `management`. Las importadas de Paralelo entran como `general`, así que **una reunión de cliente salía con badge "🏛️ Interna" y filtrar por "De cliente" la escondía**. Ahora **una reunión es interna si pertenece al cliente-agencia (`isAgency`)**: el tipo describe de qué va, el cliente dice de quién es. Era lo que la documentación decía desde julio ("las internas viven en el cliente Ikigai"); el tipo se había quedado haciendo de sustituto y lo hacía mal.
+
+El filtro Cliente/Internas **se mueve** de la agenda del cliente a la Agenda Global: dentro del cerebro de David todas las reuniones son de David, allí no discriminaba nada. Por defecto no filtra.
+
+### El modelo global ↔ cliente, confirmado
+La founder lo enunció y se verificó contra el código: **una sola fila, dos vistas**. La global (sidebar) muestra todo —Ikigai incluido—, la del cliente filtra por `client_id`. No hay copia ni sincronización. Ya funcionaba así.
+
+### 🔴 HUECO ABIERTO: no existe el rol de dirección
+La founder quiere que la vista global la vean ella, **Lorenzo (CEO) y Juan Camilo Correa (CTO)**. Hoy eso **no existe**: `AppRouter` manda a cualquier usuario con rol `member` a `/mi-espacio`, sin acceso a `/tareas` ni `/agenda-global`. Solo hay dos niveles —dueña y miembro— y falta el de en medio. **Bloqueado esperando un dato: si Lorenzo y Juan Camilo ya están dados de alta como usuarios** (si sí, hay que migrarlos; si no, se crean con el rol nuevo). **Confirmado que lo privado sigue privado** también para dirección.
+
+### CAMBIO DE RUMBO: parar y sistematizar
+La founder detiene el avance de features: *"sigue sin funcionar como quiero la app"*. Pide un **agente que revise en loop** buscando huecos y fallas, proponga soluciones y dé retroalimentación continua.
+
+**El hallazgo que da forma a esa petición:** ninguno de los bugs de estos días fue un fallo técnico. El código compilaba, el CI estaba verde y las 69 pruebas pasaban. Eran **desajustes entre lo que la app hace y lo que se espera que haga** — "interna" por tipo, la bandeja mostrando un nombre y guardando otro, el arranque y la ventana pisándose. **Un auditor de código no los encuentra: hay que escribir primero las reglas del sistema.** Por eso el paso 0 no es el agente, es el documento de reglas.
+
+### Pendientes
+- Nombre exacto del cliente Ikigai en Project360.
+- ¿Lorenzo y Juan Camilo existen ya como usuarios? → rol de dirección.
+- Importar y verificar Andrea (6-ago) y las 3 de Ikigai.
+- Respuesta de Paralelo: llave de servicio, webhooks, cotización.
+- 48 tareas vencidas y 2 duplicadas en la vista global.
+
+---
+
 ## 2026-08-14 — Importación de reuniones de Paralelo: verificada en producción y ampliada al reporte completo
 
 **7 commits en `main`, migración 039 corrida.** Project360 pasa a LEER las reuniones de Paralelo (Meetico) y traerlas como propias, con sus tareas. Cierra el lado nuestro; el de ellos —que consuman nuestra API— sigue pendiente de cotización.

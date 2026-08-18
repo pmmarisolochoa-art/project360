@@ -59,6 +59,16 @@ export function AgendaPage() {
   const [fClient, setFClient] = useState('');
   const [fType, setFType] = useState('');
   const [fStatus, setFStatus] = useState('');
+  /**
+   * Cliente vs internas de la agencia.
+   *
+   * Vive AQUÍ y no en la agenda de cada cliente: dentro del cerebro de David
+   * todas las reuniones son de David, así que el filtro no discriminaba nada.
+   * Es en la vista global —donde conviven varios clientes— donde tiene sentido.
+   * Por defecto NO filtra: el global lo muestra todo, y separar es una opción,
+   * nunca lo que pasa por defecto.
+   */
+  const [fAmbito, setFAmbito] = useState<'' | 'cliente' | 'interna'>('');
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
   /** Agenda del equipo vs mi agenda privada (S5). Conjuntos disjuntos. */
   const [espacio, setEspacio] = useState<'equipo' | 'privado'>('equipo');
@@ -85,13 +95,19 @@ export function AgendaPage() {
           const d = parseISO(m.scheduledAt);
           if (!isWithinInterval(d, range)) return false;
           if (fClient && m.clientId !== fClient) return false;
+          // Interna = pertenece al cliente que representa a la agencia.
+          if (fAmbito) {
+            const esInterna = !!clientById[m.clientId]?.isAgency;
+            if (fAmbito === 'interna' && !esInterna) return false;
+            if (fAmbito === 'cliente' && esInterna) return false;
+          }
           if (fType && m.type !== fType) return false;
           if (fStatus === 'done' && !m.completed) return false;
           if (fStatus === 'pending' && m.completed) return false;
           return true;
         })
         .sort((a, b) => +parseISO(a.scheduledAt) - +parseISO(b.scheduledAt)),
-    [meetings, range, fClient, fType, fStatus, espacio, authUserId],
+    [meetings, range, fClient, fType, fStatus, fAmbito, clientById, espacio, authUserId],
   );
 
   const activeMeeting = meetingId ? meetings.find((m) => m.id === meetingId) : null;
@@ -217,6 +233,16 @@ export function AgendaPage() {
           onChange={(e) => setFClient(e.target.value)}
           className="min-w-[180px]"
           options={[{ value: '', label: 'Todos los clientes' }, ...clients.map((c) => ({ value: c.id, label: c.name }))]}
+        />
+        <Select
+          value={fAmbito}
+          onChange={(e) => setFAmbito(e.target.value as typeof fAmbito)}
+          className="min-w-[170px]"
+          options={[
+            { value: '', label: 'Clientes + internas' },
+            { value: 'cliente', label: '👥 De clientes' },
+            { value: 'interna', label: '🏛️ Internas (agencia)' },
+          ]}
         />
         <Select
           value={fType}

@@ -70,9 +70,24 @@ export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
   management: '🏛️ Reunión de gerencia: sistema y procesos (SOPs), objetivos y KPIs generales de la agencia, y decisiones importantes de dirección.',
 };
 
-// Reuniones "internas" = de la agencia (dirección/equipo), no de un cliente.
-const INTERNAL_TYPES: ReadonlySet<MeetingType> = new Set(['general', 'management']);
-export const isInternalMeeting = (t: MeetingType) => INTERNAL_TYPES.has(t);
+/**
+ * Una reunión es INTERNA si pertenece al cliente que representa a la agencia
+ * (el que tiene `isAgency`). No se decide por el TIPO.
+ *
+ * Antes se decidía por tipo: `general` y `management` contaban como internas.
+ * Eso rompía dos cosas a la vez:
+ *   - Las reuniones importadas de Paralelo entran como `general` y salían
+ *     marcadas "🏛️ Interna" aunque fueran de David Guerrero o Andrea Torres;
+ *     peor, filtrar por "Cliente" las escondía.
+ *   - Cualquiera que creara a mano una reunión "general" para un cliente veía
+ *     lo mismo, sin entender por qué.
+ *
+ * El tipo describe DE QUÉ va la reunión; de quién es lo dice el cliente. Es
+ * además lo que ya decía la documentación desde julio: "las internas viven en
+ * el cliente Ikigai".
+ */
+export const isInternalMeeting = (client: { isAgency?: boolean } | undefined | null) =>
+  !!client?.isAgency;
 
 export function MeetingsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const allMeetings = useClientStore((s) => s.meetings);
@@ -90,7 +105,6 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
   const [view, setView] = useState<'list' | 'week'>('list');
   const [fType, setFType] = useState<string>('');
   const [fStatus, setFStatus] = useState<'all' | 'upcoming' | 'past' | 'completed' | 'pending'>('all');
-  const [fScope, setFScope] = useState<'all' | 'client' | 'internal'>('all');
   const [creating, setCreating] = useState(false);
   const [defaultType, setDefaultType] = useState<MeetingType>('weekly_metrics');
 
@@ -136,8 +150,6 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
       // La agenda del cliente es siempre del equipo: lo privado vive solo en
       // "Mi agenda privada" de la Agenda Global (S5).
       if (m.esPrivada) return false;
-      if (fScope === 'internal' && !isInternalMeeting(m.type)) return false;
-      if (fScope === 'client' && isInternalMeeting(m.type)) return false;
       if (fType && m.type !== fType) return false;
       const d = parseISO(m.scheduledAt);
       if (fStatus === 'upcoming' && !isAfter(d, now)) return false;
@@ -146,7 +158,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
       if (fStatus === 'pending' && m.completed) return false;
       return true;
     });
-  }, [meetings, fType, fStatus, fScope]);
+  }, [meetings, fType, fStatus]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -232,16 +244,6 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
           </button>
         </div>
         <Select
-          value={fScope}
-          onChange={(e) => setFScope(e.target.value as typeof fScope)}
-          className="min-w-[150px]"
-          options={[
-            { value: 'all', label: 'Cliente + internas' },
-            { value: 'client', label: '👥 De cliente' },
-            { value: 'internal', label: '🏛️ Internas (agencia)' },
-          ]}
-        />
-        <Select
           value={fType}
           onChange={(e) => setFType(e.target.value)}
           className="min-w-[180px]"
@@ -265,7 +267,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
       </div>
 
       {view === 'list' ? (
-        <ListView meetings={filtered} accent={accent} onOpen={openMeeting} readOnly={readOnly} onDelete={(m) => {
+        <ListView meetings={filtered} accent={accent} onOpen={openMeeting} readOnly={readOnly} esInterna={isInternalMeeting(client)} onDelete={(m) => {
           if (confirm(`¿Eliminar "${m.title}"?`)) {
             deleteMeeting(m.id);
             toast.success('Reunión eliminada');
@@ -318,8 +320,11 @@ function Stat({ label, value, icon, tone }: { label: string; value: number | str
   );
 }
 
-function ListView({ meetings, accent, onOpen, onDelete, readOnly = false }: {
-  meetings: Meeting[]; accent: string; onOpen: (id: string) => void; onDelete: (m: Meeting) => void; readOnly?: boolean;
+function ListView({ meetings, accent, onOpen, onDelete, readOnly = false, esInterna = false }: {
+  meetings: Meeting[]; accent: string; onOpen: (id: string) => void; onDelete: (m: Meeting) => void;
+  readOnly?: boolean;
+  /** true si esta agenda es la del cliente-agencia: todas sus reuniones son internas. */
+  esInterna?: boolean;
 }) {
   if (meetings.length === 0) {
     return (
@@ -369,7 +374,7 @@ function ListView({ meetings, accent, onOpen, onDelete, readOnly = false }: {
                       <span>{m.durationMin} min</span>
                       <span>·</span>
                       <Badge tone={TYPE_TONE[m.type]}>{TYPE_LABEL[m.type]}</Badge>
-                      {isInternalMeeting(m.type) && <Badge tone="accent">🏛️ Interna</Badge>}
+                      {esInterna && <Badge tone="accent">🏛️ Interna</Badge>}
                       {m.participants && m.participants.length > 0 && (
                         <>
                           <span>·</span>

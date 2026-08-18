@@ -47,6 +47,8 @@ export interface ReunionParalelo {
   duracionMin: number;
   tieneReporte: boolean;
   resumen?: string;
+  /** Tipo con el que entra, decidido por la config del proyecto. */
+  tipo?: 'general' | 'management';
   tareas: TareaParalelo[];
 
   /* ── Secciones ricas del reporte (ver el endpoint) ─────────────────────── */
@@ -166,9 +168,11 @@ export async function importarReunionesParalelo(
       id: meetingId,
       clientId,
       title: r.titulo,
-      // 'general' y no un tipo específico: adivinar el tipo desde el título
-      // sería inventar. Quien la revise lo cambia en un clic si hace falta.
-      type: 'general',
+      // El tipo lo decide la config del proyecto (las de Ikigai entran como
+      // 'management' por ser internas). Dentro de un proyecto NO se afina más:
+      // adivinar "kickoff" o "revisión de ads" desde el título sería inventar,
+      // y quien la revise lo cambia en un clic.
+      type: r.tipo ?? 'general',
       scheduledAt: fechaISO,
       durationMin: r.duracionMin,
       participants: [],

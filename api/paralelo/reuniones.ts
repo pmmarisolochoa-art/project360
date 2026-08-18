@@ -234,6 +234,9 @@ export default async function handler(req: Request): Promise<Response> {
         paraleloId: m.id,
         titulo,
         cliente: proyecto.cliente,
+        // Lo decide la config del proyecto, no el título: las de Ikigai son
+        // internas de la agencia y no reuniones con un cliente.
+        tipo: proyecto.tipoReunion ?? 'general',
         fecha: inicio,
         duracionMin: minutosEntre(m.actual_start_time, m.actual_end_time),
         tieneReporte: !!report,

@@ -50,12 +50,25 @@ export function ParaleloImportButton({ clientId, variant = 'ghost' }: Props) {
       .filter((p) => !clientId || p.client!.id === clientId);
   }, [clients, clientId]);
 
-  // Sin proyectos que apliquen, el botón no existe. Un botón que solo puede
-  // fallar es peor que no tenerlo.
-  if (disponibles.length === 0) return null;
+  /**
+   * Proyectos declarados cuyo cliente NO existe en Project360.
+   *
+   * Se muestran en la lista, desactivados y con el motivo. Antes se filtraban
+   * en silencio, y eso convierte un nombre mal escrito en "la app no trae las
+   * reuniones de Andrea" — un misterio en vez de un error. El fallo se avisa
+   * donde se busca la función, no en un comentario del código.
+   */
+  const huerfanos = useMemo(() => {
+    if (clientId) return [];
+    const nombres = new Set(clients.map((c) => c.name.trim().toLowerCase()));
+    return PARALELO_PROYECTOS.filter((p) => !nombres.has(p.cliente.trim().toLowerCase()));
+  }, [clients, clientId]);
+
+  // Sin nada que ofrecer ni nada que avisar, el botón no existe.
+  if (disponibles.length === 0 && huerfanos.length === 0) return null;
 
   const abrir = () => {
-    if (disponibles.length === 1) {
+    if (disponibles.length === 1 && huerfanos.length === 0) {
       setElegido(disponibles[0].projectId);
       setAbierto(true);
       return;
@@ -85,6 +98,18 @@ export function ParaleloImportButton({ clientId, variant = 'ghost' }: Props) {
               Paralelo organiza por proyecto. Elige a cuál cliente entran las reuniones.
             </p>
             <div className="space-y-1.5">
+              {huerfanos.map((p) => (
+                <div
+                  key={p.projectId}
+                  className="w-full rounded-[10px] border border-warning/40 bg-warning/5 px-3 py-2.5"
+                >
+                  <div className="text-sm text-text-secondary">{p.cliente}</div>
+                  <div className="text-xs text-warning mt-0.5">
+                    Está declarado en Paralelo pero no existe un cliente con ese nombre exacto en
+                    Project360. Créalo, o corrige el nombre en <code>src/config/paralelo.ts</code>.
+                  </div>
+                </div>
+              ))}
               {disponibles.map((p) => (
                 <button
                   key={p.projectId}

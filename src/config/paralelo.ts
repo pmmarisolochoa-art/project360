@@ -23,6 +23,15 @@ export interface ParaleloProyecto {
   projectId: string;
   /** Nombre del cliente en Project360, tal cual está escrito allí. */
   cliente: string;
+  /**
+   * Con qué tipo entran sus reuniones. Por defecto `general`.
+   *
+   * Las de Ikigai son internas de la agencia (dailies, embudo), no reuniones
+   * con un cliente: entran como `management` para que el filtro
+   * Cliente/Internas de la agenda las separe bien. Si entraran como `general`
+   * se mezclarían con las de clientes en todos los conteos.
+   */
+  tipoReunion?: 'general' | 'management';
   /** Solo para leerlo aquí — qué es este proyecto y por qué está (o no) activo. */
   nota: string;
 }
@@ -31,25 +40,25 @@ export const PARALELO_PROYECTOS: ParaleloProyecto[] = [
   {
     projectId: '9077f0f0-603e-4af5-8033-444778267d9e',
     cliente: 'David Guerrero',
-    nota: '42 reuniones (oct 2025 → ago 2026). Primer proyecto habilitado: cliente vivo, sin solapamiento con las internas de Ikigai.',
+    nota: '42 reuniones (oct 2025 → ago 2026). El primero que se habilitó y el que se usó para verificar la integración el 14-ago.',
+  },
+  {
+    projectId: 'ea25b849-d05a-4002-8b94-24868305c253',
+    cliente: 'Andrea Torres',
+    nota: '23 reuniones. Habilitado el 18-ago. Algunas comparten sesión con '
+        + 'David Guerrero; manda el project_id de Paralelo, no el título.',
+  },
+  {
+    projectId: '23a3efb4-b1f7-4634-8f92-f34dea5cf5a4',
+    cliente: 'Ikigai',
+    tipoReunion: 'management',
+    nota: '117 reuniones, casi todas dailies internas. Habilitado el 18-ago; '
+        + 'el arranque del 1-ago lo acota a 3, así que el volumen histórico NO '
+        + 'entra. Si algún día se mueve PARALELO_DESDE hacia atrás, este es el '
+        + 'que hay que soltar de a poco.',
   },
 
-  /* ── Pendientes de habilitar ──────────────────────────────────────────────
-   * Se activan cuando David Guerrero esté verificado en producción.
-   *
-   * {
-   *   projectId: '23a3efb4-b1f7-4634-8f92-f34dea5cf5a4',
-   *   cliente: 'Ikigai',
-   *   nota: '117 reuniones, casi todas dailies internas. Ojo: al importarlas '
-   *       + 'deberían entrar como meeting_type "management", no como reuniones '
-   *       + 'de cliente. Es el volumen más grande — no soltarlo de un tirón.',
-   * },
-   * {
-   *   projectId: 'ea25b849-d05a-4002-8b94-24868305c253',
-   *   cliente: 'Andrea Torres',
-   *   nota: '23 reuniones. Algunas comparten sesión con David Guerrero; el '
-   *       + 'project_id de Paralelo decide a quién pertenecen.',
-   * },
+  /* ── Pendiente de habilitar ───────────────────────────────────────────────
    * {
    *   projectId: 'ddfcc8a1-1a46-456d-8f85-4fb823e2c86c',
    *   cliente: 'Floppy',

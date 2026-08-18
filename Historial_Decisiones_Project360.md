@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-08-14 — Importación de reuniones de Paralelo: verificada en producción y ampliada al reporte completo
+
+**7 commits en `main`, migración 039 corrida.** Project360 pasa a LEER las reuniones de Paralelo (Meetico) y traerlas como propias, con sus tareas. Cierra el lado nuestro; el de ellos —que consuman nuestra API— sigue pendiente de cotización.
+
+### Verificado de punta a punta
+La founder importó la reunión real del 5-ago: **las 12 tareas entraron y aguantaron la recarga**. Ese punto había fallado cinco veces la semana pasada, así que se probó a propósito antes de dar nada por bueno.
+
+### Decisiones que quedaron en el código
+
+- **La fecha de entrega sale de NUESTRO SLA, no del `dueDate` de Paralelo.** El suyo no es una fecha, es prosa: "ASAP", "cuando vuelva Bala", "antes de la fase evergreen". Interpretarlo sería inventar, y una fecha inventada mete tareas falsas en "atrasadas" y ensucia el cumplimiento del equipo. El texto original sí viaja, a la descripción.
+- **Un responsable que no se reconoce se deja en texto crudo.** Una tarea con nombre raro se corrige en dos clics porque salta a la vista; una asignada en silencio a quien no es no la corrige nadie.
+- **NO se agrega "Speaker A" → Jhonatan Rengifo a los alias**, aunque en la reunión del 5-ago sea él. "Speaker A" no es un apodo: es el orden en que la diarización oyó las voces y se reparte de nuevo en cada reunión. El alias le daría a Jhonatan, para siempre, el trabajo del primero que hable.
+- **Escribe el navegador, no el endpoint.** Así pasa por RLS con la sesión del usuario en vez de saltárselo con la service key.
+- **La bandeja es de revisión, no un botón de sincronizar.** Nada entra sin marcarse, y lo ya importado se muestra en gris en vez de esconderse: una bandeja que oculta lo procesado hace dudar si algo entró o nunca llegó, y esa duda termina en una reunión creada a mano y duplicada.
+
+### Tres bugs propios, todos encontrados MIDIENDO y no deduciendo
+
+1. **El nombre real venía DENTRO del paréntesis.** `Speaker C (Mari Cruz)` → me quedaba con "Speaker C" y tiraba el nombre. 5 de 12 tareas habrían quedado con etiquetas de diarización. Se encontró **previsualizando el dato antes de que la founder probara** — sin eso, habría gastado la sesión mirando nombres basura.
+2. **La bandeja mostraba el nombre crudo y guardaba otro.** El alias solo se aplicaba al importar, así que la previsualización mentía: revisabas "Mari Cruz" y la tarea quedaba "Marisol Ochoa". **Es otra vez el fallo de los dos traductores del 11-ago** — la misma lógica en dos sitios y la copia que nadie mira se queda atrás. Se resolvió igual: una sola función.
+3. **`PARALELO_DESDE` y `PARALELO_VENTANA_DIAS` se pisaban.** El arranque efectivo es el mayor de los dos, así que mover la fecha al 1-ago con la ventana en 10 días no habría hecho nada — y **habría parecido que funcionó**, porque la reunión del 5 entra igual.
+
+Además, la bandeja salió vacía en producción mientras el mismo filtro daba 1 reunión en local. En vez de perseguirlo se le agregó al endpoint un **diagnóstico permanente** que cuenta cuántas reuniones sobreviven a cada escalón y qué proyectos ve la llave. (Era el deploy sin propagar.) **La regla del 11-ago se aplicó sola: cuando la deducción falla, se mide.**
+
+### La llave de Paralelo no es una llave
+
+Estamos leyendo con **el JWT de la sesión personal de la founder** — dice su email y su rol por dentro. Funciona, pero se cae cuando caduque y la app lee "como si fuera ella". **Ya se pidió a Paralelo una llave de servicio de solo lectura**, junto con la pregunta de si su plataforma trae webhooks (sería configuración y no desarrollo) y la cotización. Sin respuesta al 14-ago.
+
+### Ampliación: el reporte deja de desperdiciarse
+
+Su reporte trae **14 secciones y solo se leían 2**. Ahora cada reunión alimenta tres sitios: `dependencies` → campo **`input`** (el chip IN que ya existía; 8 de las 12 tareas del 5-ago lo traen), decisiones y objetivos → **resumen de la reunión**, y riesgos y bloqueos → **ROPRE** como items de tipo `risk`. Paralelo ya entrega el riesgo emparejado con su mitigación, que es justo la forma de un item ROPRE.
+
+**Lo que NO se hizo, a propósito:** enlazar las tareas entre sí por `dependsOn` para verlas en el Gantt. El emparejamiento sería por texto y un enlace mal puesto muestra una secuencia falsa. Se deja para cuando sepamos qué tan consistente es el dato.
+
+### Pendientes
+
+- Respuesta de Paralelo: llave de servicio, webhooks, cotización.
+- Habilitar Ikigai (117 reuniones, entran como `management`), Andrea Torres (23) y Floppy (inactivo). Están escritos y comentados.
+- Corregir a mano el responsable "Speaker A" en la tarea de Black November.
+- Ajenos a esto: 48 tareas vencidas y 2 duplicadas detectadas en la vista global.
+
+---
+
 ## 2026-08-11 (cierre) — Verificado en producción: el espacio del miembro funciona de punta a punta
 
 La founder probó el ciclo completo con la cuenta de Juan Camilo: **crear tarea personal → recargar → sobrevive → completar → deshacer → crear para un cliente**, y desde su propia cuenta confirmó que **la tarea personal de otra persona no le aparece**.

@@ -100,6 +100,28 @@ export async function traerReunionesParalelo(projectId: string): Promise<Respues
   };
 }
 
+/**
+ * Quién queda como responsable de una tarea de Paralelo.
+ *
+ * FUENTE ÚNICA — la usan la bandeja (para previsualizar) y la importación (para
+ * escribir). Estuvieron separadas y la bandeja mostraba el nombre CRUDO
+ * mientras la importación guardaba el resuelto: revisabas "Mari Cruz" y en la
+ * tarea aparecía "Marisol Ochoa". Una previsualización que no coincide con el
+ * resultado no sirve para revisar, que es lo único para lo que existe.
+ *
+ * Es el mismo fallo de los dos traductores de fila del 11-ago: dos copias de la
+ * misma lógica se separan, y la que nadie mira se queda atrás.
+ */
+export function responsableDeTarea(t: TareaParalelo, nombresEquipo: string[]): string {
+  return t.responsables.length
+    ? resolverResponsableParalelo(t.responsables[0], nombresEquipo)
+    : 'Sin asignar';
+}
+
+/** Nombres del equipo de un cliente, para resolver responsables. */
+export const nombresEquipoDe = (clientId: string): string[] =>
+  teamMembersForClient(clientId).map((m) => m.nombre);
+
 export interface ResultadoImportacion {
   reunionesCreadas: number;
   tareasCreadas: number;
@@ -120,7 +142,7 @@ export async function importarReunionesParalelo(
   seleccionadas: ReunionParalelo[],
 ): Promise<ResultadoImportacion> {
   const store = useClientStore.getState();
-  const nombresEquipo = teamMembersForClient(clientId).map((m) => m.nombre);
+  const nombresEquipo = nombresEquipoDe(clientId);
 
   const out: ResultadoImportacion = { reunionesCreadas: 0, tareasCreadas: 0, fallos: [] };
 
@@ -159,9 +181,7 @@ export async function importarReunionesParalelo(
     out.reunionesCreadas += 1;
 
     for (const t of r.tareas) {
-      const responsable = t.responsables.length
-        ? resolverResponsableParalelo(t.responsables[0], nombresEquipo)
-        : 'Sin asignar';
+      const responsable = responsableDeTarea(t, nombresEquipo);
 
       const task: Task = {
         id: genId(),

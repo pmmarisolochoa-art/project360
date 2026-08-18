@@ -28,6 +28,7 @@ import { IntegrationsModal } from '@/components/dashboard/IntegrationsModal';
 import { MeetingDrawer } from '@/components/dashboard/MeetingDrawer';
 import type { Meeting, MeetingType } from '@/types/meeting';
 import type { Client } from '@/types/client';
+import { ParaleloImportButton } from '@/components/brain/modules/ParaleloImportButton';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff',
@@ -143,12 +144,18 @@ export function AgendaPage() {
             {filtered.length} reuniones en el rango · click para abrir detalle
           </p>
         </div>
-        <button
-          onClick={() => setIntegrationsOpen(true)}
-          className="h-9 px-3 rounded-md border border-border-subtle bg-bg-elevated text-text-secondary hover:text-text-primary hover:bg-bg-hover transition inline-flex items-center gap-1.5 text-xs"
-        >
-          <Settings className="h-3.5 w-3.5" /> Integraciones
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Las reuniones de Paralelo se traen desde donde se miran las
+              reuniones. Mismo botón y misma bandeja que en Tareas global y en
+              la Agenda del cliente. */}
+          <ParaleloImportButton />
+          <button
+            onClick={() => setIntegrationsOpen(true)}
+            className="h-9 px-3 rounded-md border border-border-subtle bg-bg-elevated text-text-secondary hover:text-text-primary hover:bg-bg-hover transition inline-flex items-center gap-1.5 text-xs"
+          >
+            <Settings className="h-3.5 w-3.5" /> Integraciones
+          </button>
+        </div>
       </header>
 
       <div className="surface p-3 flex gap-2 items-center flex-wrap">

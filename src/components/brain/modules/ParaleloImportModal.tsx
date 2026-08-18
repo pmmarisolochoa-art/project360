@@ -102,8 +102,13 @@ export function ParaleloImportModal({ open, onClose, clientId, clienteNombre, pr
         );
       } else {
         toast.success(
-          `${res.reunionesCreadas} reunion${res.reunionesCreadas === 1 ? '' : 'es'} y ` +
-            `${res.tareasCreadas} tarea${res.tareasCreadas === 1 ? '' : 's'} importadas.`,
+          [
+            `${res.reunionesCreadas === 1 ? '1 reunión' : `${res.reunionesCreadas} reuniones`}`,
+            `${res.tareasCreadas} tarea${res.tareasCreadas === 1 ? '' : 's'}`,
+            res.ropreCreados ? `${res.ropreCreados} al ROPRE` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') + ' importadas.',
         );
       }
 
@@ -225,6 +230,16 @@ export function ParaleloImportModal({ open, onClose, clientId, clienteNombre, pr
                     {' · '}
                     {r.tareas.length} tarea{r.tareas.length === 1 ? '' : 's'}
                   </div>
+                  {/* Qué más entra además de las tareas. Sin esto, "importar"
+                      parecía traer solo tareas y los riesgos aparecían en ROPRE
+                      sin que nadie supiera de dónde salieron. */}
+                  {(r.riesgos?.length || r.bloqueos?.length || r.decisiones?.length) && (
+                    <div className="text-xs text-text-secondary mt-1 flex flex-wrap gap-x-3">
+                      {!!r.decisiones?.length && <span>{r.decisiones.length} decisiones → resumen</span>}
+                      {!!r.riesgos?.length && <span>{r.riesgos.length} riesgos → ROPRE</span>}
+                      {!!r.bloqueos?.length && <span>{r.bloqueos.length} bloqueos → ROPRE</span>}
+                    </div>
+                  )}
                   {!r.tieneReporte && (
                     <div className="text-xs text-warning mt-1">
                       Paralelo aún no generó el reporte: entraría sin resumen ni tareas.
@@ -264,6 +279,11 @@ export function ParaleloImportModal({ open, onClose, clientId, clienteNombre, pr
                         )}
                         {t.plazoTexto && <span>· plazo dicho: “{t.plazoTexto}”</span>}
                       </div>
+                      {t.dependencias && (
+                        <div className="text-text-muted mt-0.5">
+                          <span className="text-[10px] uppercase tracking-wider">IN</span> {t.dependencias}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

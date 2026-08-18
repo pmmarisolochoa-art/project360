@@ -23,6 +23,8 @@ import { teamMembersForClient } from '@/store/useTeamMembersStore';
 import { resolverResponsableParalelo } from '@/config/paralelo';
 import { TASK_SLA_DAYS } from '@/config/taskSLA';
 import { genId } from '@/utils/id';
+import { useRopreStore } from '@/store/useRopreStore';
+import type { RopreItem } from '@/types/ropre';
 
 /** Una tarea tal como la manda el endpoint. */
 export interface TareaParalelo {
@@ -46,6 +48,14 @@ export interface ReunionParalelo {
   tieneReporte: boolean;
   resumen?: string;
   tareas: TareaParalelo[];
+
+  /* ── Secciones ricas del reporte (ver el endpoint) ─────────────────────── */
+  objetivos?: { declarado?: string; logrado?: string };
+  decisiones?: Array<{ tema: string; resumen: string }>;
+  riesgos?: Array<{ riesgo: string; mitigacion?: string }>;
+  bloqueos?: Array<{ asunto: string; estado?: string; proximoPaso?: string }>;
+  proximosPasos?: { proximaReunion?: string; puntosDeRevision?: string; hitos?: string[] };
+  recursos?: { presupuesto?: string; personas?: string; herramientas?: string };
 }
 
 export interface ReunionParaleloConEstado extends ReunionParalelo {
@@ -125,6 +135,8 @@ export const nombresEquipoDe = (clientId: string): string[] =>
 export interface ResultadoImportacion {
   reunionesCreadas: number;
   tareasCreadas: number;
+  /** Riesgos y bloqueos que pasaron al ROPRE del cliente. */
+  ropreCreados: number;
   /** Reuniones que no se pudieron guardar, con el porqué. */
   fallos: Array<{ titulo: string; motivo: string }>;
 }
@@ -144,7 +156,7 @@ export async function importarReunionesParalelo(
   const store = useClientStore.getState();
   const nombresEquipo = nombresEquipoDe(clientId);
 
-  const out: ResultadoImportacion = { reunionesCreadas: 0, tareasCreadas: 0, fallos: [] };
+  const out: ResultadoImportacion = { reunionesCreadas: 0, tareasCreadas: 0, ropreCreados: 0, fallos: [] };
 
   for (const r of seleccionadas) {
     const fechaISO = r.fecha ?? new Date().toISOString();
@@ -160,7 +172,7 @@ export async function importarReunionesParalelo(
       scheduledAt: fechaISO,
       durationMin: r.duracionMin,
       participants: [],
-      summary: r.resumen,
+      summary: resumenDeReunion(r),
       completed: true,
       origen: 'paralelo',
       externalId: r.externalId,
@@ -188,6 +200,10 @@ export async function importarReunionesParalelo(
         clientId,
         title: t.titulo,
         description: descripcionDeTarea(t),
+        // Lo que la tarea necesita para poder empezar. Paralelo lo entrega como
+        // `dependencies` y antes se enterraba en la descripción; `input` es el
+        // campo que existe para esto y ya se ve en la tarjeta (chip IN).
+        input: t.dependencias,
         status: 'pending',
         priority: t.prioridad,
         assignedTo: responsable,
@@ -209,9 +225,113 @@ export async function importarReunionesParalelo(
       const ok = await store.addTask(task);
       if (ok) out.tareasCreadas += 1;
     }
+
+    out.ropreCreados += volcarAlRopre(clientId, r);
   }
 
   return out;
+}
+
+/**
+ * Riesgos y bloqueos de la reunión → items de ROPRE.
+ *
+ * Paralelo entrega el riesgo YA emparejado con su mitigación, que es
+ * exactamente la forma de un item ROPRE de tipo `risk`. Hasta ahora eso se
+ * escribía a mano leyendo el acta, o —más frecuente— no se escribía.
+ *
+ * Los bloqueos entran también como `risk`: un bloqueo es un riesgo que ya se
+ * materializó. Su estado y próximo paso van a la descripción para no perderlos.
+ *
+ * Nivel `medium` a propósito: Paralelo no gradúa la severidad, y ponerlo todo
+ * en `high` haría que el módulo grite por todo y se acabe ignorando.
+ */
+function volcarAlRopre(clientId: string, r: ReunionParalelo): number {
+  const items: RopreItem[] = [];
+  const ahora = new Date().toISOString();
+
+  for (const x of r.riesgos ?? []) {
+    items.push({
+      id: genId(),
+      clientId,
+      type: 'risk',
+      title: x.riesgo,
+      description: `Detectado en la reunión "${r.titulo}".`,
+      riskLevel: 'medium',
+      mitigation: x.mitigacion,
+      createdAt: ahora,
+    });
+  }
+
+  for (const b of r.bloqueos ?? []) {
+    items.push({
+      id: genId(),
+      clientId,
+      type: 'risk',
+      title: b.asunto,
+      description: [
+        `Bloqueo detectado en la reunión "${r.titulo}".`,
+        b.estado && `Estado: ${b.estado}`,
+        b.proximoPaso && `Próximo paso: ${b.proximoPaso}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      riskLevel: 'medium',
+      createdAt: ahora,
+    });
+  }
+
+  const add = useRopreStore.getState().add;
+  items.forEach(add);
+  return items.length;
+}
+
+/**
+ * El resumen de la reunión, compuesto con las secciones del reporte.
+ *
+ * Antes solo se guardaba `executiveSummary` y se perdían las decisiones —que es
+ * lo que de verdad se busca al releer un acta— junto con los objetivos y los
+ * próximos pasos. Van todas al mismo campo, con títulos, porque es el texto que
+ * ya lee el reporte ejecutivo en PDF.
+ */
+function resumenDeReunion(r: ReunionParalelo): string | undefined {
+  const bloques: string[] = [];
+  if (r.resumen) bloques.push(r.resumen);
+
+  if (r.objetivos?.declarado || r.objetivos?.logrado) {
+    bloques.push(
+      ['OBJETIVOS', r.objetivos.declarado && `Buscado: ${r.objetivos.declarado}`, r.objetivos.logrado && `Logrado: ${r.objetivos.logrado}`]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+
+  if (r.decisiones?.length) {
+    bloques.push(
+      ['DECISIONES Y PUNTOS TRATADOS', ...r.decisiones.map((d) => `• ${d.tema}: ${d.resumen}`)].join('\n'),
+    );
+  }
+
+  if (r.proximosPasos) {
+    const p = r.proximosPasos;
+    const lineas = [
+      p.proximaReunion && `Próxima reunión: ${p.proximaReunion}`,
+      p.puntosDeRevision && `A revisar: ${p.puntosDeRevision}`,
+      ...(p.hitos ?? []).map((h) => `• Hito: ${h}`),
+    ].filter(Boolean);
+    if (lineas.length) bloques.push(['PRÓXIMOS PASOS', ...lineas].join('\n'));
+  }
+
+  if (r.recursos) {
+    const c = r.recursos;
+    const lineas = [
+      c.personas && `Personas: ${c.personas}`,
+      c.herramientas && `Herramientas: ${c.herramientas}`,
+      c.presupuesto && `Presupuesto: ${c.presupuesto}`,
+    ].filter(Boolean);
+    if (lineas.length) bloques.push(['RECURSOS QUE HACEN FALTA', ...lineas].join('\n'));
+  }
+
+  return bloques.length ? bloques.join('\n\n') : undefined;
 }
 
 /**
@@ -222,7 +342,7 @@ export async function importarReunionesParalelo(
 function descripcionDeTarea(t: TareaParalelo): string | undefined {
   const lineas: string[] = [];
   if (t.plazoTexto) lineas.push(`Plazo según la reunión: ${t.plazoTexto}`);
-  if (t.dependencias) lineas.push(`Depende de: ${t.dependencias}`);
+  // `dependencias` ya NO se repite aquí: vive en `input`, que es su campo.
   if (t.responsables.length > 1) {
     lineas.push(`También mencionados: ${t.responsables.slice(1).join(', ')}`);
   }

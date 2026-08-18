@@ -69,12 +69,26 @@ interface ActionItemParalelo {
   dependencies?: string;
 }
 
+/**
+ * El reporte de Paralelo trae 14 secciones. Durante la primera versión solo se
+ * leían dos (`executiveSummary` y `actionItems`) y se tiraba el resto en cada
+ * reunión: decisiones tomadas, riesgos ya emparejados con su mitigación,
+ * bloqueos con su próximo paso, objetivos declarados vs logrados. Todo eso ya
+ * tiene casa en Project360 — el resumen de la reunión y el módulo ROPRE — y se
+ * estaba escribiendo a mano.
+ */
 interface ReportRowParalelo {
   meeting_id: string;
   report: {
     actionItems?: ActionItemParalelo[];
     executiveSummary?: string | string[];
     reportTitle?: string;
+    meetingObjectives?: { stated?: string; achieved?: string };
+    discussionPointsAndDecisions?: Array<{ topic?: string; summary?: string }>;
+    risksAndConcerns?: Array<{ risk?: string; mitigation?: string }>;
+    criticalIssuesAndBlockers?: Array<{ issue?: string; status?: string; nextSteps?: string }>;
+    nextStepsAndFollowUp?: { nextMeeting?: string; reviewPoints?: string; keyMilestones?: string[] };
+    resourceRequirements?: { budget?: string; personnel?: string; toolsAndPlatforms?: string };
   } | null;
 }
 
@@ -224,6 +238,41 @@ export default async function handler(req: Request): Promise<Response> {
         duracionMin: minutosEntre(m.actual_start_time, m.actual_end_time),
         tieneReporte: !!report,
         resumen: textoDe(report?.executiveSummary),
+        objetivos: report?.meetingObjectives
+          ? {
+              declarado: limpiarNoEspecificado(report.meetingObjectives.stated),
+              logrado: limpiarNoEspecificado(report.meetingObjectives.achieved),
+            }
+          : undefined,
+        decisiones: (report?.discussionPointsAndDecisions ?? [])
+          .map((d) => ({ tema: String(d.topic ?? '').trim(), resumen: String(d.summary ?? '').trim() }))
+          .filter((d) => d.tema || d.resumen),
+        // Riesgo y mitigación vienen YA emparejados — es justo la forma que
+        // pide un item de ROPRE de tipo 'risk'.
+        riesgos: (report?.risksAndConcerns ?? [])
+          .map((r) => ({ riesgo: String(r.risk ?? '').trim(), mitigacion: limpiarNoEspecificado(r.mitigation) }))
+          .filter((r) => r.riesgo),
+        bloqueos: (report?.criticalIssuesAndBlockers ?? [])
+          .map((b) => ({
+            asunto: String(b.issue ?? '').trim(),
+            estado: limpiarNoEspecificado(b.status),
+            proximoPaso: limpiarNoEspecificado(b.nextSteps),
+          }))
+          .filter((b) => b.asunto),
+        proximosPasos: report?.nextStepsAndFollowUp
+          ? {
+              proximaReunion: limpiarNoEspecificado(report.nextStepsAndFollowUp.nextMeeting),
+              puntosDeRevision: limpiarNoEspecificado(report.nextStepsAndFollowUp.reviewPoints),
+              hitos: (report.nextStepsAndFollowUp.keyMilestones ?? []).map(String).filter(Boolean),
+            }
+          : undefined,
+        recursos: report?.resourceRequirements
+          ? {
+              presupuesto: limpiarNoEspecificado(report.resourceRequirements.budget),
+              personas: limpiarNoEspecificado(report.resourceRequirements.personnel),
+              herramientas: limpiarNoEspecificado(report.resourceRequirements.toolsAndPlatforms),
+            }
+          : undefined,
         tareas: actionItems
           .map((a) => ({
             externalId: externalIdTareaParalelo(m.id, String(a.task ?? '')),

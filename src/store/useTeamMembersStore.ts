@@ -2,6 +2,26 @@ import { create } from 'zustand';
 import type { TeamMember } from '@/types/teamMember';
 import { TeamMembersRepo } from '@/services/repositories';
 
+/**
+ * Mete a la persona en la lista: la reemplaza si ya está, la añade si no.
+ *
+ * Antes se añadía a ciegas, y desde que invitar ACTUALIZA la ficha existente en
+ * vez de crear otra, el endpoint devuelve el id que ya estaba — así que un
+ * `push` dejaba a la misma persona dos veces en pantalla. Duplicado solo en el
+ * navegador, que desaparecía al recargar: peor todavía, porque parece que la
+ * base se rompió cuando no le pasa nada.
+ *
+ * Es la tercera vez esta semana que un "añadir sin mirar si ya está" muerde:
+ * la ficha al invitar, el login al crear la cuenta, y ahora la lista en
+ * memoria. Si una operación se puede repetir, tiene que ser idempotente en
+ * TODAS sus capas — no basta con arreglarla en la base.
+ */
+function upsert(lista: TeamMember[], nuevo: TeamMember): TeamMember[] {
+  return lista.some((m) => m.id === nuevo.id)
+    ? lista.map((m) => (m.id === nuevo.id ? { ...m, ...nuevo } : m))
+    : [...lista, nuevo];
+}
+
 interface TeamMembersState {
   members: TeamMember[];
   /** Reemplaza todo el set (usado en bootstrap). */
@@ -19,11 +39,11 @@ export const useTeamMembersStore = create<TeamMembersState>((set) => ({
   hydrate: (members) => set({ members }),
 
   add: (member) => {
-    set((s) => ({ members: [...s.members, member] }));
+    set((s) => ({ members: upsert(s.members, member) }));
     void TeamMembersRepo.create(member).catch((e) => console.warn('[teamMembers.create]', e));
   },
 
-  addLocal: (member) => set((s) => ({ members: [...s.members, member] })),
+  addLocal: (member) => set((s) => ({ members: upsert(s.members, member) })),
 
   update: (id, patch) => {
     set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));

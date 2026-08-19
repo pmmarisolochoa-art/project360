@@ -2,7 +2,18 @@ import { create } from 'zustand';
 import type { AuthUser } from '@/services/auth';
 
 /** Rol del usuario logueado dentro de la app. */
-export type UserRole = 'owner' | 'member';
+/**
+ * owner     — dueña de la agencia: todo, incluida la administración.
+ * direccion — CEO/CTO: ve todo lo del equipo, no administra, no ve lo privado.
+ * member    — su espacio personal y los clientes que tenga asignados.
+ */
+export type UserRole = 'owner' | 'direccion' | 'member';
+
+/** Quien puede usar las vistas globales (sidebar completo). */
+export const veGlobal = (r: UserRole | null) => r === 'owner' || r === 'direccion';
+
+/** Quien administra la cuenta: llaves de API, integraciones, invitar gente. */
+export const administra = (r: UserRole | null) => r === 'owner';
 
 /** Acceso de un miembro a un cliente concreto (Capa 3 — migración 018). */
 export interface ClientAccess {

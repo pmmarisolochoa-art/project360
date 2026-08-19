@@ -10,6 +10,7 @@ import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useClientStore } from '@/store/useClientStore';
 import { DEPARTMENTS, type DepartmentId } from '@/config/departments';
 import { inviteMember } from '@/services/inviteMember';
+import { useAuthStore, administra } from '@/store/useAuthStore';
 import { useTeamKPIs, type MemberKpiSummary } from '@/hooks/useTeamKPIs';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -44,6 +45,7 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
   const addLocal = useTeamMembersStore((s) => s.addLocal);
   const summaries = useTeamKPIs(client.id);
   const allTasks = useClientStore((s) => s.tasks);
+  const rolUsuario = useAuthStore((s) => s.role);
   const [addOpen, setAddOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -93,7 +95,11 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
             <div className="text-[10px] uppercase tracking-wider text-text-muted">Cumplimiento global</div>
             <div className="kpi-number" style={{ color: accent }}>{health.globalPct}%</div>
           </div>
-          {!readOnly && (
+          {/* Dar de alta y dar acceso son administración, no dirección: quien
+              dirige mira el equipo, no decide quién entra en él. Además el
+              endpoint de invitar exige ser dueña de la agencia, así que para
+              dirección estos botones solo podrían fallar (R-31). */}
+          {!readOnly && administra(rolUsuario) && (
             <div className="flex items-center gap-2">
               <Button variant="ghost" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
                 Agregar persona

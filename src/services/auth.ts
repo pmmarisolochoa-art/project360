@@ -57,7 +57,12 @@ export interface ClientAccessCtx {
 
 /** Contexto resuelto del usuario: qué tipo es y qué puede ver. */
 export interface UserContext {
-  role: 'owner' | 'member';
+  /**
+   * owner     — dueña de la agencia: todo, incluida la administración.
+   * direccion — CEO/CTO: ve todo lo del equipo, NO administra, NO ve lo privado.
+   * member    — su propio espacio y los clientes que tenga asignados.
+   */
+  role: 'owner' | 'direccion' | 'member';
   agencyId: string | null;
   /** Todos los clientes del miembro (multi-cliente). Vacío para owner. */
   clientAccesses: ClientAccessCtx[];
@@ -90,7 +95,7 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
   // falla. NUNCA debemos degradar a un miembro a 'owner' por eso → reintentamos
   // sin la columna. Un miembro mal clasificado como owner vería el dashboard
   // del owner en vez de su /mi-espacio.
-  const BASE_COLS = 'id, client_id, access_level, nombre, rol, departamentos';
+  const BASE_COLS = 'id, client_id, access_level, nombre, rol, departamentos, es_direccion';
   let members: Record<string, unknown>[] | null = null;
   const withFlag = await supabase.from('team_members').select(`${BASE_COLS}, ve_todas_tareas`).eq('user_id', userId);
   if (withFlag.error) {
@@ -101,6 +106,28 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
     members = withFlag.data as Record<string, unknown>[] | null;
   }
   if (members && members.length > 0) {
+    /**
+     * ¿Es dirección? Basta con que UNA de sus fichas lo diga: el cargo es de
+     * agencia, no de cliente.
+     *
+     * Su `agencyId` sale del cliente de esa ficha, y hace falta: el bootstrap
+     * filtra los clientes por agencia, así que sin él dirección no cargaría
+     * nada aunque las policies se lo permitan.
+     */
+    const esDireccion = members.some((m) => m.es_direccion === true);
+    if (esDireccion) {
+      const { data: cli } = await supabase
+        .from('clients')
+        .select('agency_id')
+        .eq('id', members[0].client_id as string)
+        .maybeSingle();
+      return {
+        role: 'direccion',
+        agencyId: (cli?.agency_id as string) ?? null,
+        clientAccesses: [],
+      };
+    }
+
     return {
       role: 'member',
       agencyId: null,

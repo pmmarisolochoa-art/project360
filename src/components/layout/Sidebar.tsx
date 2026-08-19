@@ -13,7 +13,7 @@ import {
 import { cn } from '@/utils/cn';
 import { BRAND } from '@/config/brand';
 import { useClientStore } from '@/store/useClientStore';
-import { useAuthStore } from '@/store/useAuthStore';
+import { useAuthStore, administra } from '@/store/useAuthStore';
 import { avanceForClient } from '@/utils/avance';
 import { healthFromMetrics } from '@/utils/metricsCalculator';
 import { isActiveClient } from '@/types/client';
@@ -41,7 +41,10 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
   const tasks = useClientStore((s) => s.tasks);
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
-  const navItems = nav;
+  // Dirección no ve Configuración: eso es administrar la cuenta (llaves de API,
+  // integraciones), no dirigir el negocio. La ruta tampoco existe para ellos
+  // —ver AppRouter—, así que esconder el enlace no es la única barrera.
+  const navItems = administra(role) ? nav : nav.filter((n) => n.to !== '/configuracion');
 
   // Nombre visible: lo que haya antes de la @ del correo, capitalizado.
   const handle = (user?.email ?? '').split('@')[0] ?? '';

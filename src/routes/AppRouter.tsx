@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Layout } from '@/components/layout/Layout';
 import { MemberLayout } from '@/components/layout/MemberLayout';
-import { useAuthStore } from '@/store/useAuthStore';
+import { useAuthStore, administra } from '@/store/useAuthStore';
 // Eager: son los dos puntos de entrada reales (index y login). Cargarlos bajo
 // demanda solo añadiría un parpadeo sin ahorrar nada, porque siempre se piden.
 import { DashboardMacro } from '@/pages/DashboardMacro';
@@ -60,6 +60,11 @@ export function AppRouter() {
 
   // Usuario MIEMBRO (equipo): su espacio personal multi-cliente.
   // Home = /mi-espacio; puede entrar a los cerebros de sus clientes.
+  //
+  // DIRECCIÓN no entra por aquí: aunque está en `team_members` igual que un
+  // miembro, `resolveUserContext` le devuelve role 'direccion' y cae al bloque
+  // de abajo, con el sidebar completo. Lo que NO ve es Configuración, que es
+  // administrar y no dirigir.
   if (role === 'member' && clientAccess) {
     return (
       <ErrorBoundary>
@@ -96,7 +101,11 @@ export function AppRouter() {
           <Route path="tareas" element={<AllTasksPage />} />
           <Route path="equipo" element={<TeamPage />} />
           <Route path="links-entregables" element={<LinksEntregablesPage />} />
-          <Route path="configuracion" element={<SettingsPage />} />
+          {/* Configuración es administración: llaves de API, integraciones,
+              datos de la cuenta. Dirección ve el negocio, no lo administra.
+              La ruta no existe para ellos — no basta con esconder el enlace,
+              porque la URL se puede escribir a mano. */}
+          {administra(role) && <Route path="configuracion" element={<SettingsPage />} />}
 
           {/* Fuera del sidebar pero accesibles */}
           <Route path="onboarding" element={<OnboardingPage />} />

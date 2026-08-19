@@ -42,8 +42,9 @@ Las tareas viven en el espacio general de la agencia. Al entrar por Tareas en el
 
 **R-11 ⚠️ — Toda regla de permisos se prueba ejecutándola con una cuenta real de ese rol.** Escribir la policy y leerla no cuenta como probarla.
 
-**R-12 ❌ — Existe un nivel de dirección que ve todo lo del equipo sin administrarlo.**
-Hoy solo hay dos niveles: dueña (todo) y miembro (solo lo suyo, redirigido a Mi Espacio). **Lorenzo (CEO) y Juan Camilo Correa (CTO) deberían ver la vista global y no pueden.** Hueco abierto.
+**R-12 ⚠️ — Existe un nivel de dirección que ve todo lo del equipo sin administrarlo.**
+Tres niveles: **dueña** (todo, incluida la administración), **dirección** (CEO/CTO: lee todo lo del equipo de su agencia, no administra) y **miembro** (su espacio y sus clientes). Dirección **no ve lo privado** ni entra a Configuración, y la ruta no existe para ellos — esconder el enlace no basta, la URL se escribe a mano.
+*Construido el 19-ago (migración 040), verificado en local: dirección ve los clientes de su agencia, NO ve lo privado y NO cruza a otra agencia. Pasa a ✅ cuando Lorenzo o Juan Camilo entren en producción.*
 
 ---
 

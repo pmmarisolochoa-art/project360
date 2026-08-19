@@ -79,7 +79,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 async function hydrateContext(
   userId: string,
   setAgencyId: (id: string | null) => void,
-  setRole: (r: 'owner' | 'member' | null) => void,
+  setRole: (r: import('@/store/useAuthStore').UserRole | null) => void,
   setClientAccesses: (list: import('@/store/useAuthStore').ClientAccess[]) => void,
 ): Promise<void> {
   try {

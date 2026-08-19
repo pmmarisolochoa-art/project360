@@ -96,6 +96,11 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 
 **R-30 ⚠️ — Una ventana de revisión que se salta datos en silencio es el peor fallo posible.** Al mirar hacia atrás se cubre con margen el peor retraso observado del proveedor.
 
+**R-40 ❌→✅ — Dar de alta y dar acceso son cosas distintas.** Invitar a alguien que ya existe le da acceso a su ficha; no crea una segunda. Toda operación que pueda repetirse sobre la misma persona busca primero si ya está — por correo, que es la identidad de acceso, y si no por nombre dentro del cliente.
+*Origen:* invitar duplicaba a todo el equipo, porque ya estaban dados de alta a mano. Quedaban dos tarjetas: una con los KPIs y otra con el acceso. Arreglado el 19 de agosto.
+
+**R-41 ⚠️ — Ante dos registros que podrían ser la misma persona y podrían no serlo, se para y se pregunta.** Fusionar a dos homónimos le da a alguien el acceso de otro; eso es mucho peor que una ficha de más.
+
 ---
 
 ## 6. Interfaz

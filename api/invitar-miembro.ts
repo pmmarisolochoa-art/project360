@@ -127,23 +127,72 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: `No se pudo crear el perfil: ${userErr.message}` }, 500);
   }
 
-  // ── 6. Fila en team_members (identidad + acceso: departamentos + nivel) ───
-  const { data: tm, error: tmErr } = await admin
+  // ── 6. Fila en team_members — DAR ACCESO A QUIEN YA ESTÁ, NO CREARLO OTRA VEZ
+  //
+  // Aquí había un `insert` a ciegas, y por eso invitar duplicaba personas: casi
+  // todo el equipo ya existía como ficha creada con "Agregar persona" (sin
+  // login), así que invitar a Santiago Ruiz creaba un SEGUNDO Santiago Ruiz.
+  // Quedaban dos tarjetas: una con sus KPIs y otra con su acceso.
+  //
+  // Invitar a alguien es darle acceso, no darlo de alta. Se busca su ficha
+  // primero: por correo, que es la identidad de acceso, y si no por nombre
+  // dentro de ese cliente (las fichas creadas a mano suelen no tener correo).
+  const { data: existentes } = await admin
     .from('team_members')
-    .insert({
-      client_id: clientId,
-      nombre,
-      rol,
-      email,
-      telefono: telefono || null,
-      avatar_color: avatarColor,
-      funciones,
-      access_level: accessLevel,
-      departamentos,
-      user_id: userId,
-    })
-    .select('id')
-    .single();
+    .select('id, nombre, email, user_id')
+    .eq('client_id', clientId);
+
+  const norm = (v: unknown) =>
+    String(v ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+  const ficha =
+    (existentes ?? []).find((m) => m.email && norm(m.email) === norm(email)) ??
+    (existentes ?? []).find((m) => norm(m.nombre) === norm(nombre));
+
+  // Una ficha que YA tiene otro login no se toca: son dos personas distintas
+  // con el mismo nombre, o un error que hay que mirar a mano. Reutilizarla le
+  // daría a alguien el acceso de otro, que es mucho peor que una ficha de más.
+  if (ficha?.user_id && ficha.user_id !== userId) {
+    await admin.auth.admin.deleteUser(userId).catch(() => {});
+    return json(
+      {
+        error:
+          `Ya existe "${ficha.nombre}" en este cliente con un acceso distinto. ` +
+          'Revisa si son la misma persona antes de invitar.',
+      },
+      409,
+    );
+  }
+
+  const datosAcceso = {
+    email,
+    telefono: telefono || null,
+    avatar_color: avatarColor,
+    funciones,
+    access_level: accessLevel,
+    departamentos,
+    user_id: userId,
+  };
+
+  // OJO: al actualizar NO se tocan `kpis` ni `created_at`. Son el historial de
+  // esa persona y no tienen nada que ver con darle acceso.
+  const { data: tm, error: tmErr } = ficha
+    ? await admin
+        .from('team_members')
+        .update({ ...datosAcceso, nombre, rol })
+        .eq('id', ficha.id)
+        .select('id')
+        .single()
+    : await admin
+        .from('team_members')
+        .insert({ client_id: clientId, nombre, rol, ...datosAcceso })
+        .select('id')
+        .single();
+
   if (tmErr) {
     await admin.auth.admin.deleteUser(userId).catch(() => {});
     return json({ error: `No se pudo crear el miembro: ${tmErr.message}` }, 500);

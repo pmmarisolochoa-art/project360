@@ -108,11 +108,29 @@ que_se_queda as (select * from rankeadas where puesto = 1),
 que_se_va    as (select * from rankeadas where puesto > 1)
 update public.team_members t
 set
-  kpis_custom = case
-                  when coalesce(t.kpis_custom, '{}'::jsonb) = '{}'::jsonb
-                    then s.kpis_custom
-                  else t.kpis_custom
-                end,
+  -- KPIs: se MEZCLAN los dos, no se elige uno.
+  --
+  -- Importa de verdad: en las 6 parejas reales la ficha que se borra es la que
+  -- tiene los KPIs. Y en Jhonatan y Sofía las DOS los tienen —uno por cada
+  -- rol—, así que quedarse con una tiraría medio historial.
+  --
+  -- La mezcla es por sub-objeto (`values`, `history`, `targets`, `custom`) y no
+  -- a nivel raíz: `a || b` en jsonb pisa la clave entera, así que un `||` suelto
+  -- borraría todos los `values` de una de las dos. Como cada rol usa claves de
+  -- KPI distintas, mezclar por dentro los conserva todos.
+  --
+  -- Ante el mismo KPI en ambas fichas gana el de la que se queda: es la que
+  -- tiene el acceso y, por tanto, la que la persona ha estado usando.
+  kpis_custom = jsonb_build_object(
+    'values',  coalesce(s.kpis_custom->'values',  '{}'::jsonb)
+             || coalesce(t.kpis_custom->'values',  '{}'::jsonb),
+    'history', coalesce(s.kpis_custom->'history', '{}'::jsonb)
+             || coalesce(t.kpis_custom->'history', '{}'::jsonb),
+    'targets', coalesce(s.kpis_custom->'targets', '{}'::jsonb)
+             || coalesce(t.kpis_custom->'targets', '{}'::jsonb),
+    'custom',  coalesce(t.kpis_custom->'custom',  '[]'::jsonb)
+             || coalesce(s.kpis_custom->'custom',  '[]'::jsonb)
+  ),
   funciones   = case
                   when jsonb_typeof(coalesce(t.funciones, '[]'::jsonb)) <> 'array'
                        or jsonb_array_length(coalesce(t.funciones, '[]'::jsonb)) = 0
@@ -152,7 +170,7 @@ where id in (select id from rankeadas where puesto > 1);
 -- Sofía → Content Manager.
 update public.team_members
    set rol = 'community'
- where lower(trim(nombre)) like 'sof%';
+ where lower(trim(nombre)) in ('sofía', 'sofia');
 
 -- Jhonatan Rengifo → hace las DOS cosas: estratega y copywriter.
 --

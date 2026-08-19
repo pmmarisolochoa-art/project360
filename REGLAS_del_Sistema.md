@@ -99,6 +99,11 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 **R-40 ❌→✅ — Dar de alta y dar acceso son cosas distintas.** Invitar a alguien que ya existe le da acceso a su ficha; no crea una segunda. Toda operación que pueda repetirse sobre la misma persona busca primero si ya está — por correo, que es la identidad de acceso, y si no por nombre dentro del cliente.
 *Origen:* invitar duplicaba a todo el equipo, porque ya estaban dados de alta a mano. Quedaban dos tarjetas: una con los KPIs y otra con el acceso. Arreglado el 19 de agosto.
 
+**R-42 ✅ — Que algo ya exista no es un conflicto: suele ser la mitad del trabajo ya hecha.** Un correo con login, una ficha creada, un proyecto ya importado — la operación se apoya en lo que hay en vez de rendirse. Solo se para cuando seguir podría dar el acceso o los datos de una persona a otra.
+*Origen:* invitar duplicaba fichas (R-40) y, un nivel más abajo, se rendía si el correo ya tenía login — dejando a Roberto Maestre ininvitable desde la interfaz.
+
+**R-43 ✅ — Un aviso no promete lo que no hizo.** Si a alguien no se le cambió la contraseña, no se le dice que le mandamos una: la buscaría, no le funcionaría, y acabaría escribiéndole a alguien para que lo desatasque.
+
 **R-41 ⚠️ — Ante dos registros que podrían ser la misma persona y podrían no serlo, se para y se pregunta.** Fusionar a dos homónimos le da a alguien el acceso de otro; eso es mucho peor que una ficha de más.
 
 ---

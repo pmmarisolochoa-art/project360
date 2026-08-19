@@ -102,21 +102,63 @@ export default async function handler(req: Request): Promise<Response> {
     .maybeSingle();
   if (!agency) return json({ error: 'No tienes permiso para invitar en este cliente.' }, 403);
 
-  // ── 4. Crear el login (usuario de Auth) ───────────────────────────────────
+  // ── 4. El login: crearlo, o REUTILIZARLO si ese correo ya tiene uno ───────
+  //
+  // Antes esto devolvía "ese correo ya tiene un login, gestiónalo en Supabase"
+  // y ahí se acababa la invitación. Es el mismo error de concepto que había una
+  // capa más abajo: invitar a alguien es DARLE ACCESO, no darlo de alta. Que su
+  // correo ya exista no es un conflicto — es que esa persona ya está.
+  //
+  // Pasa de verdad: un intento anterior que se quedó a medias deja el login
+  // creado y la ficha sin enlazar, y a partir de ahí esa persona es ininvitable
+  // por la interfaz. A Roberto Maestre le ocurrió.
+  let userId: string;
+  let loginYaExistia = false;
+  let claveCambiada = false;
+
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: { name: nombre },
   });
-  if (createErr || !created?.user) {
+
+  if (created?.user) {
+    userId = created.user.id;
+  } else {
     const msg = (createErr?.message ?? '').toLowerCase();
-    if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
-      return json({ error: 'Ese correo ya tiene un login. Usa otro correo o gestiónalo en Supabase.' }, 409);
+    const yaExiste = msg.includes('already') || msg.includes('registered') || msg.includes('exists');
+    if (!yaExiste) {
+      return json({ error: `No se pudo crear el login: ${createErr?.message ?? 'desconocido'}` }, 500);
     }
-    return json({ error: `No se pudo crear el login: ${createErr?.message ?? 'desconocido'}` }, 500);
+
+    const encontrado = await buscarUsuarioPorCorreo(admin, email);
+    if (!encontrado) {
+      // El login existe pero no lo encontramos: no se sigue a ciegas, porque
+      // enlazar la ficha al usuario equivocado le daría a alguien el acceso de
+      // otro. Se dice qué pasa y dónde mirar.
+      return json(
+        {
+          error:
+            'Ese correo ya tiene un login pero no se pudo localizar para reutilizarlo. ' +
+            'Revísalo en Supabase → Authentication antes de reintentar.',
+        },
+        409,
+      );
+    }
+
+    userId = encontrado.id;
+    loginYaExistia = true;
+
+    // La contraseña solo se cambia si esa persona NUNCA ha entrado. Si ya usa
+    // la app, cambiársela la dejaría fuera con una clave que no conoce — y sin
+    // avisarle. Si nunca entró, no hay nada que romper y sí hace falta darle
+    // una que pueda usar.
+    if (!encontrado.last_sign_in_at) {
+      const { error: pwErr } = await admin.auth.admin.updateUserById(userId, { password });
+      claveCambiada = !pwErr;
+    }
   }
-  const userId = created.user.id;
 
   // ── 5. Fila gemela en public.users (role 'team' = miembro de agencia) ─────
   const { error: userErr } = await admin
@@ -223,7 +265,58 @@ export default async function handler(req: Request): Promise<Response> {
     emailError = 'no-resend-key';
   }
 
-  return json({ ok: true, memberId: tm.id, userId, email, emailSent, emailError });
+  return json({
+    ok: true,
+    memberId: tm.id,
+    userId,
+    email,
+    emailSent,
+    emailError,
+    loginYaExistia,
+    claveCambiada,
+  });
+}
+
+/**
+ * Busca un usuario de Auth por su correo.
+ *
+ * La API de administración de Supabase no tiene "dame el usuario de este
+ * correo", así que se intenta primero por `public.users` —que es la copia que
+ * mantenemos y tiene el mismo id— y solo si no está se pagina Auth.
+ *
+ * El paginado está acotado a 10 páginas de 200: con un equipo de agencia sobra,
+ * y evita que un fallo de esta función se convierta en un bucle caro.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buscarUsuarioPorCorreo(
+  admin: any,
+  email: string,
+): Promise<{ id: string; last_sign_in_at: string | null } | null> {
+  const { data: fila } = await admin
+    .from('users')
+    .select('id')
+    .ilike('email', email)
+    .maybeSingle();
+
+  const filaId = (fila as { id?: string } | null)?.id;
+  if (filaId) {
+    const { data } = await admin.auth.admin.getUserById(filaId);
+    if (data?.user) {
+      return { id: data.user.id, last_sign_in_at: data.user.last_sign_in_at ?? null };
+    }
+  }
+
+  const objetivo = email.trim().toLowerCase();
+  for (let page = 1; page <= 10; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data?.users?.length) break;
+    const u = data.users.find(
+      (x: { email?: string | null }) => (x.email ?? '').trim().toLowerCase() === objetivo,
+    );
+    if (u) return { id: u.id, last_sign_in_at: u.last_sign_in_at ?? null };
+    if (data.users.length < 200) break;
+  }
+  return null;
 }
 
 /** Correo de bienvenida con las credenciales de acceso del nuevo miembro. */

@@ -354,7 +354,16 @@ function InviteMemberModal({
         kpis: emptyKpis(),
         createdAt: new Date().toISOString(),
       };
-      if (result.emailSent) {
+      // El aviso tiene que decir la verdad sobre la contraseña. Si esa persona
+      // ya tenía login y ya había entrado, la contraseña temporal de este
+      // formulario NO es la suya: mandársela la dejaría intentando entrar con
+      // una clave que no funciona.
+      if (result.loginYaExistia && !result.claveCambiada) {
+        toast.success(
+          `${member.nombre} ya tenía cuenta y ahora tiene acceso a este cliente. ` +
+            'Entra con la contraseña que ya usaba — la temporal de aquí no aplica.',
+        );
+      } else if (result.emailSent) {
         toast.success(`${member.nombre} ya puede entrar. Le enviamos un correo con su acceso ✉️`);
       } else {
         toast.success(`${member.nombre} ya puede entrar. El correo no salió — cópiale la contraseña y compártela.`);

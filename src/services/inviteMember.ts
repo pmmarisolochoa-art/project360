@@ -21,6 +21,11 @@ export interface InviteResult {
   /** true si se le envió el correo con sus credenciales automáticamente. */
   emailSent?: boolean;
   emailError?: string;
+  /** true si esa persona ya tenía login y se reutilizó en vez de crear otro. */
+  loginYaExistia?: boolean;
+  /** true si se le puso la contraseña temporal nueva. Falso cuando ya había
+   *  entrado alguna vez: en ese caso conserva la suya y la temporal no sirve. */
+  claveCambiada?: boolean;
 }
 
 /**

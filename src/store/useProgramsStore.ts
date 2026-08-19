@@ -1,3 +1,4 @@
+import { onWriteError } from './onWriteError';
 import { create } from 'zustand';
 import type { Program } from '@/types/program';
 import { ProgramsRepo } from '@/services/repositories';
@@ -18,17 +19,17 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   add: (program) => {
     set((s) => ({ programs: [program, ...s.programs] }));
-    void ProgramsRepo.create(program).catch((e) => console.warn('[programs.create]', e));
+    void ProgramsRepo.create(program).catch(onWriteError('programs.create', 'No se pudo crear el programa. Recarga e inténtalo de nuevo.'));
   },
 
   update: (id, patch) => {
     set((s) => ({ programs: s.programs.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-    void ProgramsRepo.update(id, patch).catch((e) => console.warn('[programs.update]', e));
+    void ProgramsRepo.update(id, patch).catch(onWriteError('programs.update', 'No se pudieron guardar los cambios del programa.'));
   },
 
   remove: (id) => {
     set((s) => ({ programs: s.programs.filter((p) => p.id !== id) }));
-    void ProgramsRepo.remove(id).catch((e) => console.warn('[programs.remove]', e));
+    void ProgramsRepo.remove(id).catch(onWriteError('programs.remove', 'No se pudo eliminar el programa. Recarga: puede seguir ahí.'));
   },
 
   byClient: (clientId) => get().programs.filter((p) => p.clientId === clientId),

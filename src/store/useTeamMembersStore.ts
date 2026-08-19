@@ -1,3 +1,4 @@
+import { onWriteError } from './onWriteError';
 import { create } from 'zustand';
 import type { TeamMember } from '@/types/teamMember';
 import { TeamMembersRepo } from '@/services/repositories';
@@ -40,19 +41,19 @@ export const useTeamMembersStore = create<TeamMembersState>((set) => ({
 
   add: (member) => {
     set((s) => ({ members: upsert(s.members, member) }));
-    void TeamMembersRepo.create(member).catch((e) => console.warn('[teamMembers.create]', e));
+    void TeamMembersRepo.create(member).catch(onWriteError('teamMembers.create', 'No se pudo guardar a esa persona en el equipo. Recarga e inténtalo de nuevo.'));
   },
 
   addLocal: (member) => set((s) => ({ members: upsert(s.members, member) })),
 
   update: (id, patch) => {
     set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
-    void TeamMembersRepo.update(id, patch).catch((e) => console.warn('[teamMembers.update]', e));
+    void TeamMembersRepo.update(id, patch).catch(onWriteError('teamMembers.update', 'No se pudieron guardar los cambios de esa persona.'));
   },
 
   remove: (id) => {
     set((s) => ({ members: s.members.filter((m) => m.id !== id) }));
-    void TeamMembersRepo.remove(id).catch((e) => console.warn('[teamMembers.remove]', e));
+    void TeamMembersRepo.remove(id).catch(onWriteError('teamMembers.remove', 'No se pudo eliminar a esa persona. Recarga: puede seguir ahí.'));
   },
 }));
 

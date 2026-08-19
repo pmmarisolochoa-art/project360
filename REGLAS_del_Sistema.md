@@ -50,7 +50,8 @@ Tres niveles: **dueña** (todo, incluida la administración), **dirección** (CE
 
 ## 3. Guardar datos
 
-**R-13 ✅ — Ninguna escritura falla en silencio.** Si no se pudo guardar, el usuario se entera con un aviso que dice qué pasó. Un `console.warn` no es avisar.
+**R-13 ✅ — Ninguna escritura falla en silencio.** Si no se pudo guardar, el usuario se entera con un aviso que dice qué pasó. Un `console.warn` no es avisar. El aviso vive en `src/store/onWriteError.ts` — uno solo, para los 8 stores.
+*Historia:* la regla se estableció el 1-ago y se aplicó a 9 rutas de un store. Las otras 23, en 7 stores, quedaron fuera sin que nadie lo anotara, así que durante tres semanas parecieron cubiertas porque la regla decía que lo estaban. Las encontró la primera auditoría (18-ago) y se cerraron el 19. Ver R-39.
 
 **R-14 ✅ — La interfaz no canta "guardado" antes de que la base lo confirme.** En escrituras optimistas, si el guardado falla la fila optimista se retira: dejarla puesta es lo que produce el "se guardó y luego desapareció solo".
 
@@ -122,6 +123,11 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 **R-33 ⚠️ — Un fallo parcial se cuenta con nombre y motivo.** "Se importaron algunas" deja a quien mira sin saber cuáles faltan ni si debe reintentar.
 
 **R-34 ❓ — Los números que se muestran juntos concuerdan.** Si el KPI dice 0 clientes activos y la barra lateral dice 1, hay una sola fuente de verdad y alguien no la está usando.
+
+---
+
+**R-39 ✅ — Una regla aplicada a medias es peor que no tenerla**, porque da por seguro lo que no lo está. Cuando una regla se aplica a parte del código, lo que queda fuera se escribe en el mismo commit y sigue en el informe hasta cerrarse.
+*Origen:* las 23 rutas de escritura mudas que sobrevivieron tres semanas a su propia regla.
 
 ---
 

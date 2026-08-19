@@ -4,7 +4,7 @@ import type { Meeting } from '@/types/meeting';
 import type { Task } from '@/types/task';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { ClientsRepo, TasksRepo, MeetingsRepo } from '@/services/repositories';
-import { toast } from '@/store/useToastStore';
+import { onWriteError } from './onWriteError';
 
 /**
  * Handler de error para escrituras optimistas a Supabase.
@@ -15,10 +15,6 @@ import { toast } from '@/store/useToastStore';
  * `tasks.update` devolvía 400 por la columna `updated_at` inexistente.)
  * Siempre avisar, además de loguear.
  */
-const onWriteError = (label: string, message: string) => (e: unknown) => {
-  console.warn(`[${label}]`, e);
-  toast.error(message);
-};
 
 interface ClientState {
   clients: Client[];

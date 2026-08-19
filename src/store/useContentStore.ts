@@ -1,3 +1,4 @@
+import { onWriteError } from './onWriteError';
 import { create } from 'zustand';
 import type { ContentPiece, ContentStatus } from '@/types/content';
 import { ContentRepo } from '@/services/repositories';
@@ -15,15 +16,15 @@ export const useContentStore = create<ContentState>((set, get) => ({
   pieces: [],
   add: (piece) => {
     set((s) => ({ pieces: [piece, ...s.pieces] }));
-    void ContentRepo.create(piece).catch((e) => console.warn('[content.create]', e));
+    void ContentRepo.create(piece).catch(onWriteError('content.create', 'No se pudo guardar la pieza de contenido. Recarga e inténtalo de nuevo.'));
   },
   update: (id, patch) => {
     set((s) => ({ pieces: s.pieces.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-    void ContentRepo.update(id, patch).catch((e) => console.warn('[content.update]', e));
+    void ContentRepo.update(id, patch).catch(onWriteError('content.update', 'No se pudieron guardar los cambios de la pieza.'));
   },
   remove: (id) => {
     set((s) => ({ pieces: s.pieces.filter((p) => p.id !== id) }));
-    void ContentRepo.remove(id).catch((e) => console.warn('[content.remove]', e));
+    void ContentRepo.remove(id).catch(onWriteError('content.remove', 'No se pudo eliminar la pieza. Recarga: puede seguir ahí.'));
   },
   byClient: (clientId) => get().pieces.filter((p) => p.clientId === clientId),
 }));

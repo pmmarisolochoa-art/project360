@@ -1,3 +1,4 @@
+import { onWriteError } from './onWriteError';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Funnel, FunnelPhase, FunnelTemplate, FunnelStatus } from '@/types/funnel';
@@ -54,12 +55,12 @@ export const useFunnelLaunchStore = create<FunnelLaunchState>()(
 
       update: (id, patch) => {
         set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, ...patch } : f)) }));
-        void FunnelLaunchRepo.update(id, patch).catch((e) => console.warn('[funnel.update]', e));
+        void FunnelLaunchRepo.update(id, patch).catch(onWriteError('funnel.update', 'No se pudieron guardar los cambios del embudo.'));
       },
 
       setStatus: (id, status) => {
         set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, status } : f)) }));
-        void FunnelLaunchRepo.update(id, { status }).catch((e) => console.warn('[funnel.setStatus]', e));
+        void FunnelLaunchRepo.update(id, { status }).catch(onWriteError('funnel.setStatus', 'No se pudo cambiar el estado del embudo. Recarga para ver el real.'));
       },
 
       remove: (id) => {
@@ -67,7 +68,7 @@ export const useFunnelLaunchStore = create<FunnelLaunchState>()(
           funnels: s.funnels.filter((f) => f.id !== id),
           phases: s.phases.filter((p) => p.funnelId !== id),
         }));
-        void FunnelLaunchRepo.remove(id).catch((e) => console.warn('[funnel.remove]', e));
+        void FunnelLaunchRepo.remove(id).catch(onWriteError('funnel.remove', 'No se pudo eliminar el embudo. Recarga: puede seguir ahí.'));
       },
     }),
     {
@@ -175,9 +176,16 @@ function materializeFromTemplate(
     try {
       await FunnelLaunchRepo.create(funnel, phases);
     } catch (e) {
-      console.warn('[funnel.create]', e);
-      // Funnel falló: agregamos tareas SOLO al estado local para que la UI
-      // funcione, sin intentar Supabase (FK violation garantizada).
+      // El más grave de todos los fallos de escritura: si el embudo no se
+      // guarda, sus tareas tampoco pueden (violarían la clave foránea), y el
+      // usuario se queda mirando un lanzamiento entero montado que no existe.
+      // Antes esto era un `console.warn` y nada más.
+      onWriteError(
+        'funnel.create',
+        'No se pudo guardar el lanzamiento. Lo que ves en pantalla NO está guardado: recarga y vuelve a crearlo.',
+      )(e);
+      // Las tareas se dejan solo en memoria para que la pantalla no se rompa a
+      // medias, pero ya se avisó de que no están guardadas.
       useClientStore.setState((s) => ({ tasks: [...allTasks, ...s.tasks] }));
       return;
     }
@@ -185,7 +193,7 @@ function materializeFromTemplate(
     // fire-and-forget para cada tarea en paralelo.
     useClientStore.setState((s) => ({ tasks: [...allTasks, ...s.tasks] }));
     for (const t of allTasks) {
-      void TasksRepo.create(t).catch((e) => console.warn('[tasks.create]', e));
+      void TasksRepo.create(t).catch(onWriteError('tasks.create', 'No se pudo crear la tarea del embudo. El equipo no la verá hasta que se guarde.'));
     }
   })();
 

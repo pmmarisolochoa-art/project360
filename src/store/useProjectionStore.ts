@@ -1,3 +1,4 @@
+import { onWriteError } from './onWriteError';
 import { create } from 'zustand';
 import type {
   ProjectionState, FunnelInputs, OKR, InvestmentLine, MarketSizing,
@@ -20,7 +21,7 @@ function scheduleSave(clientId: string, getState: () => Store) {
     saveTimers.delete(clientId);
     const state = getState().states[clientId];
     if (!state) return;
-    void ProjectionsRepo.save(state).catch((e) => console.warn('[projections.save]', clientId, e));
+    void ProjectionsRepo.save(state).catch(onWriteError('projections.save', 'No se pudo guardar la proyección. Los números que ves no están guardados.'));
   }, SAVE_DEBOUNCE_MS);
   saveTimers.set(clientId, t);
 }
@@ -239,7 +240,7 @@ export const useProjectionStore = create<Store>((set, get) => ({
         debriefing: defaults.debriefing ?? {},
       };
       // Persist el state inicial (sin debounce, ya que es solo al primer load)
-      void ProjectionsRepo.save(fresh).catch((e) => console.warn('[projections.save:initial]', e));
+      void ProjectionsRepo.save(fresh).catch(onWriteError('projections.save:initial', 'No se pudo guardar la proyección inicial.'));
       return { states: { ...s.states, [clientId]: fresh } };
     }),
   patchFunnel: (clientId, patch) => {

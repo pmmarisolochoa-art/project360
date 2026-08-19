@@ -1,3 +1,4 @@
+import { onWriteError } from './onWriteError';
 import { create } from 'zustand';
 import type { RoleAssignment, TeamRoleSlug } from '@/types/team';
 import { ROLE_DEFS } from '@/types/team';
@@ -15,7 +16,7 @@ function scheduleUpsert(a: RoleAssignment) {
   if (existing) clearTimeout(existing);
   upsertTimers.set(key, setTimeout(() => {
     upsertTimers.delete(key);
-    void TeamRepo.upsert(a).catch((e) => console.warn('[team.upsert]', key, e));
+    void TeamRepo.upsert(a).catch(onWriteError('team.upsert', 'No se pudo guardar la asignación de rol. Recarga para ver quién quedó asignado.'));
   }, 500));
 }
 
@@ -128,7 +129,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     // del seed se quedan solo en memoria: su id no es uuid y la escritura
     // fallaría con 22P02.
     if (!isPersistableId(clientId)) return;
-    toCreate.forEach((a) => void TeamRepo.upsert(a).catch((e) => console.warn('[team.upsert:initial]', e)));
+    toCreate.forEach((a) => void TeamRepo.upsert(a).catch(onWriteError('team.upsert:initial', 'No se pudieron guardar las asignaciones iniciales de roles.')));
   },
   update: (clientId, roleSlug, patch) => {
     set((s) => ({

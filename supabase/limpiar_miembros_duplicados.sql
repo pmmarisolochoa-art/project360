@@ -8,107 +8,90 @@
 --
 -- El endpoint ya está arreglado (no volverá a pasar). Esto limpia lo de antes.
 --
--- ⚠️ ESTO BORRA FILAS. Corre los pasos EN ORDEN y mira el resultado de cada uno
---    antes de seguir. El paso 3 es el único que borra.
+-- ⚠️ EL PASO 3 BORRA FILAS. Corre los pasos EN ORDEN y mira cada resultado.
 --
--- Es seguro para las tareas: `tasks.assigned_to` guarda el NOMBRE de la
--- persona, no el id de su ficha. Borrar una ficha duplicada no desasigna nada.
+-- Columnas REALES de la tabla (migración 013 + 018/021/023/024). Se listan aquí
+-- porque la primera versión de este script se las inventó y falló contra la
+-- base: no existe `kpis`, es `kpis_custom`; y `funciones` es jsonb, no text[].
+--   id · client_id · nombre · rol · email · telefono · avatar_color
+--   funciones (jsonb) · kpis_custom (jsonb) · departamentos · access_level
+--   user_id · ve_todas_tareas · created_at
 --
--- Lo que SÍ importa: la ficha que tiene `user_id` es la que sostiene el login
--- del miembro. Esa nunca se borra.
+-- Seguro para las tareas: `tasks.assigned_to` guarda el NOMBRE, no el id de la
+-- ficha. Borrar una ficha duplicada no desasigna nada.
+--
+-- La ficha con `user_id` sostiene el login del miembro: esa nunca se borra.
 -- ============================================================================
 
 
--- ── PASO 1 · MIRAR: ¿quién está duplicado y qué tiene cada ficha? ───────────
--- Corre esto solo. No cambia nada.
+-- ── PASO 1 · MIRAR ─────────────────────────────────────────────────────────
+-- No cambia nada. Enseña quién está duplicado y qué tiene cada ficha.
 
 select
-  c.name                                        as cliente,
+  c.name                                                as cliente,
   tm.nombre,
   tm.rol,
-  tm.id,
   tm.email,
-  tm.user_id is not null                        as tiene_acceso,
-  tm.kpis is not null and tm.kpis::text <> '{}' as tiene_kpis,
-  tm.created_at
+  tm.user_id is not null                                as tiene_acceso,
+  coalesce(tm.kpis_custom, '{}'::jsonb) <> '{}'::jsonb  as tiene_kpis,
+  tm.created_at,
+  tm.id
 from public.team_members tm
 join public.clients c on c.id = tm.client_id
-where lower(unaccent_immutable(tm.nombre)) in (
-  select lower(unaccent_immutable(nombre))
+where (tm.client_id, lower(trim(tm.nombre))) in (
+  select client_id, lower(trim(nombre))
   from public.team_members
-  group by client_id, lower(unaccent_immutable(nombre))
+  group by client_id, lower(trim(nombre))
   having count(*) > 1
 )
-order by cliente, lower(tm.nombre), tm.created_at;
-
--- Si `unaccent_immutable` no existe en tu base, usa esta versión simple:
---
--- select c.name as cliente, tm.nombre, tm.rol, tm.id, tm.email,
---        tm.user_id is not null as tiene_acceso, tm.created_at
--- from public.team_members tm
--- join public.clients c on c.id = tm.client_id
--- where (tm.client_id, lower(trim(tm.nombre))) in (
---   select client_id, lower(trim(nombre)) from public.team_members
---   group by client_id, lower(trim(nombre)) having count(*) > 1
--- )
--- order by cliente, lower(tm.nombre), tm.created_at;
+order by cliente, lower(trim(tm.nombre)), tm.created_at;
 
 
--- ── PASO 2 · DECIDIR: cuál se queda de cada pareja ──────────────────────────
--- Criterio, en este orden:
---   1. La que tiene `user_id` — sostiene el login de esa persona.
---   2. Si ninguna lo tiene, la MÁS ANTIGUA — es la que lleva su historial.
---
--- Este paso tampoco cambia nada: enseña qué haría el paso 3.
+-- ── PASO 2 · DECIDIR ───────────────────────────────────────────────────────
+-- Tampoco cambia nada. Enseña qué haría el paso 3.
+-- Criterio: se queda la que tiene `user_id`; si ninguna, la más antigua.
 
 with rankeadas as (
   select
-    tm.*,
+    tm.id, tm.client_id, tm.nombre, tm.rol, tm.user_id, tm.created_at,
+    coalesce(tm.kpis_custom, '{}'::jsonb) <> '{}'::jsonb as tiene_kpis,
     row_number() over (
       partition by tm.client_id, lower(trim(tm.nombre))
       order by (tm.user_id is not null) desc, tm.created_at asc
-    ) as puesto
+    ) as puesto,
+    count(*) over (partition by tm.client_id, lower(trim(tm.nombre))) as cuantas
   from public.team_members tm
 )
 select
   c.name as cliente,
   r.nombre,
   r.rol,
-  r.id,
-  case when r.puesto = 1 then '✅ SE QUEDA' else '🗑️ SE BORRA' end as accion,
+  case when r.puesto = 1 then 'SE QUEDA' else 'SE BORRA' end as accion,
   r.user_id is not null as tiene_acceso,
-  r.created_at
+  r.tiene_kpis,
+  r.created_at,
+  r.id
 from rankeadas r
 join public.clients c on c.id = r.client_id
-where exists (
-  select 1 from rankeadas r2
-  where r2.client_id = r.client_id
-    and lower(trim(r2.nombre)) = lower(trim(r.nombre))
-    and r2.puesto > 1
-)
-order by cliente, lower(r.nombre), r.puesto;
+where r.cuantas > 1
+order by cliente, lower(trim(r.nombre)), r.puesto;
 
--- 🔴 REVISA ESTA LISTA ANTES DE SEGUIR.
---    Lo único que hay que mirar a mano: que no haya dos personas DISTINTAS con
---    el mismo nombre (homónimos reales). Si las hay, PARA — esto las fusionaría
---    y una acabaría con el acceso de la otra.
+-- 🔴 LO ÚNICO QUE HAY QUE MIRAR: que no haya dos personas DISTINTAS con el
+--    mismo nombre. Si las hay, PARA — se fusionarían y una acabaría con el
+--    acceso de la otra.
 --
---    Confirmado por la founder el 19-ago: Jhonatan Rengifo es UNA persona y
---    Sofía es UNA persona, aunque aparezcan con dos roles cada uno. Antonio
---    Espitia y Antonio Vital son DOS personas distintas — no comparten nombre,
---    así que el script no las toca.
+--    Confirmado por la founder (19-ago): Jhonatan Rengifo es UNA persona y
+--    Sofía es UNA persona, aunque salgan con dos roles cada uno. Antonio
+--    Espitia y Antonio Vital son DOS personas: nombres distintos, no se tocan.
 --
---    De los KPIs no hace falta que te preocupes: el paso 3 los arrastra solo.
+--    De los KPIs no te preocupes: el paso 3 los arrastra.
 
 
 -- ── PASO 3 · FUSIONAR Y BORRAR ─────────────────────────────────────────────
--- Solo después de revisar el paso 2.
--- Va dentro de una transacción: si el conteo no cuadra, haz rollback.
---
--- Primero se ARRASTRA lo que tenga la ficha que se va y le falte a la que se
--- queda. Es lo que hace segura la limpieza: Santiago Ruiz tiene el 100% de sus
--- KPIs en una tarjeta y el acceso en la otra, así que borrar sin fusionar le
--- perdería el historial.
+-- Primero se arrastra a la ficha que se queda lo que tenga la otra y a ella le
+-- falte. Es lo que hace segura la limpieza: hay gente con los KPIs en una
+-- tarjeta y el acceso en la otra, y borrar sin fusionar les perdería el
+-- historial.
 
 begin;
 
@@ -121,29 +104,32 @@ with rankeadas as (
     ) as puesto
   from public.team_members tm
 ),
-survivientes as (select * from rankeadas where puesto = 1),
-sobrantes as (select * from rankeadas where puesto > 1)
+que_se_queda as (select * from rankeadas where puesto = 1),
+que_se_va    as (select * from rankeadas where puesto > 1)
 update public.team_members t
 set
-  -- KPIs: se queda con los que tengan contenido.
-  kpis = case
-           when (t.kpis is null or t.kpis::text = '{}') and s.kpis is not null then s.kpis
-           else t.kpis
-         end,
-  email      = coalesce(t.email, s.email),
-  telefono   = coalesce(t.telefono, s.telefono),
-  -- La fecha de alta real es la más antigua de las dos: es cuando esa persona
-  -- entró al equipo, no cuando se creó la ficha que sobrevivió.
-  created_at = least(t.created_at, s.created_at),
-  funciones  = case
-                 when t.funciones is null or jsonb_array_length(to_jsonb(t.funciones)) = 0
-                   then s.funciones
-                 else t.funciones
-               end
-from sobrantes s
-where t.id = (select id from survivientes v
-              where v.client_id = s.client_id
-                and lower(trim(v.nombre)) = lower(trim(s.nombre)));
+  kpis_custom = case
+                  when coalesce(t.kpis_custom, '{}'::jsonb) = '{}'::jsonb
+                    then s.kpis_custom
+                  else t.kpis_custom
+                end,
+  funciones   = case
+                  when jsonb_typeof(coalesce(t.funciones, '[]'::jsonb)) <> 'array'
+                       or jsonb_array_length(coalesce(t.funciones, '[]'::jsonb)) = 0
+                    then s.funciones
+                  else t.funciones
+                end,
+  email       = coalesce(t.email, s.email),
+  telefono    = coalesce(t.telefono, s.telefono),
+  -- La fecha de alta real es la más antigua: es cuando esa persona entró al
+  -- equipo, no cuando se creó la ficha que sobrevivió.
+  created_at  = least(t.created_at, s.created_at)
+from que_se_va s
+where t.id = (
+  select v.id from que_se_queda v
+  where v.client_id = s.client_id
+    and lower(trim(v.nombre)) = lower(trim(s.nombre))
+);
 
 -- Ahora sí, fuera las sobrantes.
 with rankeadas as (
@@ -158,48 +144,42 @@ with rankeadas as (
 delete from public.team_members
 where id in (select id from rankeadas where puesto > 1);
 
+
 -- ── PASO 4 · EL ROL DE LOS QUE TENÍAN DOS ──────────────────────────────────
 -- Al fusionar, el rol que sobrevive es el de la ficha que se quedó: azar.
--- Aquí se fija a mano lo que dijo la founder el 19-ago.
+-- Aquí se fija lo que dijo la founder (19-ago).
 
 -- Sofía → Content Manager.
 update public.team_members
    set rol = 'community'
- where lower(trim(nombre)) like 'sof%a';
+ where lower(trim(nombre)) like 'sof%';
 
--- Jhonatan Rengifo → HACE LAS DOS COSAS: estratega y copywriter.
+-- Jhonatan Rengifo → hace las DOS cosas: estratega y copywriter.
 --
--- ⚠️ La tabla solo admite UN rol por persona, así que esto es un apaño:
---    queda como estratega (el rol más amplio de los dos) y se le añaden las
---    funciones de copywriter a su lista, para que no se pierda que también
---    escribe. Sus KPIs serán los de estratega.
---
---    El arreglo de verdad es admitir varios roles por persona. Está anotado
---    como hallazgo; esto lo deja usable mientras tanto.
+-- ⚠️ APAÑO CONSCIENTE. La tabla admite un solo rol por persona, así que queda
+--    como estratega y se le añaden las funciones de copywriter a su lista para
+--    que no se pierda que también escribe. Sus KPIs serán los de estratega.
+--    El arreglo de verdad (rol principal + roles adicionales) está anotado como
+--    hallazgo en el informe de auditoría.
 update public.team_members
    set rol = 'strategist',
-       funciones = (
-         select array_agg(distinct f)
-         from unnest(
-           coalesce(funciones, array[]::text[]) ||
-           array[
-             'Redacción de copies para anuncios y orgánico',
-             'Guiones de video y VSL',
-             'Titulares y ángulos de venta'
-           ]
-         ) as f
+       funciones = coalesce(funciones, '[]'::jsonb) || jsonb_build_array(
+         'Redacción de copies para anuncios y orgánico',
+         'Guiones de video y VSL',
+         'Titulares y ángulos de venta'
        )
  where lower(trim(nombre)) = 'jhonatan rengifo';
 
 
--- Comprueba: no debe quedar ningún nombre repetido por cliente.
+-- ── COMPROBAR ANTES DE CONFIRMAR ───────────────────────────────────────────
+-- No debe quedar ningún nombre repetido dentro del mismo cliente.
 select client_id, lower(trim(nombre)) as nombre, count(*)
 from public.team_members
 group by client_id, lower(trim(nombre))
 having count(*) > 1;
 -- ↑ Debe devolver 0 filas.
 
--- Si todo cuadra:
+-- Si devuelve 0 filas:
 commit;
--- Si algo no cuadra:
+-- Si devuelve algo:
 -- rollback;

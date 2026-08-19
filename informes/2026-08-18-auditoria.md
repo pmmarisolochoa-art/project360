@@ -60,6 +60,22 @@ El hallazgo 1 no ocurrió por descuido: el 1 de agosto se arreglaron las 9 rutas
 
 ---
 
+### [3 · No hace lo que la founder dice] Una persona solo puede tener un rol, y en la realidad tiene varios
+
+**Dónde:** `src/types/teamMember.ts` — `TeamMember.rol` es un único `TeamRoleSlug`. La columna `team_members.rol` es un solo texto.
+
+**Qué pasa:** Jhonatan Rengifo es estratega **y** copywriter. Hoy la única forma de representarlo es tener dos fichas suyas — que es justo lo que estamos borrando por duplicado. Al fusionarlo hay que elegir uno y perder el otro.
+
+**Cómo se descubrió:** al limpiar los duplicados. Dos de los seis "duplicados" no eran un error de la app: eran una persona con dos trabajos, y la app obligaba a partirla en dos para poder representarla. **El duplicado era el síntoma; el modelo es la causa.**
+
+**Consecuencias más allá de la ficha:** sus KPIs son los de un solo rol, la "Salud del equipo" lo cuenta en un solo sitio, y el reparto de tareas por rol nunca le va a proponer trabajo del otro.
+
+**Propuesta:** `rol` pasa a ser el rol principal y se añade `roles_extra`. Es una columna nueva, la interfaz de la ficha y los conteos de Equipo. No es enorme, pero tampoco es de hoy.
+
+**Parche mientras tanto:** Jhonatan queda como estratega con las funciones de copywriter añadidas a su lista. No pierde información visible, pero sus KPIs siguen siendo de un solo rol.
+
+---
+
 ## Seguimiento
 
 Arreglado desde la última vez (no había informe previo; se toma la semana):

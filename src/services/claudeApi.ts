@@ -175,6 +175,36 @@ export interface MeetingReportData {
   nextMeetingFocus?: string;
 }
 
+/** La mitad interpretativa del reporte de la Daily. Los hechos se cuentan aparte. */
+export interface DailyReportIA {
+  estadoEquipo: Array<{ persona: string; area: string; estado: string; observacion?: string }>;
+  prioridades: Array<{ area: string; items: string[] }>;
+  alertas: string[];
+  pulso: string;
+}
+
+export async function generateDailyReport(args: {
+  titulo: string;
+  fecha: string;
+  areas: Array<{ area: string; persona?: string }>;
+  notas?: string;
+  resumen?: string;
+  agenda?: string;
+  hechos: { vencidas: number; seguimiento: number; nuevas: number; completadas: number };
+}): Promise<DailyReportIA> {
+  try {
+    const { report } = await callBackend<{ report: DailyReportIA }>('daily_report', args);
+    return report;
+  } catch (e) {
+    // Si la IA falla, el reporte NO se cae: las secciones de hechos siguen
+    // siendo válidas y son la mitad que más se mira. Se devuelve vacío y el
+    // render lo dice — mejor un reporte con la lectura ausente y avisada, que
+    // ningún reporte.
+    console.warn('[daily_report] la lectura de IA falló, se entrega solo con hechos', e);
+    return { estadoEquipo: [], prioridades: [], alertas: [], pulso: '' };
+  }
+}
+
 export async function generateMeetingReport(args: {
   clientName: string;
   industry: string;

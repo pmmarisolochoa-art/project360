@@ -29,6 +29,8 @@ import { ROLE_DEFS } from '@/types/team';
 import { RopreInlineEditor } from './RopreInlineEditor';
 import { WeeklyPlanningGrid } from './WeeklyPlanningGrid';
 import { WeeklyClosingReview } from './WeeklyClosingReview';
+import { PanelReporteDaily } from '@/components/reports/PanelReporteDaily';
+import { esDaily } from '@/config/reporteDaily';
 import { toast } from '@/store/useToastStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
@@ -667,6 +669,15 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
           {meeting.type === 'weekly_closing' && client && (
             <section>
               <WeeklyClosingReview clientId={client.id} weekAnchor={meeting.scheduledAt} accent={accent} />
+            </section>
+          )}
+
+          {/* Reporte de la Daily — solo en las dailies internas de la agencia.
+              Va ANTES de las notas a propósito: es lo que se mira al abrir la
+              reunión ya pasada, y las notas son para escribir, no para leer. */}
+          {client && esDaily(client, meeting) && (
+            <section>
+              <PanelReporteDaily client={client} meeting={meeting} />
             </section>
           )}
 

@@ -185,7 +185,20 @@ type RequestBody =
   | { feature: 'generate_ad_variants'; context: GenerateAdVariantsCtx }
   | { feature: 'weekly_report'; context: WeeklyReportCtx }
   | { feature: 'meeting_report'; context: MeetingReportCtx }
-  | { feature: 'ropre_weekly'; context: RopreWeeklyCtx };
+  | { feature: 'ropre_weekly'; context: RopreWeeklyCtx }
+  | { feature: 'daily_report'; context: DailyReportCtx };
+
+/** Contexto del reporte de la Daily (plantilla 1 de Ikigai). */
+interface DailyReportCtx {
+  titulo: string;
+  fecha: string;
+  areas: Array<{ area: string; persona?: string }>;
+  notas?: string;
+  resumen?: string;
+  agenda?: string;
+  /** Datos ya CONTADOS de la base. No se le pide que los calcule. */
+  hechos: { vencidas: number; seguimiento: number; nuevas: number; completadas: number };
+}
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
@@ -233,6 +246,8 @@ export default async function handler(req: Request): Promise<Response> {
         return json({ report: await meetingReport(apiKey, body.context) });
       case 'ropre_weekly':
         return json(await ropreWeekly(apiKey, body.context));
+      case 'daily_report':
+        return json({ report: await dailyReport(apiKey, body.context) });
       default:
         return json({ error: 'Feature desconocida' }, 400);
     }
@@ -1096,4 +1111,97 @@ function extractJson(text: string): string {
   const realStart = start === -1 ? startArr : startArr === -1 ? start : Math.min(start, startArr);
   if (realStart === -1) return text;
   return text.slice(realStart).trim();
+}
+
+
+/**
+ * Reporte de la Daily — SOLO la mitad interpretativa.
+ *
+ * Las tareas, las vencidas y los cierres NO se le piden: eso ya está contado
+ * desde la base y se le pasa hecho. Aquí se le pide únicamente lo que solo
+ * existe en lo que se dijo: quién está cómo, qué prioridades se nombraron, qué
+ * es urgente y cuál es el pulso.
+ *
+ * La instrucción que más importa es la de NO rellenar. Un reporte que se
+ * inventa las prioridades de un área que nadie mencionó es peor que uno con
+ * huecos: los huecos se ven, lo inventado se cree.
+ */
+async function dailyReport(apiKey: string, ctx: DailyReportCtx): Promise<{
+  estadoEquipo: Array<{ persona: string; area: string; estado: string; observacion?: string }>;
+  prioridades: Array<{ area: string; items: string[] }>;
+  alertas: string[];
+  pulso: string;
+}> {
+  const system = `Eres la Project Manager de Ikigai Growth Marketing redactando el reporte de la DAILY para todo el equipo.
+
+Devuelve SOLO un objeto JSON valido con esta forma EXACTA:
+{
+  "estadoEquipo": [{"persona":"Nombre","area":"Area","estado":"Disponible|Con bloqueante|Ausente","observacion":"detalle solo si aplica"}],
+  "prioridades": [{"area":"Nombre del area","items":["Prioridad 1","Prioridad 2","Prioridad 3"]}],
+  "alertas": ["Alerta + area responsable"],
+  "pulso": "Una sola linea evaluando el tono de la reunion."
+}
+
+REGLA PRINCIPAL — NO RELLENAR:
+- Solo incluye personas que se MENCIONARON en la reunion. No listes al equipo entero.
+- Si de un area no se hablo, devuelve items: ["No mencionado"]. NO inventes prioridades plausibles.
+- Si no hay urgencias reales, alertas: []. "Sin alertas" es una respuesta valida y frecuente.
+- Un dato inventado que suena razonable es el peor resultado posible: nadie lo detecta.
+
+Sobre cada campo:
+- estadoEquipo: "Con bloqueante" solo si se dijo que algo le impide avanzar. "Ausente" solo si se dijo que no esta.
+- prioridades: maximo 3 por area, en las palabras que se usaron en la reunion.
+- alertas: solo lo que NO puede esperar a la proxima daily. Maximo 4.
+- pulso: una linea, concreta. Tiene que ser COHERENTE con los numeros que te doy: no digas que todo va bien si hay tareas vencidas. Ejemplos del tono: "Reunion de tono normal. 2 tareas vencidas en operaciones. Sin urgencias criticas." / "Reunion de alta tension. El cuello de botella en funnels esta impactando el lanzamiento. Requiere intervencion hoy."
+
+Espanol, directo, sin relleno.`;
+
+  const areas = ctx.areas
+    .map((a) => (a.persona ? `- ${a.area} (suele llevarla ${a.persona})` : `- ${a.area}`))
+    .join('\n');
+
+  const user = `Daily: ${ctx.titulo} · ${ctx.fecha}
+
+Areas a cubrir en la seccion de prioridades:
+${areas}
+
+DATOS YA CONTADOS DE LA BASE (no los recalcules; uselos para que el pulso sea coherente):
+- Tareas que venian de la daily anterior: ${ctx.hechos.seguimiento}
+- De esas, completadas: ${ctx.hechos.completadas}
+- Vencidas sin resolver: ${ctx.hechos.vencidas}
+- Tareas nuevas asignadas hoy: ${ctx.hechos.nuevas}
+
+${ctx.resumen ? `Resumen de la reunion:\n${ctx.resumen.slice(0, 3000)}\n\n` : ''}${ctx.agenda ? `Agenda:\n${ctx.agenda.slice(0, 1500)}\n\n` : ''}Notas / transcripcion:
+${(ctx.notas || '(sin notas)').slice(0, 8000)}
+
+Genera el JSON.`;
+
+  const txt = await callAnthropic(apiKey, system, user, 1400, FAST_MODEL);
+  const parsed = JSON.parse(extractJson(txt)) as Record<string, unknown>;
+  const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+  const ESTADOS = ['Disponible', 'Con bloqueante', 'Ausente'];
+
+  return {
+    estadoEquipo: arr(parsed.estadoEquipo).slice(0, 20).map((x) => {
+      const o = x as Record<string, unknown>;
+      const estado = String(o.estado ?? '');
+      return {
+        persona: String(o.persona ?? '').slice(0, 60),
+        area: String(o.area ?? '').slice(0, 40),
+        // Un estado que no es ninguno de los tres se degrada al neutro en vez
+        // de pintarse tal cual: el semaforo del reporte depende de esto.
+        estado: ESTADOS.includes(estado) ? estado : 'Disponible',
+        observacion: o.observacion ? String(o.observacion).slice(0, 200) : undefined,
+      };
+    }).filter((p) => p.persona),
+    prioridades: arr(parsed.prioridades).slice(0, 8).map((x) => {
+      const o = x as Record<string, unknown>;
+      return {
+        area: String(o.area ?? '').slice(0, 40),
+        items: arr(o.items).slice(0, 3).map((i) => String(i).slice(0, 200)).filter(Boolean),
+      };
+    }).filter((p) => p.area),
+    alertas: arr(parsed.alertas).slice(0, 4).map((a) => String(a).slice(0, 300)).filter(Boolean),
+    pulso: String(parsed.pulso ?? '').slice(0, 400),
+  };
 }

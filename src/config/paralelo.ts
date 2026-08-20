@@ -50,7 +50,11 @@ export const PARALELO_PROYECTOS: ParaleloProyecto[] = [
   },
   {
     projectId: '23a3efb4-b1f7-4634-8f92-f34dea5cf5a4',
-    cliente: 'Ikigai',
+    // OJO: el cliente se llama "Ikigai Agencia", no "Ikigai". Es el que
+    // representa a la agencia (`is_agency`), por eso no sale en la lista de
+    // Clientes. Estuvo un día declarado como "Ikigai" y el aviso en amarillo de
+    // la bandeja lo cazó — que es exactamente para lo que se puso.
+    cliente: 'Ikigai Agencia',
     tipoReunion: 'management',
     nota: '117 reuniones, casi todas dailies internas. Habilitado el 18-ago; '
         + 'el arranque del 1-ago lo acota a 3, así que el volumen histórico NO '

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, X, Trash2, UserPlus, AlertTriangle, Pencil, KeyRound, Copy, Check } from 'lucide-react';
+import { Plus, X, Trash2, UserPlus, AlertTriangle, Pencil, KeyRound, Copy, Check, Users } from 'lucide-react';
 import { BarChart, Bar, Cell, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip as RTooltip } from 'recharts';
 import type { Client } from '@/types/client';
 import type { TeamRoleSlug } from '@/types/team';
@@ -11,6 +11,7 @@ import { useClientStore } from '@/store/useClientStore';
 import { DEPARTMENTS, type DepartmentId } from '@/config/departments';
 import { inviteMember } from '@/services/inviteMember';
 import { useAuthStore, administra } from '@/store/useAuthStore';
+import { CopiarEquipoModal } from './CopiarEquipoModal';
 import { useTeamKPIs, type MemberKpiSummary } from '@/hooks/useTeamKPIs';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -47,6 +48,7 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
   const allTasks = useClientStore((s) => s.tasks);
   const rolUsuario = useAuthStore((s) => s.role);
   const [addOpen, setAddOpen] = useState(false);
+  const [copiarOpen, setCopiarOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -101,6 +103,9 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
               dirección estos botones solo podrían fallar (R-31). */}
           {!readOnly && administra(rolUsuario) && (
             <div className="flex items-center gap-2">
+              <Button variant="ghost" leftIcon={<Users className="h-4 w-4" />} onClick={() => setCopiarOpen(true)}>
+                Copiar equipo
+              </Button>
               <Button variant="ghost" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
                 Agregar persona
               </Button>
@@ -236,6 +241,8 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
           }}
         />
       )}
+
+      {copiarOpen && <CopiarEquipoModal destino={client} onClose={() => setCopiarOpen(false)} />}
 
       {inviteOpen && (
         <InviteMemberModal

@@ -139,6 +139,11 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 
 **R-37 ⚠️ — Nada se da por hecho hasta verificarlo en producción con datos reales.** Construido y verificado no son lo mismo; media semana de agosto se fue en descubrir que algo "construido" no funcionaba.
 
+**R-45 ✅ — Una función no está hecha hasta que su resultado sobrevive y llega a quien tiene que leerlo.** Verse bien en pantalla es la mitad: si no aguanta una recarga, no se puede descargar y no llega a nadie, no está terminada.
+*Origen:* el reporte de la Daily se dio por listo cuando se veía bien. Vivía solo en memoria (desaparecía al recargar, costaba otra llamada de IA cada vez, y cada persona veía el suyo), el PDF salía en blanco porque el botón llamaba al reporte viejo, y no había forma de enviarlo. El contenido estaba bien; la entrega no existía.
+
+**R-46 ✅ — Lo que la app calcula y lo que la app opina se distinguen a simple vista.** El lector tiene que poder saber qué es dato y qué es interpretación sin preguntar. En el reporte de la Daily las secciones que escribe la IA llevan la marca "lectura"; los conteos no.
+
 **R-38 ✅ — Un commit hecho no es un commit subido**, y un deploy listo no es un deploy propagado. Se comprueba, no se supone.
 
 ---

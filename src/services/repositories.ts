@@ -681,6 +681,8 @@ export function rowToMeeting(row: Record<string, unknown>): Meeting {
     propietarioId: r.propietario_id ?? undefined,
     origen: r.origen ?? undefined,
     externalId: r.external_id ?? undefined,
+    reporte: r.reporte ?? undefined,
+    reporteGeneradoEn: r.reporte_generado_en ?? undefined,
   };
 }
 
@@ -706,6 +708,8 @@ function meetingToRow(m: Partial<Meeting>, partial = false): Record<string, unkn
     propietarioId: 'propietario_id',
     origen: 'origen',
     externalId: 'external_id',
+    reporte: 'reporte',
+    reporteGeneradoEn: 'reporte_generado_en',
   };
   const row: Record<string, unknown> = {};
   for (const key of Object.keys(m) as Array<keyof Meeting>) {

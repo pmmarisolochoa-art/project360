@@ -6,6 +6,8 @@ import { generateMeetingReport, type MeetingReportData } from '@/services/claude
 import { resolveRoleLabel } from '@/utils/roleResolver';
 import { composeReport, escapeReport as esc, type ReportModel } from '@/services/htmlReport';
 import { BRAND } from '@/config/brand';
+import { esDaily, reporteGuardado, construirReporteDaily } from '@/services/reports/dailyReport';
+import { pdfDaily } from '@/services/reports/dailyPdf';
 
 /**
  * Reporte ejecutivo de reunión (PM experto) en PDF.
@@ -209,6 +211,20 @@ export async function buildReportFromMeeting(
   meeting: Meeting,
   commitmentsOverride?: Commitment[],
 ): Promise<BuildReportResult> {
+  /**
+   * Si es una daily, manda SU plantilla — tanto para el PDF como para el correo.
+   *
+   * El reporte genérico le pide todo a la IA a partir de las NOTAS, y una daily
+   * importada de Paralelo no tiene notas sino resumen: salía un titular, un
+   * párrafo y una página en blanco. La plantilla de la daily ya tiene sus
+   * hechos contados y no necesita preguntarle nada a nadie.
+   */
+  if (esDaily(client, meeting)) {
+    const guardado = reporteGuardado(meeting);
+    const r = guardado ?? (await construirReporteDaily(client, meeting));
+    return pdfDaily(client, meeting, r);
+  }
+
   const agency = ((client.onboardingData?.team ?? {}) as { agency?: string }).agency ?? BRAND.label;
   const commitments: Commitment[] = commitmentsOverride ?? (meeting.extractedTasks ?? []).map((t) => ({
     title: t.title,

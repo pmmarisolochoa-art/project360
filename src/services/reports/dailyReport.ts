@@ -64,6 +64,19 @@ export interface ReporteDaily {
 
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
+/**
+ * Devuelve el reporte GUARDADO de esta reunión, si lo hay.
+ *
+ * Un reporte es el acta de lo que pasó: se genera una vez y queda. Antes vivía
+ * solo en la memoria del navegador, así que al recargar desaparecía —y volvía a
+ * costar una llamada de IA— y dos personas mirando la misma reunión veían
+ * reportes distintos, cada una el suyo.
+ */
+export function reporteGuardado(meeting: Meeting): ReporteDaily | null {
+  const r = meeting.reporte;
+  return r && r.plantilla === 'daily' ? (r.datos as ReporteDaily) : null;
+}
+
 export async function construirReporteDaily(
   client: Client,
   meeting: Meeting,
@@ -117,7 +130,7 @@ export async function construirReporteDaily(
     },
   });
 
-  return {
+  const reporte: ReporteDaily = {
     fecha: meeting.scheduledAt,
     diaSemana: DIAS[fechaReunion.getDay()],
     duracionMin: meeting.durationMin ?? 0,
@@ -133,6 +146,14 @@ export async function construirReporteDaily(
     alertas: lectura.alertas,
     pulso: lectura.pulso,
   };
+
+  // Se guarda en la reunión. `updateMeeting` ya avisa si la escritura falla.
+  useClientStore.getState().updateMeeting(meeting.id, {
+    reporte: { plantilla: 'daily', datos: reporte },
+    reporteGeneradoEn: new Date().toISOString(),
+  });
+
+  return reporte;
 }
 
 /**

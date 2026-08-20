@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Plus, Search, Grid3x3, List as ListIcon } from 'lucide-react';
+import { Plus, Search, Grid3x3, List as ListIcon, Building2 } from 'lucide-react';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
 import { ClientCard } from '@/components/dashboard/ClientCard';
@@ -43,6 +43,9 @@ export function ClientsPage() {
   const [fProject, setFProject] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
 
+  /** El cliente que representa a la agencia. No sale en la rejilla de abajo. */
+  const espacioAgencia = clients.find((c) => c.isAgency);
+
   const filtered = useMemo(
     () =>
       clients.filter((c) => {
@@ -74,11 +77,25 @@ export function ClientsPage() {
             {clients.length} cerebros · {totalPending} tareas pendientes en total
           </p>
         </div>
-        <Link to="/onboarding">
-          <Button>
-            <Plus className="h-4 w-4" /> Nuevo cliente
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* El espacio de la agencia es un cliente marcado `isAgency`, y por eso
+              se filtra de esta lista: no es un cliente real. Pero SÍ tiene
+              cerebro —equipo, agenda, tareas internas— y hasta ahora no había un
+              solo enlace que llevara a él. Se llegaba escribiendo la URL a mano,
+              que es como no poder llegar. */}
+          {espacioAgencia && (
+            <Link to={`/client/${espacioAgencia.id}`}>
+              <Button variant="ghost" leftIcon={<Building2 className="h-4 w-4" />}>
+                Espacio de {espacioAgencia.name}
+              </Button>
+            </Link>
+          )}
+          <Link to="/onboarding">
+            <Button>
+              <Plus className="h-4 w-4" /> Nuevo cliente
+            </Button>
+          </Link>
+        </div>
       </header>
 
       <div className="surface p-3 flex gap-2 items-center flex-wrap">

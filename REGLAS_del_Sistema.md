@@ -115,6 +115,9 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 
 ## 6. Interfaz
 
+**R-47 ✅ — Todo lo que existe tiene una puerta.** Si un espacio, una vista o un dato son reales, se llega a ellos haciendo clic. Escribir la URL a mano no cuenta como llegar: para quien usa la app, lo que no tiene enlace no existe.
+*Origen:* el espacio de la agencia se filtra de Clientes, del Dashboard y del menú por no ser un cliente real — pero tiene equipo, agenda y tareas internas, y no había forma de entrar.
+
 **R-31 ✅ — Un botón que solo puede fallar no se muestra.** Y si algo no se puede hacer, se dice dónde el usuario lo busca, con el motivo — no en un comentario del código. Un requisito incumplido en silencio se convierte en un misterio en vez de un error.
 
 **R-32 ❌ — Ningún control miente.** Un interruptor que solo guarda un booleano en el navegador y no conecta nada no debe existir.

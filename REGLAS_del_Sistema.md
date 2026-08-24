@@ -23,7 +23,11 @@ Las tareas viven en el espacio general de la agencia. Al entrar por Tareas en el
 
 **R-04 ✅ — Una reunión es interna si pertenece al cliente que representa a la agencia** (`isAgency`), no por su tipo. El tipo describe *de qué va* la reunión; *de quién es* lo dice el cliente.
 
-**R-05 ❓ — "Personal" no es un cliente.** Una tarea personal se guarda en el Espacio de Agencia marcada como privada, porque `tasks.client_id` es obligatorio. *Confirmar que esto sigue siendo lo deseado y no un apaño.*
+**R-05 ⚠️ — "Personal" no es un cliente, y hoy es un PARCHE.** Una tarea personal se guarda en el Espacio de Agencia marcada como privada, porque `tasks.client_id` es obligatorio.
+*Resuelto por la founder (24-ago): es un parche, NO el modelo.* Lo correcto es que una tarea pueda no tener cliente. Consecuencias mientras siga así:
+· 🔴 `tasks.client_id` borra **en cascada**: si alguien borra el cliente "Ikigai Agencia", desaparecen las tareas personales de todo el equipo, sin aviso. **Falta proteger ese cliente contra borrado.**
+· Cualquier informe que agrupe por cliente mete lo personal en el saco de la agencia.
+*Para la plataforma nueva:* construir "sin cliente" como opción válida desde el principio. No copiar este parche.
 
 ---
 
@@ -125,7 +129,9 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 
 **R-33 ⚠️ — Un fallo parcial se cuenta con nombre y motivo.** "Se importaron algunas" deja a quien mira sin saber cuáles faltan ni si debe reintentar.
 
-**R-34 ❓ — Los números que se muestran juntos concuerdan.** Si el KPI dice 0 clientes activos y la barra lateral dice 1, hay una sola fuente de verdad y alguien no la está usando.
+**R-34 ⚠️ — Los números que se muestran juntos concuerdan.** Si el KPI dice 0 clientes activos y la barra lateral dice 1, hay una sola fuente de verdad y alguien no la está usando.
+*Cómo se audita (24-ago):* contra el **Glosario de Métricas**, que define cada número que la app muestra. Sin él la regla no era comprobable — solo se podía ver que dos números difieren, no cuál estaba mal.
+*Al escribir el glosario aparecieron 4 desajustes vivos:* el "de N totales" de Clientes activos incluye a la agencia y el numerador no · "vencida" sale de una marca guardada que escribe el navegador, no de comparar fechas · la salud del cliente recibe *pendientes de hoy* donde su propia función espera *vencidas* · "Tareas a tiempo %" se divide entre todas las tareas, no entre las entregadas.
 
 ---
 
@@ -161,6 +167,6 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 
 ## Lo que falta preguntarle a la founder
 
-1. Las `❓` (R-05, R-34) — confirmar o corregir.
+1. ~~Las `❓` (R-05, R-34)~~ — **resueltas el 24-ago.** R-05 es parche declarado; R-34 se audita contra el Glosario de Métricas.
 2. **Qué reglas faltan.** Esto sale de lo que ya ocurrió; seguro hay reglas tuyas que aún no se han roto y por eso no están aquí.
 3. **Qué prioridad tiene cada bloque** cuando el auditor encuentre varias cosas a la vez.

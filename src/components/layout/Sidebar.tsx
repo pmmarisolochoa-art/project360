@@ -17,6 +17,7 @@ import { useAuthStore, administra } from '@/store/useAuthStore';
 import { avanceForClient } from '@/utils/avance';
 import { healthFromMetrics } from '@/utils/metricsCalculator';
 import { isActiveClient } from '@/types/client';
+import { estaVencida } from '@/utils/vencidas';
 
 /**
  * Capa 0 — navegación de la agencia. EXACTAMENTE 7 ítems, sin secciones extra.
@@ -55,7 +56,12 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
   // Salud global del portafolio: peor estado entre clientes reales (sin agencia).
   const worstHealth = clients.reduce<'green' | 'yellow' | 'red'>((acc, c) => {
     if (c.isAgency) return acc;
-    const h = healthFromMetrics(c.metrics.roas, avanceForClient(tasks, c.id), c.metrics.pendingTasksToday);
+    // OJO: el 3er parametro es VENCIDAS, no "pendientes de hoy". Hasta el
+    // 24-ago se le pasaba `metrics.pendingTasksToday`, que en produccion vale
+    // SIEMPRE 0 (se fija al crear el cliente y no se recalcula) — asi que la
+    // dimension de atrasos del semaforo no hacia nada. Ahora se cuenta en vivo.
+    const vencidas = tasks.filter((t) => t.clientId === c.id && estaVencida(t)).length;
+    const h = healthFromMetrics(c.metrics.roas, avanceForClient(tasks, c.id), vencidas);
     if (h === 'red') return 'red';
     if (h === 'yellow' && acc !== 'red') return 'yellow';
     return acc;

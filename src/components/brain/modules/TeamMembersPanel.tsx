@@ -1,3 +1,4 @@
+import { estaVencida } from '@/utils/vencidas';
 import { useMemo, useState } from 'react';
 import { Plus, X, Trash2, UserPlus, AlertTriangle, Pencil, KeyRound, Copy, Check, Users } from 'lucide-react';
 import { BarChart, Bar, Cell, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip as RTooltip } from 'recharts';
@@ -60,7 +61,7 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
     const total = tasks.length;
     const done = tasks.filter((t) => t.status === 'completed').length;
     const globalPct = total === 0 ? 0 : Math.round((done / total) * 100);
-    const blocked = tasks.filter((t) => t.status !== 'completed' && (t.status === 'blocked' || t.isDelayed));
+    const blocked = tasks.filter((t) => t.status !== 'completed' && (t.status === 'blocked' || estaVencida(t)));
 
     const perMember = summaries.map((s) => {
       const mine = tasks.filter((t) => t.assignedTo === s.member.nombre || t.assignedTo === s.member.rol);
@@ -75,7 +76,7 @@ export function TeamMembersPanel({ client, readOnly = false }: { client: Client;
     const cuellos = blocked.slice(0, 5).map((t) => ({
       title: t.title,
       role: resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo,
-      overdue: t.isDelayed,
+      overdue: estaVencida(t),
     }));
     const chart = perMember.filter((p) => p.total > 0).map((p) => ({ name: p.roleTitle, pct: p.rate ?? 0 }));
     return { globalPct, blockedN: blocked.length, carga, peor, cuellos, chart };

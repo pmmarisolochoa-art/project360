@@ -1,3 +1,4 @@
+import { estaVencida } from '@/utils/vencidas';
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, History, CheckCircle2, Clock, AlertTriangle, HelpCircle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -56,7 +57,7 @@ export function MeetingRecap({
       let estado: Estado;
       if (!match) estado = 'sin-registro';
       else if (match.status === 'completed') estado = 'cumplida';
-      else if (match.isDelayed || new Date(match.dueDate).getTime() < now) estado = 'vencida';
+      else if (estaVencida(match)) estado = 'vencida';
       else estado = 'pendiente';
       // Tiempos de entrega (Bloque B): atraso vs. fecha pactada y cumplimiento de SLA por tipo.
       const sla: SLAResult | null = match ? evaluateSLA(match, now) : null;

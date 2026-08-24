@@ -1,3 +1,4 @@
+import { estaVencida, diasDeAtraso } from '@/utils/vencidas';
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { differenceInDays, format, parseISO } from 'date-fns';
@@ -66,7 +67,7 @@ export function FunnelRoadmap({
         health = 'completed';
       } else if (phaseStarted && !phaseEnded) {
         // Fase activa: si hay tareas vencidas y no completadas, delayed
-        const hasOverdue = phaseTasks.some((t) => t.isDelayed && t.status !== 'completed');
+        const hasOverdue = phaseTasks.some((t) => estaVencida(t));
         health = hasOverdue ? 'delayed' : 'active';
       } else if (phaseEnded && done < total) {
         health = 'delayed';
@@ -431,7 +432,7 @@ function TaskRow({ task, onOpen, onDelete }: { task: Task; onOpen?: () => void; 
   const today = new Date();
   const due = parseISO(task.dueDate);
   const daysToDue = differenceInDays(due, today);
-  const overdue = task.isDelayed && task.status !== 'completed';
+  const overdue = estaVencida(task);
   const dueColor = task.status === 'completed' ? 'text-text-muted' : overdue ? 'text-status-danger' : daysToDue <= 1 ? 'text-status-warning' : 'text-text-secondary';
 
   const priorityTone = task.priority === 'P1' ? 'danger' : task.priority === 'P2' ? 'warning' : 'neutral';
@@ -454,7 +455,7 @@ function TaskRow({ task, onOpen, onDelete }: { task: Task; onOpen?: () => void; 
       </span>
       <span className={`text-[11px] inline-flex items-center gap-1 shrink-0 ${dueColor}`}>
         <Clock className="h-3 w-3" />
-        {overdue ? `Vencida ${task.delayDays}d` : daysToDue === 0 ? 'Hoy' : daysToDue > 0 ? `+${daysToDue}d` : ''}
+        {overdue ? `Vencida ${diasDeAtraso(task)}d` : daysToDue === 0 ? 'Hoy' : daysToDue > 0 ? `+${daysToDue}d` : ''}
       </span>
       {onDelete && (
         <button

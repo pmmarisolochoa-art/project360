@@ -1,3 +1,4 @@
+import { estaVencida } from '@/utils/vencidas';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, differenceInDays } from 'date-fns';
@@ -126,7 +127,7 @@ export async function exportWeeklyReport({ client, tasks: tasksIn, meetings: mee
   // ─── Análisis ROPRE de la semana (Sección 1) ───
   const ropre = ropreItems ?? [];
   const byType = (t: RopreItem['type']) => ropre.filter((i) => i.type === t);
-  const overdueTasks = pending.filter((t) => t.isDelayed);
+  const overdueTasks = pending.filter((t) => estaVencida(t));
   const ropreAi = await generateRopreWeekly({
     clientName: client.name,
     resultadoEsperado: byType('result')[0]?.title ?? '',

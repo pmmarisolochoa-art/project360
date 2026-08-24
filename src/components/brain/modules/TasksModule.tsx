@@ -1,3 +1,4 @@
+import { estaVencida, diasDeAtraso } from '@/utils/vencidas';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -348,7 +349,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
       // solo muestran tareas activas (sin completadas ni en revisión/bloqueadas).
       const isActive = t.status === 'pending' || t.status === 'in_progress';
       if (quickFilter === 'mine' && (!isMine(t) || !isActive)) return false;
-      if (quickFilter === 'overdue' && !(t.isDelayed && t.status !== 'completed')) return false;
+      if (quickFilter === 'overdue' && !estaVencida(t)) return false;
       if (quickFilter === 'today') {
         if (!isActive) return false;
         const d = new Date(t.dueDate);
@@ -404,7 +405,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
     });
   }, [filtered, sortMode]);
 
-  const overdueCount = filtered.filter((t) => t.isDelayed && t.status !== 'completed').length;
+  const overdueCount = filtered.filter((t) => estaVencida(t)).length;
 
   // Tareas pendientes dentro del filtro actual → a quién recordarle.
   const remindable = filtered.filter((t) => t.status !== 'completed' && t.assignedTo);
@@ -1088,7 +1089,7 @@ function TaskCard({
         background: 'var(--kanban-card-bg)',
         borderColor: isSelected
           ? accent
-          : task.isDelayed && task.status !== 'completed'
+          : estaVencida(task)
             ? 'rgba(239,68,68,0.5)'
             : dueSoon
             ? 'rgba(245,158,11,0.5)'
@@ -1223,7 +1224,7 @@ function TaskCard({
           className="flex items-center gap-1"
           style={{
             color:
-              task.isDelayed && task.status !== 'completed'
+              estaVencida(task)
                 ? '#EF4444'
                 : hoursUntil >= 0 && hoursUntil <= 72
                 ? hoursUntil <= 24 ? '#EF4444' : '#F59E0B'
@@ -1231,8 +1232,8 @@ function TaskCard({
           }}
         >
           <Clock className="h-3 w-3" />
-          {task.isDelayed && task.status !== 'completed'
-            ? `+${task.delayDays}d vencida`
+          {estaVencida(task)
+            ? `+${diasDeAtraso(task)}d vencida`
             : formatRelative(task.dueDate)}
         </span>
         {task.parentTaskId && (

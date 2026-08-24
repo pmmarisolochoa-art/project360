@@ -1,3 +1,4 @@
+import { estaVencida, diasDeAtraso } from '@/utils/vencidas';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -25,7 +26,7 @@ export function TodayTasks() {
   const tasks = useMemo(() => {
     const today = new Date();
     return allTasks
-      .filter((t) => t.status !== 'completed' && (t.isDelayed || isSameDay(parseISO(t.dueDate), today)))
+      .filter((t) => t.status !== 'completed' && (estaVencida(t) || isSameDay(parseISO(t.dueDate), today)))
       .sort((a, b) => {
         const dp = PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
         if (dp !== 0) return dp;
@@ -91,7 +92,7 @@ function TodayRow({
   onToggle: () => void;
   onOpen: () => void;
 }) {
-  const overdue = task.isDelayed && task.status !== 'completed';
+  const overdue = estaVencida(task);
   return (
     <motion.li
       initial={{ opacity: 0, y: 4 }}
@@ -129,7 +130,7 @@ function TodayRow({
       <div className="mt-1 ml-12 flex items-center gap-2 text-[11px] text-text-muted">
         <span>👤 {task.assignedTo}</span>
         <span className={cn(overdue ? 'text-status-danger' : 'text-status-success')}>
-          {overdue ? `Vencida hace ${task.delayDays} día${task.delayDays === 1 ? '' : 's'}` : 'Vence: Hoy'}
+          {overdue ? `Vencida hace ${diasDeAtraso(task)} día${diasDeAtraso(task) === 1 ? '' : 's'}` : 'Vence: Hoy'}
         </span>
       </div>
     </motion.li>

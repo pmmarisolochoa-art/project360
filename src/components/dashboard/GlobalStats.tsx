@@ -6,6 +6,7 @@ import { isThisWeek, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
+import { estaVencida, diasDeAtraso } from '@/utils/vencidas';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { Badge } from '@/components/ui/Badge';
@@ -31,9 +32,13 @@ export function GlobalStats() {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   const activeClients = clients.filter(isActiveClient).length;
+  // El "de N totales" debe contar lo mismo que el numerador: clientes REALES.
+  // La agencia no es un cliente y no sale en ninguna otra pantalla.
+  const totalClients = clients.filter((c) => !c.isAgency).length;
   const weekMeetings = meetings.filter((m) => isThisWeek(parseISO(m.scheduledAt), { weekStartsOn: 1 }));
   const meetingsThisWeek = weekMeetings.length;
-  const overdueTasks = tasks.filter((t) => t.isDelayed && t.status !== 'completed');
+  // Vencida se CALCULA, no se lee de la marca guardada. Ver utils/vencidas.ts.
+  const overdueTasks = tasks.filter((t) => estaVencida(t));
   // El conteo de alertas excluye las obsoletas (entidad origen ya resuelta).
   // Misma lógica que AlertsPanel.isStale para mantener consistencia.
   const unread = notifications.filter((n) => {
@@ -50,7 +55,7 @@ export function GlobalStats() {
   }).length;
 
   const stats: Array<{ label: string; value: string; hint: string; icon: typeof Users; tone: Tone }> = [
-    { label: 'Clientes activos', value: String(activeClients), hint: `de ${clients.length} totales`, icon: Users, tone: 'accent' },
+    { label: 'Clientes activos', value: String(activeClients), hint: `de ${totalClients} totales`, icon: Users, tone: 'accent' },
     { label: 'Reuniones esta semana', value: String(meetingsThisWeek), hint: 'en todo el portafolio', icon: CalendarClock, tone: 'default' },
     { label: 'Tareas vencidas', value: String(overdueTasks.length), hint: 'requieren intervención', icon: AlertTriangle, tone: overdueTasks.length > 0 ? 'danger' : 'default' },
     { label: 'Alertas pendientes', value: String(unread), hint: 'agrupadas por urgencia', icon: BellRing, tone: unread > 3 ? 'warning' : 'default' },
@@ -196,7 +201,9 @@ function OverdueTasksPanel() {
   const navigate = useNavigate();
   const tasks = useClientStore((s) => s.tasks);
   const clients = useClientStore((s) => s.clients);
-  const overdue = tasks.filter((t) => t.isDelayed && t.status !== 'completed').sort((a, b) => b.delayDays - a.delayDays);
+  const overdue = tasks
+    .filter((t) => estaVencida(t))
+    .sort((a, b) => diasDeAtraso(b) - diasDeAtraso(a));
   return (
     <div>
       <h3 className="heading text-base font-bold mb-3">Tareas vencidas</h3>
@@ -215,7 +222,7 @@ function OverdueTasksPanel() {
                 </div>
                 {c && <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: withAlpha(c.primaryColor, 0.15), color: c.primaryColor }}>{c.name}</span>}
                 <span className="text-[10px] uppercase tracking-wider bg-status-danger/20 text-status-danger px-2 py-0.5 rounded-full font-bold">
-                  +{t.delayDays}d
+                  +{diasDeAtraso(t)}d
                 </span>
                 <Button size="sm" variant="secondary" onClick={() => navigate(`/client/${t.clientId}/tasks`)}>
                   Ir a tarea

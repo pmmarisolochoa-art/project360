@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useClientStore } from '@/store/useClientStore';
+import { seEntregoATiempo } from '@/utils/vencidas';
 import { ROLE_DEFS, evaluateKpi } from '@/types/team';
 import type { KpiHealth, KpiDef } from '@/types/team';
 import type { TeamMember } from '@/types/teamMember';
+import type { TaskStatus } from '@/types/task';
 
 /**
  * Cálculo centralizado de KPIs del equipo de un cliente (Sprint E · Sección 3C).
@@ -40,15 +42,31 @@ export interface MemberKpiSummary {
   health: KpiHealth;
 }
 
-/** % de tareas del miembro completadas a tiempo (no retrasadas). */
+/**
+ * % de ENTREGAS del miembro que llegaron dentro del plazo pactado.
+ *
+ * CORREGIDO 24-ago-2026. Antes se dividia entre TODAS sus tareas, incluidas las
+ * abiertas que aun no vencian — asi que no medía puntualidad sino avance: quien
+ * nunca habia incumplido un plazo pero tenia 10 tareas en curso salia con un
+ * porcentaje bajo, y el KPI calificaba mal a gente que trabajaba bien.
+ *
+ * Ahora el denominador son las tareas ENTREGADAS. Las abiertas no puntuan ni a
+ * favor ni en contra: todavia no hay entrega que juzgar.
+ *
+ * La puntualidad se decide comparando `completedAt` con `dueDate`, no leyendo
+ * `isDelayed` — esa marca depende de que alguien tuviera la app abierta cuando
+ * la tarea se paso de fecha. Ver `utils/vencidas.ts`.
+ *
+ * `null` = todavia no ha entregado nada, asi que no hay nada que medir.
+ */
 export function autoTaskRate(
   memberName: string,
-  tasks: Array<{ assignedTo: string; status: string; isDelayed: boolean }>,
+  tasks: Array<Pick<KpiTask, 'assignedTo' | 'status' | 'dueDate' | 'completedAt'>>,
 ): number | null {
-  const mine = tasks.filter((t) => t.assignedTo === memberName);
-  if (mine.length === 0) return null;
-  const onTime = mine.filter((t) => t.status === 'completed' && !t.isDelayed).length;
-  return Math.round((onTime / mine.length) * 100);
+  const entregadas = tasks.filter((t) => t.assignedTo === memberName && t.status === 'completed');
+  if (entregadas.length === 0) return null;
+  const aTiempo = entregadas.filter((t) => seEntregoATiempo(t) === true).length;
+  return Math.round((aTiempo / entregadas.length) * 100);
 }
 
 function num(v: string | undefined): number | null {
@@ -85,7 +103,10 @@ function taskKpiHealth(meta: string | undefined, resultado: string): KpiHealth |
 
 type KpiTask = {
   assignedTo: string;
-  status: string;
+  status: TaskStatus;
+  /** Necesarios para medir puntualidad por fechas y no por la marca guardada. */
+  dueDate: string;
+  completedAt?: string;
   isDelayed: boolean;
   title?: string;
   kpiNombre?: string;

@@ -21,9 +21,20 @@ import { toast } from '@/store/useToastStore';
 
 /**
  * `label` identifica la operación en la consola (`ropre.create`).
- * `message` es lo que lee el usuario: qué NO se guardó y qué hacer.
+ * `message` es lo que lee el usuario: qué NO se guardó.
+ * `revertir` deshace el cambio optimista de la pantalla.
+ *
+ * SIN `revertir` EL AVISO SOLO MITIGA. La fila que no se guardó se queda a la
+ * vista, idéntica a las buenas: alguien sigue trabajando encima de ella y
+ * desaparece en la siguiente recarga. Con él, la pantalla vuelve a decir la
+ * verdad sola y el mensaje puede hablar en pasado en vez de mandar a recargar.
+ *
+ * Los `revertir` los fabrican `altaOptimista`, `cambioOptimista` y
+ * `bajaOptimista` en `escrituraOptimista.ts`.
  */
-export const onWriteError = (label: string, message: string) => (e: unknown) => {
-  console.warn(`[${label}]`, e);
-  toast.error(message);
-};
+export const onWriteError =
+  (label: string, message: string, revertir?: () => void) => (e: unknown) => {
+    console.warn(`[${label}]`, e);
+    revertir?.();
+    toast.error(message);
+  };

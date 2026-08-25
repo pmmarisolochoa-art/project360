@@ -57,7 +57,9 @@ Tres niveles: **dueña** (todo, incluida la administración), **dirección** (CE
 **R-13 ✅ — Ninguna escritura falla en silencio.** Si no se pudo guardar, el usuario se entera con un aviso que dice qué pasó. Un `console.warn` no es avisar. El aviso vive en `src/store/onWriteError.ts` — uno solo, para los 8 stores.
 *Historia:* la regla se estableció el 1-ago y se aplicó a 9 rutas de un store. Las otras 23, en 7 stores, quedaron fuera sin que nadie lo anotara, así que durante tres semanas parecieron cubiertas porque la regla decía que lo estaban. Las encontró la primera auditoría (18-ago) y se cerraron el 19. Ver R-39.
 
-**R-14 ✅ — La interfaz no canta "guardado" antes de que la base lo confirme.** En escrituras optimistas, si el guardado falla la fila optimista se retira: dejarla puesta es lo que produce el "se guardó y luego desapareció solo".
+**R-14 ✅ — La interfaz no canta "guardado" antes de que la base lo confirme.** En escrituras optimistas, si el guardado falla la fila optimista **se retira**: dejarla puesta es lo que produce el "se guardó y luego desapareció solo". El aviso solo mitiga — una fila fantasma en pantalla es indistinguible de una real, y se sigue trabajando encima. Las piezas para deshacer están en `src/store/escrituraOptimista.ts`.
+*Excepción, y solo esta:* los autoguardados con retardo de algo que la persona está ESCRIBIENDO (proyecciones, asignación de roles) **no revierten** — le borrarían de la pantalla lo que acaba de teclear. Ahí el aviso dice la verdad completa: no se guardó, sigue ahí, y se pierde al recargar.
+*Historia:* durante tres semanas, de 30 rutas de escritura solo UNA se deshacía. Lo encontró el auditor el 21-ago; se cerró el 25.
 
 **R-15 ✅ — Cuando algo cuelga de otra cosa, lo de arriba se guarda primero y esperando.** Las tareas de una reunión no se crean hasta que la reunión existe de verdad.
 

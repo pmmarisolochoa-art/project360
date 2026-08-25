@@ -1,4 +1,5 @@
 import { onWriteError } from './onWriteError';
+import { altaOptimista, cambioOptimista, bajaOptimista } from './escrituraOptimista';
 import { create } from 'zustand';
 import type { Program } from '@/types/program';
 import { ProgramsRepo } from '@/services/repositories';
@@ -18,18 +19,18 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   hydrate: (programs) => set({ programs }),
 
   add: (program) => {
-    set((s) => ({ programs: [program, ...s.programs] }));
-    void ProgramsRepo.create(program).catch(onWriteError('programs.create', 'No se pudo crear el programa. Recarga e inténtalo de nuevo.'));
+    const revertir = altaOptimista(() => get().programs, (programs) => set({ programs }), program);
+    void ProgramsRepo.create(program).catch(onWriteError('programs.create', 'No se pudo guardar el programa. Se quitó de la lista: vuelve a intentarlo.', revertir));
   },
 
   update: (id, patch) => {
-    set((s) => ({ programs: s.programs.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-    void ProgramsRepo.update(id, patch).catch(onWriteError('programs.update', 'No se pudieron guardar los cambios del programa.'));
+    const revertir = cambioOptimista(() => get().programs, (programs) => set({ programs }), id, patch);
+    void ProgramsRepo.update(id, patch).catch(onWriteError('programs.update', 'No se pudieron guardar los cambios del programa. Se deshicieron en pantalla.', revertir));
   },
 
   remove: (id) => {
-    set((s) => ({ programs: s.programs.filter((p) => p.id !== id) }));
-    void ProgramsRepo.remove(id).catch(onWriteError('programs.remove', 'No se pudo eliminar el programa. Recarga: puede seguir ahí.'));
+    const revertir = bajaOptimista(() => get().programs, (programs) => set({ programs }), id);
+    void ProgramsRepo.remove(id).catch(onWriteError('programs.remove', 'No se pudo eliminar el programa. Vuelve a aparecer porque sigue ahí.', revertir));
   },
 
   byClient: (clientId) => get().programs.filter((p) => p.clientId === clientId),

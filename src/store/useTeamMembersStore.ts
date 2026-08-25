@@ -1,4 +1,5 @@
 import { onWriteError } from './onWriteError';
+import { cambioOptimista, bajaOptimista } from './escrituraOptimista';
 import { create } from 'zustand';
 import type { TeamMember } from '@/types/teamMember';
 import { TeamMembersRepo } from '@/services/repositories';
@@ -34,26 +35,31 @@ interface TeamMembersState {
   remove: (id: string) => void;
 }
 
-export const useTeamMembersStore = create<TeamMembersState>((set) => ({
+export const useTeamMembersStore = create<TeamMembersState>((set, get) => ({
   members: [],
 
   hydrate: (members) => set({ members }),
 
   add: (member) => {
-    set((s) => ({ members: upsert(s.members, member) }));
-    void TeamMembersRepo.create(member).catch(onWriteError('teamMembers.create', 'No se pudo guardar a esa persona en el equipo. Recarga e inténtalo de nuevo.'));
+    const antes = get().members;
+    set({ members: upsert(antes, member) });
+    // Aquí el alta puede ser un reemplazo (upsert), así que revertir es
+    // devolver la lista a como estaba: no basta con quitar por id.
+    void TeamMembersRepo.create(member).catch(
+      onWriteError('teamMembers.create', 'No se pudo guardar a esa persona. Se quitó de la lista: vuelve a intentarlo.', () => set({ members: antes })),
+    );
   },
 
   addLocal: (member) => set((s) => ({ members: upsert(s.members, member) })),
 
   update: (id, patch) => {
-    set((s) => ({ members: s.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
-    void TeamMembersRepo.update(id, patch).catch(onWriteError('teamMembers.update', 'No se pudieron guardar los cambios de esa persona.'));
+    const revertir = cambioOptimista(() => get().members, (members) => set({ members }), id, patch);
+    void TeamMembersRepo.update(id, patch).catch(onWriteError('teamMembers.update', 'No se pudieron guardar los cambios de esa persona. Se deshicieron en pantalla.', revertir));
   },
 
   remove: (id) => {
-    set((s) => ({ members: s.members.filter((m) => m.id !== id) }));
-    void TeamMembersRepo.remove(id).catch(onWriteError('teamMembers.remove', 'No se pudo eliminar a esa persona. Recarga: puede seguir ahí.'));
+    const revertir = bajaOptimista(() => get().members, (members) => set({ members }), id);
+    void TeamMembersRepo.remove(id).catch(onWriteError('teamMembers.remove', 'No se pudo eliminar a esa persona. Vuelve a aparecer porque sigue ahí.', revertir));
   },
 }));
 

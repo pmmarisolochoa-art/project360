@@ -11,12 +11,25 @@ function scheduleUpsert(a: RoleAssignment) {
   // solo produce 400s. El estado en memoria ya se actualizó, que es lo que la
   // UI local necesita.
   if (!isPersistableId(a.clientId)) return;
+/**
+ * OJO — ESTAS ESCRITURAS NO REVIERTEN, Y ES DELIBERADO.
+ *
+ * Las demás del proyecto deshacen su cambio optimista al fallar (ver
+ * `escrituraOptimista.ts`), porque dejar una fila fantasma en pantalla engaña.
+ * Aquí no: esto es un autoguardado con retardo de algo que la persona está
+ * ESCRIBIENDO. Revertir le borraría de la pantalla lo que acaba de teclear —
+ * arreglaría la mentira destruyendo el trabajo, que es peor.
+ *
+ * Así que el cambio se queda a la vista y el aviso dice la verdad completa: no
+ * se guardó, sigue ahí, y se pierde si recargas. Con eso puede copiarlo o
+ * reintentar antes de irse.
+ */
   const key = `${a.clientId}:${a.roleSlug}`;
   const existing = upsertTimers.get(key);
   if (existing) clearTimeout(existing);
   upsertTimers.set(key, setTimeout(() => {
     upsertTimers.delete(key);
-    void TeamRepo.upsert(a).catch(onWriteError('team.upsert', 'No se pudo guardar la asignación de rol. Recarga para ver quién quedó asignado.'));
+    void TeamRepo.upsert(a).catch(onWriteError('team.upsert', 'No se pudo guardar la asignación de rol. Sigue en pantalla pero NO está guardada: se pierde si recargas.'));
   }, 500));
 }
 
@@ -129,7 +142,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     // del seed se quedan solo en memoria: su id no es uuid y la escritura
     // fallaría con 22P02.
     if (!isPersistableId(clientId)) return;
-    toCreate.forEach((a) => void TeamRepo.upsert(a).catch(onWriteError('team.upsert:initial', 'No se pudieron guardar las asignaciones iniciales de roles.')));
+    toCreate.forEach((a) => void TeamRepo.upsert(a).catch(onWriteError('team.upsert:initial', 'No se pudieron guardar las asignaciones iniciales de roles. Se pierden si recargas.')));
   },
   update: (clientId, roleSlug, patch) => {
     set((s) => ({

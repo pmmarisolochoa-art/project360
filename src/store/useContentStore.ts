@@ -1,4 +1,5 @@
 import { onWriteError } from './onWriteError';
+import { altaOptimista, cambioOptimista, bajaOptimista } from './escrituraOptimista';
 import { create } from 'zustand';
 import type { ContentPiece, ContentStatus } from '@/types/content';
 import { ContentRepo } from '@/services/repositories';
@@ -15,16 +16,16 @@ interface ContentState {
 export const useContentStore = create<ContentState>((set, get) => ({
   pieces: [],
   add: (piece) => {
-    set((s) => ({ pieces: [piece, ...s.pieces] }));
-    void ContentRepo.create(piece).catch(onWriteError('content.create', 'No se pudo guardar la pieza de contenido. Recarga e inténtalo de nuevo.'));
+    const revertir = altaOptimista(() => get().pieces, (pieces) => set({ pieces }), piece);
+    void ContentRepo.create(piece).catch(onWriteError('content.create', 'No se pudo guardar la pieza. Se quitó de la lista: vuelve a intentarlo.', revertir));
   },
   update: (id, patch) => {
-    set((s) => ({ pieces: s.pieces.map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-    void ContentRepo.update(id, patch).catch(onWriteError('content.update', 'No se pudieron guardar los cambios de la pieza.'));
+    const revertir = cambioOptimista(() => get().pieces, (pieces) => set({ pieces }), id, patch);
+    void ContentRepo.update(id, patch).catch(onWriteError('content.update', 'No se pudieron guardar los cambios de la pieza. Se deshicieron en pantalla.', revertir));
   },
   remove: (id) => {
-    set((s) => ({ pieces: s.pieces.filter((p) => p.id !== id) }));
-    void ContentRepo.remove(id).catch(onWriteError('content.remove', 'No se pudo eliminar la pieza. Recarga: puede seguir ahí.'));
+    const revertir = bajaOptimista(() => get().pieces, (pieces) => set({ pieces }), id);
+    void ContentRepo.remove(id).catch(onWriteError('content.remove', 'No se pudo eliminar la pieza. Vuelve a aparecer porque sigue ahí.', revertir));
   },
   byClient: (clientId) => get().pieces.filter((p) => p.clientId === clientId),
 }));

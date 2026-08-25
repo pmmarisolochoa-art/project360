@@ -1,4 +1,5 @@
 import { onWriteError } from './onWriteError';
+import { cambioOptimista } from './escrituraOptimista';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Funnel, FunnelPhase, FunnelTemplate, FunnelStatus } from '@/types/funnel';
@@ -54,21 +55,29 @@ export const useFunnelLaunchStore = create<FunnelLaunchState>()(
       },
 
       update: (id, patch) => {
-        set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, ...patch } : f)) }));
-        void FunnelLaunchRepo.update(id, patch).catch(onWriteError('funnel.update', 'No se pudieron guardar los cambios del embudo.'));
+        const revertir = cambioOptimista(() => get().funnels, (funnels) => set({ funnels }), id, patch);
+        void FunnelLaunchRepo.update(id, patch).catch(
+          onWriteError('funnel.update', 'No se pudieron guardar los cambios del embudo. Se deshicieron en pantalla.', revertir),
+        );
       },
 
       setStatus: (id, status) => {
-        set((s) => ({ funnels: s.funnels.map((f) => (f.id === id ? { ...f, status } : f)) }));
-        void FunnelLaunchRepo.update(id, { status }).catch(onWriteError('funnel.setStatus', 'No se pudo cambiar el estado del embudo. Recarga para ver el real.'));
+        const revertir = cambioOptimista(() => get().funnels, (funnels) => set({ funnels }), id, { status });
+        void FunnelLaunchRepo.update(id, { status }).catch(
+          onWriteError('funnel.setStatus', 'No se pudo cambiar el estado del embudo. Volvió al anterior.', revertir),
+        );
       },
 
       remove: (id) => {
+        // El embudo se lleva sus fases, así que revertir devuelve las dos listas.
+        const antes = { funnels: get().funnels, phases: get().phases };
         set((s) => ({
           funnels: s.funnels.filter((f) => f.id !== id),
           phases: s.phases.filter((p) => p.funnelId !== id),
         }));
-        void FunnelLaunchRepo.remove(id).catch(onWriteError('funnel.remove', 'No se pudo eliminar el embudo. Recarga: puede seguir ahí.'));
+        void FunnelLaunchRepo.remove(id).catch(
+          onWriteError('funnel.remove', 'No se pudo eliminar el embudo. Vuelve a aparecer porque sigue ahí.', () => set(antes)),
+        );
       },
     }),
     {
@@ -193,7 +202,15 @@ function materializeFromTemplate(
     // fire-and-forget para cada tarea en paralelo.
     useClientStore.setState((s) => ({ tasks: [...allTasks, ...s.tasks] }));
     for (const t of allTasks) {
-      void TasksRepo.create(t).catch(onWriteError('tasks.create', 'No se pudo crear la tarea del embudo. El equipo no la verá hasta que se guarde.'));
+      // La tarea que no se guardó se retira de la lista: si se queda, el
+      // lanzamiento aparenta estar completo y le falta un paso.
+      void TasksRepo.create(t).catch(
+        onWriteError(
+          'tasks.create',
+          `No se pudo crear la tarea "${t.title.slice(0, 40)}" del lanzamiento. Se quitó de la lista.`,
+          () => useClientStore.setState((s) => ({ tasks: s.tasks.filter((x) => x.id !== t.id) })),
+        ),
+      );
     }
   })();
 

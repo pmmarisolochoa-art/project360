@@ -5,6 +5,7 @@ import type { Task } from '@/types/task';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { ClientsRepo, TasksRepo, MeetingsRepo } from '@/services/repositories';
 import { onWriteError } from './onWriteError';
+import { altaOptimista, cambioOptimista, bajaOptimista } from './escrituraOptimista';
 
 /**
  * Handler de error para escrituras optimistas a Supabase.
@@ -62,22 +63,34 @@ export const useClientStore = create<ClientState>((set, get) => ({
   currentClientId: null,
   setCurrentClient: (id) => set({ currentClientId: id }),
   addClient: (c) => {
-    set((s) => ({ clients: [c, ...s.clients] }));
+    const revertir = altaOptimista(() => get().clients, (clients) => set({ clients }), c);
     void ClientsRepo.create(c).catch(
-      onWriteError('clients.create', 'No se pudo crear el cliente. Recarga e inténtalo de nuevo.'),
+      onWriteError('clients.create', 'No se pudo crear el cliente. Se quitó de la lista: vuelve a intentarlo.', revertir),
     );
   },
   updateClient: (id, patch) => {
-    set((s) => ({
-      clients: s.clients.map((c) =>
-        c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString() } : c,
-      ),
-    }));
+    const revertir = cambioOptimista(
+      () => get().clients,
+      (clients) => set({ clients }),
+      id,
+      { ...patch, updatedAt: new Date().toISOString() },
+    );
     void ClientsRepo.update(id, patch).catch(
-      onWriteError('clients.update', 'No se pudieron guardar los cambios del cliente.'),
+      onWriteError('clients.update', 'No se pudieron guardar los cambios del cliente. Se deshicieron en pantalla.', revertir),
     );
   },
   deleteClient: (id) => {
+    /**
+     * ÚNICO caso donde revertir restaura las listas ENTERAS en vez de una fila.
+     *
+     * Borrar un cliente arrastra sus tareas y sus reuniones (Supabase cascadea
+     * por clave foránea, y aquí se refleja). Deshacer eso fila por fila sería
+     * frágil, y el riesgo que evitamos en los demás casos —pisar una edición
+     * hecha mientras tanto— aquí no aplica: si el borrado del cliente falla,
+     * nadie ha podido editar sus tareas, porque acaban de desaparecer de la
+     * pantalla.
+     */
+    const antes = { clients: get().clients, tasks: get().tasks, meetings: get().meetings };
     // Limpia también todo lo relacionado en memoria (Supabase cascadeará por FK).
     set((s) => ({
       clients: s.clients.filter((c) => c.id !== id),
@@ -85,55 +98,61 @@ export const useClientStore = create<ClientState>((set, get) => ({
       meetings: s.meetings.filter((m) => m.clientId !== id),
       currentClientId: s.currentClientId === id ? null : s.currentClientId,
     }));
+    const revertir = () => set(antes);
     void ClientsRepo.remove(id).catch(
-      onWriteError('clients.remove', 'No se pudo eliminar el cliente. Recarga: puede seguir ahí.'),
+      onWriteError('clients.remove', 'No se pudo eliminar el cliente. Vuelve a aparecer porque sigue ahí.', revertir),
     );
   },
   getClient: (id) => get().clients.find((c) => c.id === id),
   addTask: (t) => {
-    set((s) => ({ tasks: [t, ...s.tasks] }));
+    // Esta fue la primera escritura que aprendió a deshacerse, el 1 de agosto.
+    // Durante tres semanas fue la ÚNICA de treinta; ahora usa la misma pieza
+    // que el resto, para que no queden dos maneras de hacer lo mismo.
+    const revertir = altaOptimista(() => get().tasks, (tasks) => set({ tasks }), t);
     return TasksRepo.create(t)
       .then(() => true)
       .catch((e) => {
-        onWriteError('tasks.create', 'No se pudo crear la tarea. El equipo no la verá hasta que se guarde.')(e);
-        // La fila optimista se retira: dejarla puesta es lo que hace creer que
-        // se guardó y luego "desaparece sola" al recargar.
-        set((s) => ({ tasks: s.tasks.filter((x) => x.id !== t.id) }));
+        onWriteError(
+          'tasks.create',
+          'No se pudo crear la tarea. Se quitó de la lista: vuelve a intentarlo.',
+          revertir,
+        )(e);
         return false;
       });
   },
   updateTask: (id, patch) => {
-    set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+    const revertir = cambioOptimista(() => get().tasks, (tasks) => set({ tasks }), id, patch);
     void TasksRepo.update(id, patch).catch(
-      onWriteError('tasks.update', 'No se pudo guardar el cambio en la tarea. Recarga para ver el estado real.'),
+      onWriteError('tasks.update', 'No se pudo guardar el cambio en la tarea. Se deshizo en pantalla.', revertir),
     );
   },
   deleteTask: (id) => {
-    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+    const revertir = bajaOptimista(() => get().tasks, (tasks) => set({ tasks }), id);
     void TasksRepo.remove(id).catch(
-      onWriteError('tasks.remove', 'No se pudo eliminar la tarea. Recarga: puede seguir ahí.'),
+      onWriteError('tasks.remove', 'No se pudo eliminar la tarea. Vuelve a aparecer porque sigue ahí.', revertir),
     );
   },
   tasksByClient: (clientId) => get().tasks.filter((t) => t.clientId === clientId),
   addMeeting: (m) => {
-    set((s) => ({ meetings: [m, ...s.meetings] }));
+    const revertir = altaOptimista(() => get().meetings, (meetings) => set({ meetings }), m);
     void MeetingsRepo.create(m).catch(
       onWriteError(
         'meetings.create',
-        'No se pudo guardar la reunión. Recarga e inténtalo de nuevo — el equipo no la verá hasta que se guarde.',
+        'No se pudo guardar la reunión. Se quitó de la agenda: vuelve a intentarlo.',
+        revertir,
       ),
     );
   },
   updateMeeting: (id, patch) => {
-    set((s) => ({ meetings: s.meetings.map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
+    const revertir = cambioOptimista(() => get().meetings, (meetings) => set({ meetings }), id, patch);
     void MeetingsRepo.update(id, patch).catch(
-      onWriteError('meetings.update', 'No se pudieron guardar los cambios de la reunión.'),
+      onWriteError('meetings.update', 'No se pudieron guardar los cambios de la reunión. Se deshicieron en pantalla.', revertir),
     );
   },
   deleteMeeting: (id) => {
-    set((s) => ({ meetings: s.meetings.filter((m) => m.id !== id) }));
+    const revertir = bajaOptimista(() => get().meetings, (meetings) => set({ meetings }), id);
     void MeetingsRepo.remove(id).catch(
-      onWriteError('meetings.remove', 'No se pudo eliminar la reunión. Recarga: puede seguir ahí.'),
+      onWriteError('meetings.remove', 'No se pudo eliminar la reunión. Vuelve a aparecer porque sigue ahí.', revertir),
     );
   },
   meetingsByClient: (clientId) => get().meetings.filter((m) => m.clientId === clientId),

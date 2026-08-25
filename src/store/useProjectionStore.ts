@@ -15,13 +15,26 @@ const SAVE_DEBOUNCE_MS = 500;
 const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function scheduleSave(clientId: string, getState: () => Store) {
-  const existing = saveTimers.get(clientId);
+  /**
+ * OJO — ESTAS ESCRITURAS NO REVIERTEN, Y ES DELIBERADO.
+ *
+ * Las demás del proyecto deshacen su cambio optimista al fallar (ver
+ * `escrituraOptimista.ts`), porque dejar una fila fantasma en pantalla engaña.
+ * Aquí no: esto es un autoguardado con retardo de algo que la persona está
+ * ESCRIBIENDO. Revertir le borraría de la pantalla lo que acaba de teclear —
+ * arreglaría la mentira destruyendo el trabajo, que es peor.
+ *
+ * Así que el cambio se queda a la vista y el aviso dice la verdad completa: no
+ * se guardó, sigue ahí, y se pierde si recargas. Con eso puede copiarlo o
+ * reintentar antes de irse.
+ */
+const existing = saveTimers.get(clientId);
   if (existing) clearTimeout(existing);
   const t = setTimeout(() => {
     saveTimers.delete(clientId);
     const state = getState().states[clientId];
     if (!state) return;
-    void ProjectionsRepo.save(state).catch(onWriteError('projections.save', 'No se pudo guardar la proyección. Los números que ves no están guardados.'));
+    void ProjectionsRepo.save(state).catch(onWriteError('projections.save', 'No se pudo guardar la proyección. Los números siguen en pantalla pero NO están guardados: se pierden si recargas.'));
   }, SAVE_DEBOUNCE_MS);
   saveTimers.set(clientId, t);
 }
@@ -240,7 +253,7 @@ export const useProjectionStore = create<Store>((set, get) => ({
         debriefing: defaults.debriefing ?? {},
       };
       // Persist el state inicial (sin debounce, ya que es solo al primer load)
-      void ProjectionsRepo.save(fresh).catch(onWriteError('projections.save:initial', 'No se pudo guardar la proyección inicial.'));
+      void ProjectionsRepo.save(fresh).catch(onWriteError('projections.save:initial', 'No se pudo guardar la proyección inicial. Se pierde si recargas.'));
       return { states: { ...s.states, [clientId]: fresh } };
     }),
   patchFunnel: (clientId, patch) => {

@@ -123,16 +123,34 @@ export function resolveRoleLabels(assignedTo: string, clientId?: string): string
  */
 export function resolverResponsableParaGuardar(valor: string | undefined, clientId?: string): string {
   const v = (valor ?? '').trim();
-  if (!v) return '';
-  if (!VALID_SLUGS.has(v)) return v; // ya es un nombre de persona
+  if (!v || !clientId) return '';
 
-  if (!clientId) return '';
-  const conEseRol = useTeamMembersStore
+  const delCliente = useTeamMembersStore
     .getState()
-    .members.filter((m) => m.clientId === clientId && m.rol === v && (m.nombre ?? '').trim());
+    .members.filter((m) => m.clientId === clientId && (m.nombre ?? '').trim());
 
-  // Exactamente una persona: se resuelve. Cero o varias: no se adivina.
-  return conEseRol.length === 1 ? conEseRol[0].nombre.trim() : '';
+  // 1. ¿Es un rol conocido? → la persona que lo ejerce, si es UNA sola.
+  if (VALID_SLUGS.has(v)) {
+    const conEseRol = delCliente.filter((m) => m.rol === v);
+    return conEseRol.length === 1 ? conEseRol[0].nombre.trim() : '';
+  }
+
+  // 2. ¿Es el nombre de alguien del equipo? → se acepta tal cual está en su ficha.
+  const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const persona = delCliente.find((m) => norm(m.nombre) === norm(v));
+  if (persona) return persona.nombre.trim();
+
+  /**
+   * 3. Ni rol conocido ni persona del equipo → Sin asignar.
+   *
+   * Este escalón se añadió al descubrir el hueco: antes cualquier texto que no
+   * fuera un slug se devolvía tal cual "porque será un nombre". Con eso, una IA
+   * que inventara un rol —y ya pasó: la ficha real de un cliente traía
+   * `"estratega"`, que no existe— lo escribía como si fuera una persona.
+   *
+   * Vacío es visible y se corrige. Un nombre inventado no lo corrige nadie.
+   */
+  return '';
 }
 
 /**

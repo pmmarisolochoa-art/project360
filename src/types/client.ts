@@ -1,3 +1,4 @@
+import type { TeamRoleSlug } from './team';
 export type ClientStatus =
   | 'onboarding'
   | 'planning'
@@ -75,7 +76,13 @@ export interface AIBrainData {
   irresistibleOffer?: string;
   gapAnalysis?: string;
   recommendedSystem?: ProjectType;
-  initialDeliverables?: Array<{ title: string; dueInDays: number; responsibleRole: string }>;
+  /**
+   * `responsibleRole` va tipado como `TeamRoleSlug` y NO como `string` a
+   * propósito: la ficha de David Guerrero llegó a producción con el rol
+   * `"estratega"`, que no existe (el válido es `strategist`). Un texto libre no
+   * avisa; un tipo sí. Ahora escribir un rol inventado no compila.
+   */
+  initialDeliverables?: Array<{ title: string; dueInDays: number; responsibleRole: TeamRoleSlug }>;
   brandArchitecture?: BrandArchitecture;
   generatedAt?: string;
 }

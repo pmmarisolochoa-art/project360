@@ -520,33 +520,36 @@ function brainFallback(data: OnboardingData): AIBrainData {
 
   return {
     generatedAt: new Date().toISOString(),
-    executiveSummary: `${business} es un negocio de ${industry} liderado por ${founder}. Su ticket promedio es de ${currency} ${ticket}. Su diferenciador clave: "${diff.slice(0, 120)}...". Meta a 3 meses: ${currency} ${goal3m.toLocaleString()}.`,
+    executiveSummary: `⚠️ Borrador sin IA (no respondió) — revisar antes de usar. ${business} es un negocio de ${industry} liderado por ${founder}. Su ticket promedio es de ${currency} ${ticket}. Su diferenciador clave: "${diff.slice(0, 120)}...". Meta a 3 meses: ${currency} ${goal3m.toLocaleString()}.`,
+    /**
+     * UN avatar, con lo que el formulario dijo de verdad. Ni dolores ni deseos
+     * troceados, y ningún avatar inventado.
+     *
+     * Antes esto partía la prosa por comas y saltos de línea y llamaba "deseos"
+     * a los trozos. En la ficha real de un cliente los "deseos" salieron siendo
+     * los TÍTULOS DE SECCIÓN del texto original — "Deseos y Sueños", "Lo que
+     * realmente está comprando", y un emoji. Y encima añadía dos avatares
+     * enteros ("Secundario", "Aspiracional") con dolores fijos escritos aquí,
+     * que no tenían nada que ver con ese cliente.
+     *
+     * Eso es inventar datos en la ficha de un cliente real. Un campo vacío se
+     * ve y se llena; un campo con basura convincente se queda para siempre y
+     * alimenta copies y anuncios.
+     */
     buyerPersonas: [
       {
-        name: 'Avatar Principal',
-        description: idealClient.slice(0, 180),
-        pains: data.step4.topPains.split(/[,;]\s*|\n/).filter(Boolean).slice(0, 3),
-        desires: data.step4.topDesires.split(/[,;]\s*|\n/).filter(Boolean).slice(0, 3),
-      },
-      {
-        name: 'Avatar Secundario',
-        description: 'Variante del avatar principal con mayor poder adquisitivo y menor objeción al precio.',
-        pains: ['Falta de tiempo', 'Decisión rápida con poca investigación'],
-        desires: ['Resultados premium', 'Atención personalizada'],
-      },
-      {
-        name: 'Avatar Aspiracional',
-        description: 'Cliente que aún no compra pero consume todo el contenido orgánico — futuro buyer en 30-90 días.',
-        pains: ['Inseguridad sobre el producto', 'Necesita validación social'],
-        desires: ['Pertenecer al grupo de clientes', 'Resultados visibles'],
+        name: 'Avatar principal (borrador)',
+        description: idealClient,
+        pains: [],
+        desires: [],
       },
     ],
     irresistibleOffer: `Sistema integral para ${data.step4.idealClientDescription.split(' ').slice(0, 8).join(' ')}... que ${data.step6.differentiator.split(' ').slice(0, 10).join(' ')}... con garantía de resultados medibles.`,
     gapAnalysis: `Situación actual: ${data.step3.monthlyRevenue}. Meta: ${currency} ${goal3m.toLocaleString()}/mes en 3 meses. Brecha en ${data.step3.acquisitionChannels.length < 3 ? 'diversificación de canales' : 'optimización de conversión'}.`,
     recommendedSystem: inferSystem(data),
     initialDeliverables: [
-      { title: 'Auditoría completa de canales y embudo actual', dueInDays: 5, responsibleRole: 'estratega' },
-      { title: 'Definición de oferta irresistible v1', dueInDays: 7, responsibleRole: 'estratega' },
+      { title: 'Auditoría completa de canales y embudo actual', dueInDays: 5, responsibleRole: 'strategist' },
+      { title: 'Definición de oferta irresistible v1', dueInDays: 7, responsibleRole: 'strategist' },
       { title: 'Setup de tracking + píxeles', dueInDays: 10, responsibleRole: 'media_buyer' },
       { title: 'Primera ronda de creativos (6 piezas)', dueInDays: 14, responsibleRole: 'copywriter' },
       { title: 'Lanzamiento de campañas de prospección', dueInDays: 18, responsibleRole: 'media_buyer' },

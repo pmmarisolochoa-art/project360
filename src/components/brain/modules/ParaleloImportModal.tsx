@@ -22,7 +22,6 @@ import {
   traerReunionesParalelo,
   importarReunionesParalelo,
   responsableDeTarea,
-  nombresEquipoDe,
   type ReunionParaleloConEstado,
   type DiagnosticoParalelo,
 } from '@/services/paralelo';
@@ -45,7 +44,6 @@ export function ParaleloImportModal({ open, onClose, clientId, clienteNombre, pr
   const [diagnostico, setDiagnostico] = useState<DiagnosticoParalelo | undefined>();
   // El equipo del cliente, para enseñar el responsable YA resuelto: la bandeja
   // debe mostrar exactamente lo que va a quedar en la tarea, no el dato crudo.
-  const nombresEquipo = useMemo(() => nombresEquipoDe(clientId), [clientId]);
   const [verDiag, setVerDiag] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -267,7 +265,7 @@ export function ParaleloImportModal({ open, onClose, clientId, clienteNombre, pr
                         <Badge tone={t.prioridad === 'P1' ? 'danger' : t.prioridad === 'P3' ? 'neutral' : 'warning'}>
                           {t.prioridad}
                         </Badge>
-                        <span>{responsableDeTarea(t, nombresEquipo)}</span>
+                        <span>{responsableDeTarea(t)}</span>
                         {/* Paralelo a veces menciona a varios. Solo el primero
                             queda como responsable; el resto se guarda en la
                             descripción, y se avisa aquí para que no parezca

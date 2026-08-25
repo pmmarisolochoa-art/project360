@@ -19,8 +19,6 @@ import type { Task } from '@/types/task';
 import { supabase } from './supabase';
 import { MeetingsRepo } from './repositories';
 import { useClientStore } from '@/store/useClientStore';
-import { teamMembersForClient } from '@/store/useTeamMembersStore';
-import { resolverResponsableParalelo } from '@/config/paralelo';
 import { TASK_SLA_DAYS } from '@/config/taskSLA';
 import { genId } from '@/utils/id';
 import { useRopreStore } from '@/store/useRopreStore';
@@ -30,7 +28,13 @@ import type { RopreItem } from '@/types/ropre';
 export interface TareaParalelo {
   externalId: string;
   titulo: string;
+  /** Todos los mencionados, ya limpios de etiquetas de diarización. */
   responsables: string[];
+  /**
+   * El responsable definitivo, YA RESUELTO CONTRA EL EQUIPO POR EL SERVIDOR.
+   * Ver `api/paralelo/reuniones.ts`. El navegador ya no resuelve nada.
+   */
+  responsable: string;
   prioridad: 'P1' | 'P2' | 'P3';
   /** El `dueDate` de Paralelo tal cual: es prosa, no fecha. Va a la descripción. */
   plazoTexto?: string;
@@ -124,15 +128,9 @@ export async function traerReunionesParalelo(projectId: string): Promise<Respues
  * Es el mismo fallo de los dos traductores de fila del 11-ago: dos copias de la
  * misma lógica se separan, y la que nadie mira se queda atrás.
  */
-export function responsableDeTarea(t: TareaParalelo, nombresEquipo: string[]): string {
-  return t.responsables.length
-    ? resolverResponsableParalelo(t.responsables[0], nombresEquipo)
-    : 'Sin asignar';
+export function responsableDeTarea(t: TareaParalelo): string {
+  return t.responsable || 'Sin asignar';
 }
-
-/** Nombres del equipo de un cliente, para resolver responsables. */
-export const nombresEquipoDe = (clientId: string): string[] =>
-  teamMembersForClient(clientId).map((m) => m.nombre);
 
 export interface ResultadoImportacion {
   reunionesCreadas: number;
@@ -156,7 +154,6 @@ export async function importarReunionesParalelo(
   seleccionadas: ReunionParalelo[],
 ): Promise<ResultadoImportacion> {
   const store = useClientStore.getState();
-  const nombresEquipo = nombresEquipoDe(clientId);
 
   const out: ResultadoImportacion = { reunionesCreadas: 0, tareasCreadas: 0, ropreCreados: 0, fallos: [] };
 
@@ -197,7 +194,7 @@ export async function importarReunionesParalelo(
     out.reunionesCreadas += 1;
 
     for (const t of r.tareas) {
-      const responsable = responsableDeTarea(t, nombresEquipo);
+      const responsable = responsableDeTarea(t);
 
       const task: Task = {
         id: genId(),

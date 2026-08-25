@@ -38,6 +38,7 @@ import {
   limpiarNombreParalelo,
   externalIdReunionParalelo,
   externalIdTareaParalelo,
+  resolverResponsableParalelo,
 } from '../../src/config/paralelo';
 
 export const config = { runtime: 'edge' };
@@ -180,6 +181,46 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: `No se pudo hablar con Paralelo: ${(e as Error).message}` }, 502);
   }
 
+  // ── 3.5 Cargar el equipo del cliente destino ───────────────────────────────
+  /**
+   * POR QUÉ ESTO SE HACE EN EL SERVIDOR (25-ago-2026):
+   * los apodos de la transcripción ("Bala", "Cami", "Mari Cruz") se resolvían
+   * contra el equipo EN EL NAVEGADOR. Con la app de Ikigai a punto de ser donde
+   * la gente trabaja, allá no hay navegador nuestro: las tareas llegarían con
+   * el apodo crudo o asignadas a nadie.
+   *
+   * La resolución se muda aquí y el navegador deja de hacerla. Sigue habiendo
+   * UNA sola función que traduce — la lección del 11 y del 14 de agosto: dos
+   * copias de la misma lógica se separan, y la que nadie mira se queda atrás.
+   *
+   * Si el cliente no se puede identificar sin ambigüedad, NO se resuelve: los
+   * nombres viajan crudos, que es el comportamiento ya acordado. Un responsable
+   * raro se corrige en dos clics; uno asignado a la persona equivocada no lo
+   * corrige nadie porque nadie sabe que está mal.
+   */
+  let nombresEquipo: string[] = [];
+  let equipoDiag = 'no intentado';
+  {
+    const { data: cs } = await admin
+      .from('clients')
+      .select('id')
+      .eq('name', proyecto.cliente)
+      .limit(2);
+    if (!cs || cs.length === 0) {
+      equipoDiag = `sin cliente llamado "${proyecto.cliente}"`;
+    } else if (cs.length > 1) {
+      // Dos clientes con el mismo nombre: elegir uno sería adivinar.
+      equipoDiag = `"${proyecto.cliente}" está repetido: no se resuelven apodos`;
+    } else {
+      const { data: tm } = await admin
+        .from('team_members')
+        .select('nombre')
+        .eq('client_id', cs[0].id);
+      nombresEquipo = [...new Set((tm ?? []).map((m) => String(m.nombre ?? '').trim()).filter(Boolean))];
+      equipoDiag = `${nombresEquipo.length} personas`;
+    }
+  }
+
   // ── 4. Traducir a vocabulario Project360 ───────────────────────────────────
   const reportePorReunion = new Map<string, ReportRowParalelo['report']>();
   for (const r of Array.isArray(reportes) ? reportes : []) {
@@ -281,6 +322,12 @@ export default async function handler(req: Request): Promise<Response> {
             externalId: externalIdTareaParalelo(m.id, String(a.task ?? '')),
             titulo: String(a.task ?? '').trim(),
             responsables: normalizarResponsables(a.assignedTo),
+            /**
+             * El responsable definitivo, YA resuelto contra el equipo real.
+             * Es el que se asigna y el que se muestra en la bandeja: el mismo
+             * dato en los dos sitios, para que revisar sirva de algo.
+             */
+            responsable: resolverUno(normalizarResponsables(a.assignedTo), nombresEquipo),
             prioridad: mapearPrioridad(a.priority),
             /**
              * DECISIÓN (founder, 13-ago): la fecha de entrega NO sale de aquí.
@@ -307,6 +354,7 @@ export default async function handler(req: Request): Promise<Response> {
   diag.desdeCalculado = desde;
   diag.hoyServidor = new Date().toISOString().slice(0, 10);
   diag.trasFechaYBasura = items.length;
+  diag.equipoParaApodos = equipoDiag;
 
   return json({
     cliente: proyecto.cliente,
@@ -342,6 +390,15 @@ function normalizarResponsables(v: ActionItemParalelo['assignedTo']): string[] {
   // El emparejamiento contra el equipo real (alias incluidos) lo hace el
   // frontend, que sí tiene cargada la lista de miembros.
   return [...new Set(limpios)];
+}
+
+/**
+ * El primer mencionado, resuelto contra el equipo. Sin nadie = 'Sin asignar'.
+ * Los demás mencionados viajan en `responsables` y salen en la descripción.
+ */
+function resolverUno(responsables: string[], nombresEquipo: string[]): string {
+  if (responsables.length === 0) return 'Sin asignar';
+  return resolverResponsableParalelo(responsables[0], nombresEquipo);
 }
 
 /** High/Medium/Low de Paralelo → P1/P2/P3 nuestro. Sin dato = P2. */

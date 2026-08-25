@@ -209,4 +209,8 @@ export const SCOPE_LABELS: Record<string, string> = {
   'write:tasks': 'Crear tareas',
   'read:meetings': 'Leer agenda / reuniones',
   'write:meetings': 'Crear reuniones',
+  'read:clients': 'Leer clientes',
+  'read:team': 'Leer equipo',
+  'read:ropre': 'Leer ROPRE',
+  'read:deliverables': 'Leer entregables',
 };

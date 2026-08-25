@@ -34,7 +34,13 @@ import {
  * Agenda; clientes, métricas, links y equipo no tienen endpoints todavía, así
  * que ofrecer sus permisos sería prometer algo que no existe.
  */
-const SCOPES = ['read:tasks', 'write:tasks', 'read:meetings', 'write:meetings'] as const;
+const SCOPES = [
+  'read:tasks', 'write:tasks',
+  'read:meetings', 'write:meetings',
+  // Paso 2 de la integración: por ahora SOLO lectura. La escritura de estos se
+  // abre después y de a una, cuando la lectura ya funcione (regla del 6-ago).
+  'read:clients', 'read:team', 'read:ropre', 'read:deliverables',
+] as const;
 
 const ESCRITURA = new Set(['write:tasks', 'write:meetings']);
 

@@ -332,6 +332,104 @@ Un tipo fuera de esta lista devuelve `400` con los valores permitidos.
 
 ---
 
+### 5.8 Listar clientes
+
+`GET /api/v1/clients` — permiso `read:clients`
+
+| Filtro | Valores |
+|---|---|
+| `status` | `onboarding` · `planning` · `active` · `paused` · `completed` |
+| `limite` | 1–200 (por defecto 50) |
+| `offset` | desde 0 |
+
+Devuelve `data.clientes[]` con: `id`, `nombre`, `sigla`, `industria`,
+`tipo_negocio`, `estado`, `tipo_proyecto`, `color`, `es_agencia`,
+`presupuesto_ads_mensual`, `creado_en`, `actualizado_en`.
+
+**No devuelve `onboarding_data` ni `ai_brain_data`** — el negocio del cliente,
+su oferta, su narrativa de marca y sus buyer personas. Es la información más
+sensible de la base y ninguna integración de gestión la necesita.
+
+**Sobre `es_agencia`:** uno de los "clientes" representa a la propia agencia y
+aloja las reuniones y tareas internas. Viene marcado para que decidas si lo
+muestras como un cliente más o lo tratas aparte. En Project360 no sale en la
+lista de clientes.
+
+---
+
+### 5.9 Listar el equipo
+
+`GET /api/v1/team` — permiso `read:team`
+
+| Filtro | Valores |
+|---|---|
+| `client_id` | uuid |
+| `limite` | 1–300 (por defecto 100) |
+
+Devuelve `data.equipo[]` con: `id`, `client_id`, `cliente`, `nombre`, `rol`,
+`nivel_acceso`, `departamentos`, `es_direccion`, `ve_todas_tareas`,
+`tiene_usuario`, `creado_en`.
+
+⚠️ **Una persona sale varias veces, y no es un error.** Cada persona tiene una
+ficha **por cliente**, porque su rol puede cambiar según el cliente. Agrupa por
+`nombre` si necesitas la lista de personas; usa las filas tal cual si necesitas
+saber quién trabaja en qué.
+
+**No devuelve `email` ni `telefono`** (datos de contacto), ni el id de usuario.
+`tiene_usuario` dice solo SI la persona tiene cuenta, que es lo accionable.
+
+**`rol` es un slug** del catálogo de 13: `project_manager`, `strategist`,
+`media_buyer`, `copywriter`, `designer`, `community`, `funnel_builder`,
+`editor`, `closer`, `onboarding`, `platforms`, `creative_lead`, `expert`.
+
+---
+
+### 5.10 Listar ROPRE
+
+`GET /api/v1/ropre` — permiso `read:ropre`
+
+ROPRE es el marco de planeación por cliente: **R**esultados, **O**bjetivos,
+**P**remisas, **R**iesgos y **E**ntregables.
+
+| Filtro | Valores |
+|---|---|
+| `client_id` | uuid |
+| `tipo` | `result` · `objective` · `premise` · `risk` · `deliverable` |
+| `limite` | 1–200 (por defecto 50) |
+
+Devuelve `data.items[]` con: `id`, `client_id`, `cliente`, `tipo`, `titulo`,
+`descripcion`, `nivel_riesgo`, `mitigacion`, `estado`, `inicia_en`, `vence_en`,
+`responsable`, `valor_objetivo`, `valor_actual`, `tarea_id`, `creado_en`.
+
+Un **riesgo** trae su `mitigacion` emparejada. Un **entregable** trae `vence_en`
+y `responsable`, y si se promovió a tarea, `tarea_id` dice cuál.
+
+---
+
+### 5.11 Listar entregables
+
+`GET /api/v1/deliverables` — permiso `read:deliverables`
+
+Un entregable es el enlace a donde vive el trabajo de verdad (normalmente
+Drive), con quién lo subió y en qué estado está.
+
+| Filtro | Valores |
+|---|---|
+| `client_id` | uuid |
+| `estado` | texto (ej. `pendiente`) |
+| `limite` | 1–200 (por defecto 50) |
+
+Devuelve `data.entregables[]` con: `id`, `client_id`, `cliente`, `task_id`,
+`nombre`, `url`, `tipo`, `fuente`, `estado`, `notas`, `subido_por`, `creado_en`.
+
+`task_id` puede venir vacío: hay entregables sueltos, sin tarea.
+
+**No devuelve los entregables de una tarea privada.** Esa tarea no se puede leer
+por esta API, así que su entregable tampoco — sería la misma fuga por otra
+puerta.
+
+---
+
 ## 6. Códigos de error
 
 | HTTP | `code` | Qué pasó | Qué hacer |

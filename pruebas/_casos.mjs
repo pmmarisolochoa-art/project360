@@ -18,6 +18,10 @@ import tasks from './.build/tasks.js';
 import tarea from './.build/tarea.js';
 import cambiarEstado from './.build/estado.js';
 import meetings from './.build/meetings.js';
+import clients from './.build/clients.js';
+import team from './.build/team.js';
+import ropre from './.build/ropre.js';
+import deliverables from './.build/deliverables.js';
 
 process.env.VITE_SUPABASE_URL = 'https://falso.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key-falsa';
@@ -360,5 +364,48 @@ for (let i = 0; i < 12; i++) await pedir(tasks);
 ok(estado.requests.length === 12, `12 llamadas → 12 filas, ninguna perdida (fueron ${estado.requests.length})`);
 
 console.log(`\n${'═'.repeat(62)}`);
+// ═══ PASO 2: las cuatro lecturas nuevas ═══
+seccion('Lecturas nuevas: clientes, equipo, ROPRE y entregables');
+
+const NUEVAS = [
+  { nombre: 'clients',      h: clients,      url: '/clients',      scope: 'read:clients',      rpc: 'api_clientes_listar',    campo: 'clientes' },
+  { nombre: 'team',         h: team,         url: '/team',         scope: 'read:team',         rpc: 'api_equipo_listar',      campo: 'equipo' },
+  { nombre: 'ropre',        h: ropre,        url: '/ropre',        scope: 'read:ropre',        rpc: 'api_ropre_listar',       campo: 'items' },
+  { nombre: 'deliverables', h: deliverables, url: '/deliverables', scope: 'read:deliverables', rpc: 'api_entregables_listar', campo: 'entregables' },
+];
+
+for (const ep of NUEVAS) {
+  const u = `https://app.com/api/v1${ep.url}`;
+
+  // Con su permiso: responde y usa LA FUNCIÓN SQL, no la tabla. El aislamiento
+  // vive en la base, así que si alguna vez esto consultara la tabla directa,
+  // la service key se saltaría RLS y se filtrarían otras agencias.
+  reset({ keys: [keyBase({ scopes: [ep.scope] })] });
+  let r = await pedir(ep.h, { url: u });
+  ok(r.status === 200, `GET ${ep.url} con permiso → 200 (fue ${r.status})`);
+  ok(estado.llamadasRpc[0]?.nombre === ep.rpc, `${ep.url} llama a ${ep.rpc}, no a la tabla`);
+  ok(estado.llamadasRpc[0]?.args?.p_agencia === AG_A, `${ep.url} filtra por la agencia de la key`);
+  const cuerpoEp = await r.json();
+  ok(cuerpoEp.success === true && ep.campo in (cuerpoEp.data ?? {}),
+     `${ep.url} devuelve data.${ep.campo}`);
+  ok('paginacion' in (cuerpoEp.data ?? {}), `${ep.url} pagina como los demás`);
+
+  // Sin su permiso: 403. Una llave de tareas NO abre el resto.
+  reset({ keys: [keyBase({ scopes: ['read:tasks'] })] });
+  r = await pedir(ep.h, { url: u });
+  ok(r.status === 403, `GET ${ep.url} sin permiso → 403 (fue ${r.status})`);
+
+  // Solo lectura: escribir no existe todavía (Paso 2).
+  reset({ keys: [keyBase({ scopes: [ep.scope] })] });
+  r = await pedir(ep.h, { url: u, metodo: 'POST', body: { x: 1 } });
+  ok(r.status === 405, `POST ${ep.url} → 405: en el Paso 2 solo se lee (fue ${r.status})`);
+}
+
+// Los permisos nuevos existen en la lista canónica Y en el CHECK de la base
+// (migración 043). Si se separan, emitir la llave falla con un error críptico.
+reset({ keys: [keyBase({ scopes: ['read:clients'] })] });
+ok((await pedir(clients, { url: 'https://app.com/api/v1/clients' })).status === 200,
+   'un permiso nuevo es aceptado por el middleware');
+
 console.log(fallos === 0 ? `🟢 ${total}/${total} PASARON` : `🔴 ${fallos} de ${total} FALLARON`);
 process.exit(fallos ? 1 : 0);

@@ -202,8 +202,30 @@ begin
   end loop;
 end $$;
 
--- ── 6. Comprobación (correr aparte) ─────────────────────────────────────────
+-- ── 6. Los permisos nuevos, TAMBIÉN en la base ──────────────────────────────
+-- `api_keys.scopes` tiene un CHECK con la lista de permisos válidos. Si se
+-- agregan en TypeScript y no aquí, emitir una llave con el permiso nuevo falla
+-- con un error críptico de Postgres.
+--
+-- Es la trampa que ya mordió TRES veces en este proyecto (el CHECK de
+-- `tasks.origen` con 'api', el de `meetings.type`, y el de `tasks.status`). Por
+-- eso se amplía ANTES de que exista el endpoint, no después.
+alter table public.api_keys drop constraint if exists api_keys_scopes_validos;
+alter table public.api_keys add constraint api_keys_scopes_validos
+  check (scopes <@ array[
+    'read:tasks', 'write:tasks',
+    'read:meetings', 'write:meetings',
+    -- Paso 2: solo LECTURA. La escritura de estos se abre después, de a una,
+    -- y cuando la lectura ya funcione (regla del 6-ago).
+    'read:clients', 'read:team', 'read:ropre', 'read:deliverables'
+  ]::text[]);
+
+-- ── 7. Comprobación (correr aparte) ─────────────────────────────────────────
 --   select proname from pg_proc
 --   where proname in ('api_clientes_listar','api_equipo_listar',
 --                     'api_ropre_listar','api_entregables_listar');
 --   ↑ deben salir las 4.
+--
+--   select pg_get_constraintdef(oid) from pg_constraint
+--   where conname = 'api_keys_scopes_validos';
+--   ↑ debe listar los 8 permisos.

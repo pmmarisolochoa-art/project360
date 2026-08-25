@@ -120,6 +120,34 @@ export const filtrosReuniones = z.object({
 });
 
 // ── Cuerpos de escritura ─────────────────────────────────────────────────────
+/* ── Filtros de las lecturas nuevas (Paso 2) ─────────────────────────────── */
+
+export const filtrosClientes = z.object({
+  status: z.enum(['onboarding', 'planning', 'active', 'paused', 'completed']).optional(),
+  limite: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const filtrosEquipo = z.object({
+  client_id: uuid.optional(),
+  limite: z.coerce.number().int().min(1).max(300).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const filtrosRopre = z.object({
+  client_id: uuid.optional(),
+  tipo: z.enum(['result', 'objective', 'premise', 'risk', 'deliverable']).optional(),
+  limite: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export const filtrosEntregables = z.object({
+  client_id: uuid.optional(),
+  estado: texto(40).optional(),
+  limite: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
 export const crearTarea = z
   .object({
     client_id: uuid,

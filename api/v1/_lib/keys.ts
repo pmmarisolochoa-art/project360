@@ -79,6 +79,15 @@ export const SCOPES_VALIDOS = [
   'write:tasks',
   'read:meetings',
   'write:meetings',
+  // Paso 2 de la integración (25-ago): solo LECTURA. La escritura de estos se
+  // abre después y de a una, cuando la lectura ya funcione — regla del 6-ago.
+  // OJO: esta lista está TAMBIÉN en el CHECK de `api_keys.scopes` (migración
+  // 043). Si se agrega uno aquí y no allí, emitir la llave falla con un error
+  // críptico de Postgres. Ya pasó tres veces en este proyecto.
+  'read:clients',
+  'read:team',
+  'read:ropre',
+  'read:deliverables',
 ] as const;
 
 export type Scope = (typeof SCOPES_VALIDOS)[number];

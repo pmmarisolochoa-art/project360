@@ -8,7 +8,7 @@ import { getTemplate } from '@/data/funnelTemplates';
 import { useClientStore } from '@/store/useClientStore';
 import { FunnelLaunchRepo, TasksRepo } from '@/services/repositories';
 import { genId } from '@/utils/id';
-import { resolveAssignee } from '@/utils/roleResolver';
+import { resolverResponsableParaGuardar } from '@/utils/roleResolver';
 
 /**
  * Store del sistema de Embudos de Lanzamiento (Funnel + Phases).
@@ -161,7 +161,10 @@ function materializeFromTemplate(
           : undefined,
         status: 'pending',
         priority: tplTask.priority ?? 'P2',
-        assignedTo: resolveAssignee(tplTask.responsibleRole, clientId),
+        // `resolveAssignee` es para PINTAR: si nadie tiene el rol devuelve el
+        // TÍTULO ("Plataformas"), que no es una persona y deja la tarea
+        // huérfana. Para GUARDAR se usa el resolvedor estricto: persona o nada.
+        assignedTo: resolverResponsableParaGuardar(tplTask.responsibleRole, clientId),
         dueDate: dueDate.toISOString(),
         startDate: new Date(startDate.getTime() + tplTask.dayStart * 86400000).toISOString(),
         isDelayed: false,

@@ -1359,19 +1359,30 @@ function TaskModal({
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'P2');
   const [assignedTo, setAssignedTo] = useState(task?.assignedTo ?? '');
 
-  // Opciones del Responsable = equipo real del cliente (team_members) + roles
+  /**
+   * Opciones del Responsable = PERSONAS del equipo del cliente. Nada más.
+   *
+   * Hasta el 25-ago este desplegable ofrecía también "🏷️ Por rol: Plataformas"
+   * y guardaba el slug (`platforms`) como si fuera un nombre. Se veía bien en la
+   * tarjeta —hay un traductor al pintar— pero abajo nadie más traducía: los KPIs
+   * buscan el nombre exacto, así que esas tareas no contaban para nadie, y el
+   * filtro "Todas las personas" listaba `platforms`, `expert` y `designer` entre
+   * la gente del equipo.
+   *
+   * Las opciones de rol se quitan por REDUNDANTES además de rotas: cada persona
+   * ya sale con su rol al lado, así que "el media buyer" se encuentra igual.
+   * Una tarea la hace una persona.
+   */
   const teamMembers = useTeamMembersStore((s) => s.members).filter((m) => m.clientId === clientId);
   const responsibleOptions = useMemo(() => {
-    const teamOpts = teamMembers.map((m) => {
-      const role = ROLE_DEFS.find((r) => r.slug === m.rol);
-      return { value: m.nombre, label: `👤 ${m.nombre} · ${role?.title ?? m.rol}` };
-    });
-    const roleOpts = ROLE_DEFS.map((r) => ({ value: r.slug, label: `🏷️ Por rol: ${r.title}` }));
-    return [
-      { value: '', label: '— Sin asignar —' },
-      ...teamOpts,
-      ...roleOpts,
-    ];
+    const teamOpts = teamMembers
+      .filter((m) => (m.nombre ?? '').trim())
+      .map((m) => {
+        const role = ROLE_DEFS.find((r) => r.slug === m.rol);
+        return { value: m.nombre, label: `👤 ${m.nombre} · ${role?.title ?? m.rol}` };
+      })
+      .sort((a, b) => a.value.localeCompare(b.value, 'es'));
+    return [{ value: '', label: '— Sin asignar —' }, ...teamOpts];
   }, [teamMembers]);
 
   // Si assignedTo viene como slug, mostrar título legible. Si viene como
@@ -1592,7 +1603,7 @@ function TaskModal({
               }
             />
             <div className="text-[10px] text-text-muted mt-1">
-              Elige un miembro del team o un rol. El nombre se muestra en la tarea.
+              Solo personas del equipo de este cliente. ¿Falta alguien? Se agrega en el módulo Equipo.
             </div>
           </div>
           <Input

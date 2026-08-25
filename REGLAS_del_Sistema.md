@@ -142,6 +142,21 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 
 ---
 
+**R-49 ✅ — El responsable de una tarea es una PERSONA, y se elige de una lista.**
+Nunca un rol, nunca un equipo, nunca texto escrito a mano. Si algo llega como
+rol (la IA de reuniones, el agente PM, las plantillas de embudo, el onboarding
+de un cliente), se traduce a la persona que ejerce ese rol **en ese cliente y al
+GUARDAR** — no al pintar. Si no se puede resolver sin ambigüedad (nadie lo tiene,
+o lo tienen dos), queda **Sin asignar**.
+*Origen:* la lista "Todas las personas" llegó a mostrar **34 nombres para 13
+personas**: apodos del histórico, "Speaker A", y slugs como `platforms`,
+`expert` y `designer` — que ofrecía el propio desplegable como "🏷️ Por rol". Se
+veían bien en la tarjeta porque había un traductor al pintar, pero los KPIs
+buscan el nombre exacto: **esas tareas no contaban para nadie y media plantilla
+llevaba meses mal medida.**
+*Se comprueba:* que ningún `tasks.assigned_to` deje de coincidir con una ficha de
+`team_members`. Hoy: 0.
+
 ## 7. Cómo se trabaja
 
 **R-35 ✅ — Cuando la deducción falla dos veces, se mide.** Se imprime el dato crudo al lado del procesado en vez de razonar sobre lo que debería pasar. Los diagnósticos que encuentran algo se quedan puestos.

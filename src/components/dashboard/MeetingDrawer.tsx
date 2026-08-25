@@ -24,6 +24,7 @@ import { Modal } from '@/components/ui/Modal';
 import { generateMeetingAgenda, extractTasksFromNotes, generateRopreFromTranscription, type ExtractedTask } from '@/services/claudeApi';
 import { useRopreStore } from '@/store/useRopreStore';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
+import { resolverResponsableParaGuardar } from '@/utils/roleResolver';
 import type { RopreItem } from '@/types/ropre';
 import { ROLE_DEFS } from '@/types/team';
 import { RopreInlineEditor } from './RopreInlineEditor';
@@ -411,7 +412,10 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
             title: t.title,
             status: 'pending',
             priority: t.priority ?? 'P2',
-            assignedTo: t.responsibleRole,
+            // La IA devuelve un ROL. Se traduce a la persona que lo ejerce en este
+            // cliente ANTES de guardar; si no se puede, queda 'Sin asignar' —
+            // visible y corregible— en vez de un slug que nadie reconoce.
+            assignedTo: resolverResponsableParaGuardar(t.responsibleRole, meeting.clientId),
             dueDate: new Date(Date.now() + t.dueInDays * 86400000).toISOString(),
             isDelayed: false,
             delayDays: 0,
@@ -767,7 +771,10 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                       title: t.title,
                       status: 'pending',
                       priority: t.priority ?? 'P2',
-                      assignedTo: t.responsibleRole,
+                      // La IA devuelve un ROL. Se traduce a la persona que lo ejerce en este
+            // cliente ANTES de guardar; si no se puede, queda 'Sin asignar' —
+            // visible y corregible— en vez de un slug que nadie reconoce.
+            assignedTo: resolverResponsableParaGuardar(t.responsibleRole, meeting.clientId),
                       dueDate: new Date(Date.now() + t.dueInDays * 86400000).toISOString(),
                       isDelayed: false,
                       delayDays: 0,

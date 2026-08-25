@@ -6,12 +6,15 @@ import { es } from 'date-fns/locale';
 import { Calendar, CheckCircle2, AlertTriangle, User, Clock, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { genId } from '@/utils/id';
 import { toast } from '@/store/useToastStore';
 import { resolveAssignee, resolveRoleLabel } from '@/utils/roleResolver';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { Task } from '@/types/task';
 import { useClientStore } from '@/store/useClientStore';
+import { useTeamMembersStore } from '@/store/useTeamMembersStore';
+import { ROLE_DEFS } from '@/types/team';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { Badge } from '@/components/ui/Badge';
 
@@ -326,6 +329,17 @@ function PhaseTasksPanel({
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newAssignee, setNewAssignee] = useState('');
+  const miembros = useTeamMembersStore((st) => st.members);
+  const opcionesResponsable = useMemo(() => {
+    const gente = miembros
+      .filter((m) => m.clientId === clientId && (m.nombre ?? '').trim())
+      .map((m) => ({
+        value: m.nombre,
+        label: `👤 ${m.nombre} · ${ROLE_DEFS.find((r) => r.slug === m.rol)?.title ?? m.rol}`,
+      }))
+      .sort((a, b) => a.value.localeCompare(b.value, 'es'));
+    return [{ value: '', label: '— Sin asignar —' }, ...gente];
+  }, [miembros, clientId]);
 
   const sorted = [...tasks].sort((a, b) => {
     const pri: Record<string, number> = { P1: 0, P2: 1, P3: 2 };
@@ -393,11 +407,13 @@ function PhaseTasksPanel({
             autoFocus
             onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
           />
-          <Input
+          {/* Responsable = PERSONA del equipo. Era un campo de texto libre, y por
+              ahí entraban apodos y nombres a medias que luego no cuadran con
+              ninguna ficha ni con ningún KPI. */}
+          <Select
             value={newAssignee}
             onChange={(e) => setNewAssignee(e.target.value)}
-            placeholder="Responsable (opcional)"
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+            options={opcionesResponsable}
           />
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => { setShowAddForm(false); setNewTitle(''); setNewAssignee(''); }}>Cancelar</Button>

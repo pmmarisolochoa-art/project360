@@ -8,6 +8,7 @@
  */
 
 import { genId } from '@/utils/id';
+import { resolverResponsableParaGuardar } from '@/utils/roleResolver';
 import { useClientStore } from '@/store/useClientStore';
 import { useRopreStore } from '@/store/useRopreStore';
 import type { Task, TaskPriority } from '@/types/task';
@@ -109,7 +110,11 @@ export function executeAction(action: AgentAction, clientId: string): { ok: bool
       description: str(d, 'descripcion'),
       status: 'pending',
       priority: (['P1', 'P2', 'P3'] as string[]).includes(prioridad) ? prioridad : 'P2',
-      assignedTo: str(d, 'rol') || 'project_manager',
+      // El agente devuelve un ROL. Se traduce a la persona que lo ejerce en
+      // este cliente ANTES de guardar. Antes se guardaba el slug tal cual —y
+      // por defecto el literal 'project_manager'—, que no es nadie: la tarea
+      // nacía huérfana y no contaba para ningún KPI.
+      assignedTo: resolverResponsableParaGuardar(str(d, 'rol'), clientId),
       dueDate: isoInDays(venceEnDias),
       startDate: new Date().toISOString(),
       isDelayed: false,

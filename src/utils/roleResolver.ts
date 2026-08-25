@@ -93,3 +93,59 @@ export function resolveRoleLabels(assignedTo: string, clientId?: string): string
 
   return [];
 }
+
+/**
+ * Traduce un responsable A NOMBRE DE PERSONA, para GUARDARLO.
+ *
+ * POR QUÉ EXISTE (25-ago-2026)
+ * `resolveAssignee()` traduce al MOSTRAR: la tarjeta enseña "David Castaño"
+ * aunque en la base ponga `media_buyer`. Eso hacía creer que asignar por rol
+ * funcionaba, pero solo funcionaba en la tarjeta:
+ *
+ *   · Los KPIs del equipo buscan el nombre EXACTO (`assignedTo === nombre`),
+ *     así que una tarea con slug no contaba para nadie.
+ *   · El filtro "Todas las personas" y el recap de reunión mostraban el slug
+ *     crudo: la founder vio `platforms`, `expert` y `designer` en la lista de
+ *     personas de su equipo.
+ *   · Si NADIE tenía ese rol, `resolveAssignee` caía al título del rol
+ *     ("Plataformas"), que tampoco es una persona. Tarea huérfana para siempre.
+ *
+ * La regla nueva: **el rol se traduce cuando se ESCRIBE, no cuando se pinta**.
+ * En la base solo hay nombres de personas. Así todo lo de abajo —KPIs, filtros,
+ * reportes, la API— ve lo mismo, sin que cada uno tenga que acordarse de
+ * traducir.
+ *
+ * Si no se puede resolver (nadie con ese rol, o DOS personas con él), devuelve
+ * cadena vacía = "Sin asignar". Es a propósito: una tarea sin responsable salta
+ * a la vista y alguien la corrige; una asignada a `platforms` no la corrige
+ * nadie porque nadie sabe que está mal. Es la misma regla que con los apodos de
+ * Paralelo.
+ */
+export function resolverResponsableParaGuardar(valor: string | undefined, clientId?: string): string {
+  const v = (valor ?? '').trim();
+  if (!v) return '';
+  if (!VALID_SLUGS.has(v)) return v; // ya es un nombre de persona
+
+  if (!clientId) return '';
+  const conEseRol = useTeamMembersStore
+    .getState()
+    .members.filter((m) => m.clientId === clientId && m.rol === v && (m.nombre ?? '').trim());
+
+  // Exactamente una persona: se resuelve. Cero o varias: no se adivina.
+  return conEseRol.length === 1 ? conEseRol[0].nombre.trim() : '';
+}
+
+/**
+ * Roles que HOY se pueden resolver a una persona concreta en este cliente.
+ * Sirve para que el desplegable solo ofrezca lo que de verdad va a funcionar
+ * (R-31: un control que solo puede fallar no se muestra).
+ */
+export function rolesResolublesDe(clientId: string): Array<{ slug: string; titulo: string; persona: string }> {
+  const members = useTeamMembersStore.getState().members.filter((m) => m.clientId === clientId);
+  return ROLE_DEFS.flatMap((r) => {
+    const conEseRol = members.filter((m) => m.rol === r.slug && (m.nombre ?? '').trim());
+    return conEseRol.length === 1
+      ? [{ slug: r.slug, titulo: r.title, persona: conEseRol[0].nombre.trim() }]
+      : [];
+  });
+}

@@ -148,6 +148,9 @@ Hoy Paralelo se lee con el JWT de la sesión de la founder. Funciona, pero muere
 
 **R-37 ⚠️ — Nada se da por hecho hasta verificarlo en producción con datos reales.** Construido y verificado no son lo mismo; media semana de agosto se fue en descubrir que algo "construido" no funcionaba.
 
+**R-48 ✅ — Un store que no habla con la base no puede decir "guardado".** Si algo vive solo en memoria, la interfaz lo dice o no lo dice, pero no promete lo contrario. Y antes de construirle persistencia a un módulo, la primera pregunta es si se usa: uno que no se usa y además miente es peor que uno que no existe.
+*Origen:* Planeación y el Agente SOP cantaban "guardado" y no escribían en ningún sitio — ni repositorio, ni tabla, ni `localStorage`. Los encontró el auditor el 21-ago; la founder confirmó que no se usaban y se retiraron el 25.
+
 **R-45 ✅ — Una función no está hecha hasta que su resultado sobrevive y llega a quien tiene que leerlo.** Verse bien en pantalla es la mitad: si no aguanta una recarga, no se puede descargar y no llega a nadie, no está terminada.
 *Origen:* el reporte de la Daily se dio por listo cuando se veía bien. Vivía solo en memoria (desaparecía al recargar, costaba otra llamada de IA cada vez, y cada persona veía el suyo), el PDF salía en blanco porque el botón llamaba al reporte viejo, y no había forma de enviarlo. El contenido estaba bien; la entrega no existía.
 

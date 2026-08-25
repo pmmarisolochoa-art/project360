@@ -47,16 +47,28 @@ Escribe el informe en informes/${FECHA}-auditoria.md con la estructura exacta qu
 
 Termina con el resumen: cuántos hallazgos nuevos, de qué prioridad, y qué sigue abierto."
 
+# `caffeinate -i` impide que el equipo se duerma MIENTRAS corre la auditoría.
+# Sin esto, la primera corrida real murió con "your computer went to sleep
+# mid-response": el auditor ya había terminado de medir y se cortó justo al
+# escribir el informe. Una tarea que tarda minutos y se lanza a las 7 de la
+# mañana se cruza de lleno con el reposo automático.
+#
+# `-i` solo evita el reposo por inactividad; si cierras la tapa, se duerme igual
+# — eso no hay forma de impedirlo y esa corrida se pierde.
+#
 # --permission-mode acceptEdits: puede escribir su informe sin preguntar, pero
 # no puede correr comandos peligrosos. El agente ya tiene prohibido tocar código
 # en su propia definición; esto es el cinturón además de los tirantes.
-claude -p "$PROMPT" \
+caffeinate -i claude -p "$PROMPT" \
   --permission-mode acceptEdits \
   >> "$LOG" 2>&1
 
 INFORME="informes/${FECHA}-auditoria.md"
 if [ ! -f "$INFORME" ]; then
+  # Falla ruidosamente y no commitea nada. Un auditor que se cae en silencio
+  # es peor que no tenerlo: pasarían días sin informe y nadie lo notaría.
   echo "[ERROR] El auditor no dejó $INFORME. Mira el log de arriba." >> "$LOG"
+  osascript -e 'display notification "No se generó el informe. Mira informes/.auditor.log" with title "Auditoría de Project360 falló"' 2>/dev/null || true
   exit 1
 fi
 

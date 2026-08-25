@@ -14,22 +14,11 @@ import { MetricsModule } from '@/components/brain/modules/MetricsModule';
 import { ContentModule } from '@/components/brain/modules/ContentModule';
 import { TeamModule } from '@/components/brain/modules/TeamModule';
 import { ProjectionsModule } from '@/components/brain/modules/ProjectionsModule';
-import { PlanningModule } from '@/components/brain/modules/PlanningModule';
 import { ProgramsModule } from '@/components/brain/modules/ProgramsModule';
 import { AgentPanel } from '@/components/agent/AgentPanel';
 import { useClientMode } from '@/hooks/useClientMode';
 
 const MODULE_DESCRIPTIONS: Record<string, { description: string; features: string[] }> = {
-  planning: {
-    description:
-      'Planeación operativa del proyecto: scope, fases, dependencias, riesgos y plan de comunicación con el cliente.',
-    features: [
-      'Vista de scope del proyecto y entregables comprometidos',
-      'Calendario maestro de hitos y dependencias',
-      'Matriz de stakeholders y plan de comunicación',
-      'Documento de propuesta exportable',
-    ],
-  },
   ropre: {
     description:
       'Sistema ROPRE: Resultado esperado, Objetivos secundarios, Premisas estratégicas, Riesgos identificados y Entregables comprometidos.',
@@ -176,8 +165,6 @@ export function ClientBrainPage() {
           <TeamModule client={client} readOnly={isMember} />
         ) : module === 'projections' ? (
           <ProjectionsModule client={client} readOnly={isMember} />
-        ) : module === 'planning' ? (
-          <PlanningModule client={client} readOnly={isMember} />
         ) : module === 'programs' ? (
           <ProgramsModule client={client} readOnly={isMember} />
         ) : module === 'meetings' ? (

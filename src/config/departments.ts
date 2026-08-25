@@ -33,7 +33,7 @@ export const DEPARTMENTS: DepartmentDef[] = [
     id: 'finanzas',
     label: 'Planeación & Finanzas',
     hint: 'números del cliente',
-    modules: ['planning', 'projections', 'metrics'],
+    modules: ['projections', 'metrics'],
   },
   {
     id: 'content',

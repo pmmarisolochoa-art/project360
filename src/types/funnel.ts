@@ -1,57 +1,17 @@
-export type FunnelKind = 'capture' | 'warmup' | 'launch_event' | 'evergreen' | 'ecommerce' | 'personal_brand';
-
-export type FunnelNodeType = 'source' | 'page' | 'lead' | 'email' | 'split' | 'cta' | 'sale';
-
-export interface FunnelNode {
-  id: string;
-  type: FunnelNodeType;
-  label: string;
-  description?: string;
-  expectedConvRate?: number; // 0..1
-  tool?: string;
-  responsible?: string;
-  linkedTaskId?: string;
-}
-
-export interface FunnelEdge {
-  from: string;
-  to: string;
-  label?: string;
-}
-
-export interface FunnelDoc {
-  id: string;
-  clientId: string;
-  kind: FunnelKind;
-  name: string;
-  nodes: FunnelNode[];
-  edges: FunnelEdge[];
-  createdAt: string;
-}
-
+/**
+ * Embudos de LANZAMIENTO (los que sí se usan y se guardan en la base).
+ *
+ * Aquí vivían también los tipos del constructor visual de embudos del módulo
+ * Planeación. Ese módulo se retiró el 25-ago: decía "embudo creado" y no
+ * guardaba nada, y la founder confirmó que no lo usaban. Sus tipos se fueron
+ * con él para que nadie construya encima de un esqueleto muerto — y para que
+ * no queden dos cosas casi iguales llamadas "funnel", que ya fue la causa de
+ * media semana perdida el 11 de agosto.
+ */
 /**
  * Meta de cada tipo de nodo del diagrama — emoji + lenguaje plano para que
  * el cliente entienda el embudo sin jerga de marketing.
  */
-export const FUNNEL_NODE_TYPE_META: Record<FunnelNodeType, { emoji: string; label: string; color: string }> = {
-  source: { emoji: '📲', label: 'Fuente de tráfico',      color: '#6366F1' },
-  page:   { emoji: '📄', label: 'Página',                  color: '#8B5CF6' },
-  lead:   { emoji: '🧲', label: 'Lead capturado',          color: '#06B6D4' },
-  email:  { emoji: '📧', label: 'Email',                   color: '#F59E0B' },
-  split:  { emoji: '🔀', label: 'División A/B',            color: '#F97316' },
-  cta:    { emoji: '👆', label: 'Llamado a la acción',     color: '#EC4899' },
-  sale:   { emoji: '💰', label: 'Venta',                   color: '#10B981' },
-};
-
-export const FUNNEL_KIND_META: Record<FunnelKind, { label: string; description: string }> = {
-  capture:       { label: 'Captación / Lead Generation', description: 'Capturar leads desde frío hacia base.' },
-  warmup:        { label: 'Calentamiento de audiencia',  description: 'Nutrir audiencia ya conocida.' },
-  launch_event:  { label: 'Lanzamiento con Evento',      description: 'Pre-lanzamiento → CPL → Carrito.' },
-  evergreen:     { label: 'Evergreen / Siempre activo',  description: 'Sistema 24/7 con ROAS estable.' },
-  ecommerce:     { label: 'Ecommerce directo',           description: 'Catálogo → carrito → checkout.' },
-  personal_brand:{ label: 'Marca personal / Posicionamiento', description: 'Audiencia orgánica → autoridad → monetización.' },
-};
-
 /* ════════════════════════════════════════════════════════════════════════════
  * SISTEMA DE EMBUDOS DE LANZAMIENTO CON ROADMAP
  * Nuevo sistema (no rompe el anterior). Un cliente tiene 0+ Funnels.

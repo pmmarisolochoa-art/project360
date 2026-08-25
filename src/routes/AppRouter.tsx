@@ -19,7 +19,6 @@ import { LoginPage } from '@/pages/LoginPage';
  */
 const OnboardingPage = lazy(() => import('@/pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })));
 const ClientBrainPage = lazy(() => import('@/pages/ClientBrainPage').then((m) => ({ default: m.ClientBrainPage })));
-const SopAgentPage = lazy(() => import('@/pages/SopAgentPage').then((m) => ({ default: m.SopAgentPage })));
 const AllTasksPage = lazy(() => import('@/pages/AllTasksPage').then((m) => ({ default: m.AllTasksPage })));
 const ClientsPage = lazy(() => import('@/pages/ClientsPage').then((m) => ({ default: m.ClientsPage })));
 const AgendaPage = lazy(() => import('@/pages/AgendaPage').then((m) => ({ default: m.AgendaPage })));
@@ -42,7 +41,6 @@ const REDIRECCIONES: Array<[string, string]> = [
   ['/tasks', '/tareas'],
   ['/repositorio/entregables', '/links-entregables'],
   ['/repositorio/links', '/links-entregables'],
-  ['/agente-sop', '/configuracion'],
 ];
 
 /** Spinner mientras baja el chunk de la ruta. Mismo look que el de AuthGate. */
@@ -109,7 +107,6 @@ export function AppRouter() {
 
           {/* Fuera del sidebar pero accesibles */}
           <Route path="onboarding" element={<OnboardingPage />} />
-          <Route path="configuracion/agente-sop" element={<SopAgentPage />} />
           <Route path="client/:id" element={<ClientBrainPage />} />
           <Route path="client/:id/:module" element={<ClientBrainPage />} />
 

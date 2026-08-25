@@ -4,6 +4,56 @@
 
 ---
 
+## 2026-08-19 → 25 — El auditor empieza a encontrar lo que nosotros no veíamos
+
+**~20 commits en `main`, migraciones 040, 041 y 042 corridas.** La semana en que se dejó de construir features para sistematizar, y en que la app pasó a revisarse sola.
+
+### El cambio de rumbo, y por qué
+La founder paró el avance: *"sigue sin funcionar como quiero la app"*. El hallazgo que le dio forma a lo que vino después: **ninguno de los bugs caros era un fallo técnico** — el código compilaba, el CI estaba verde y las 69 pruebas pasaban. Eran desacuerdos entre lo que la app hacía y lo que se esperaba de ella. Un auditor de código no los encuentra: **primero había que escribir las reglas**.
+
+Nace `REGLAS_del_Sistema.md`: **48 reglas** sobre cómo DEBE comportarse la app, cada una con su porqué, el incidente que la originó y su estado (verificada · sin comprobar · se incumple · por confirmar). Las ❌ son la lista de huecos abiertos. Es el contrato contra el que audita el agente.
+
+### El auditor corre en el computador, no en la nube
+Se intentó como rutina en la nube y **se descartó por una razón organizativa, no técnica**: la cuenta de Claude es compartida con la agencia y el repositorio es personal. Conectarlos exigía rehacer la conexión de GitHub de la cuenta compartida, y eso le quita el acceso a quien más la use. **La founder lo paró y tenía razón** — no vale un informe diario.
+
+Corre con `launchd` a las 7:00 cada mañana (`pruebas/auditar.sh`). Modo **solo reporta**. Prioridad fijada por la founder: pérdida de datos > permisos > incumple una regla > features a medias > deuda. Lo que se pierde: si el equipo está apagado a esa hora, esa corrida se salta. La primera corrida real murió porque **el computador se durmió a mitad** — se arregló con `caffeinate`, y falló ruidosamente en vez de subir un commit vacío.
+
+### Lo que encontró el auditor, y nadie más
+**Dos módulos decían "guardado" y no escribían en ningún sitio.** Planeación (embudos) y el Agente SOP: ni repositorio, ni tabla, ni `localStorage`. Crear un embudo sacaba un toast de éxito y al recargar no quedaba nada; el SOP perdía las 25 respuestas de un prospecto. Llevaba meses así. **No lo vio el typecheck, ni el linter, ni las 69 pruebas, ni Claude en dos semanas mirando el código.** Y devolvió la pregunta correcta, que no era técnica: *¿los usan?* La founder dijo que no → **se retiraron**, con sus stores y sus tipos. Regla R-48.
+
+**De 30 rutas de escritura, solo UNA deshacía su cambio al fallar.** El aviso puesto el 19 solo mitigaba: la fila fantasma seguía en pantalla, indistinguible de las reales. Cerrado el 25 con `escrituraOptimista.ts` — revertir quirúrgico, no restaurar la lista entera, porque en los segundos que tarda el fallo el usuario puede haber editado otra fila. **Cuatro rutas NO revierten a propósito**: son autoguardados de algo que se está escribiendo, y borrarle a alguien lo que acaba de teclear arreglaría la mentira destruyendo el trabajo.
+
+### Los duplicados de equipo: el mismo bug en tres capas
+Invitar a un miembro lo duplicaba. Se arregló tres veces seguidas, y **cada arreglo destapó la siguiente capa**: la ficha (insert a ciegas), el login (se rendía si el correo ya existía) y la lista en memoria (push sin mirar). De ahí la **R-44: una operación repetible es idempotente en TODAS sus capas**. El error de fondo era conceptual — **invitar a alguien es darle acceso, no darlo de alta**.
+
+Se limpiaron 19 fichas a 13 con un script probado contra Postgres real y los datos exactos de producción: **ningún KPI perdido**, y las fechas de alta reales recuperadas.
+
+### Rol de dirección (migración 040)
+Tercer nivel entre dueña y miembro. Lorenzo (CEO) y Juan Camilo (CTO) ven todo lo del equipo de su agencia, **no administran** (Configuración no existe como ruta para ellos) y **no ven lo privado**. Verificado en Postgres local: ve los clientes de su agencia, no ve una tarea privada ajena, no cruza a otra agencia. **Falta que entren en producción.**
+
+### Paralelo: de cotización a configuración
+**Confirmaron que su plataforma manda webhooks**, así que su lado deja de ser desarrollo. Se les entregó un webhook que **solo anota** (migración 041): interpretar su formato ahora sería adivinar. Probado de punta a punta. **Esperando que disparen el primer evento.**
+
+Se habilitaron Andrea Torres e Ikigai Agencia. El aviso en amarillo que se puso el 18 **cazó su primer caso real**: el cliente estaba declarado como "Ikigai" y se llama "Ikigai Agencia".
+
+### Reportes: plantilla 1 de 5, verificada
+El reporte de la Daily. **La decisión de diseño: se parte en dos mitades con reglas distintas** — los HECHOS se cuentan desde la base y la IA no los toca; la LECTURA la interpreta la IA con prohibición de rellenar. **La founder verificó que el pulso acierta y las prioridades son las que se dijeron.**
+
+Tres fallos propios, **todos de entrega y no de contenido**: se perdía al recargar, el PDF salía en blanco y no se enviaba. De ahí la **R-45: una función no está hecha hasta que su resultado sobrevive y llega a quien tiene que leerlo.**
+
+### Reglas nuevas de la semana
+R-39 a R-48. Las que más se van a usar: **R-44** (idempotente en todas sus capas), **R-45** (no está hecho hasta que llega), **R-47** (todo lo que existe tiene una puerta) y **R-48** (un store que no habla con la base no puede decir "guardado").
+
+### Pendientes
+- **Token de Telegram y correos** → el informe llega al repo pero no al móvil.
+- **Que Lorenzo o Juan Camilo entren** → cierra el rol de dirección.
+- **Que Paralelo dispare** el webhook.
+- Tres detalles de dirección del informe del 21: puede pulsar botones que la base le rechaza, ve módulos vacíos sin explicación, y "Copiar equipo" canta el éxito antes de guardar.
+- **Plantillas 2 a 5** de reportes. La 2 sigue bloqueada por una pregunta sin responder: de dónde salen las métricas por cliente.
+- Decidir si se retira ROPRE.
+
+---
+
 ## 2026-08-18 — Paralelo ampliado a 3 proyectos, "interna" corregido, y decisión de parar a sistematizar
 
 **5 commits en `main`.** Sesión de uso real que terminó en un cambio de rumbo.

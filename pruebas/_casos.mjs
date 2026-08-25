@@ -168,6 +168,36 @@ sla = estado.llamadasRpc.find((l) => l.nombre === 'api_tarea_crear')?.args;
 ok(diasHasta(sla?.p_fecha_limite) === 3, `sin fecha ni etiqueta → SLA de 'other', 3 días (fueron ${diasHasta(sla?.p_fecha_limite)})`);
 ok(sla?.p_fecha_limite !== null, 'ya nunca llega null: la base no vuelve a inventar 7 días');
 
+// ── Anti-duplicados por título (25-ago) ────────────────────────────────────
+// Vivía solo en el navegador. Con la app de Ikigai escribiendo tareas, allá no
+// hay navegador nuestro: cada reintento o doble clic creaba una copia.
+const abiertas = (filas) => ({ api_tareas_listar: { data: filas, error: null } });
+
+reset({ keys: [keyBase()], rpcResp: abiertas([{ id: 'aaaaaaaa-1111-4111-8111-111111111111', titulo: 'Montar la prueba de carga', estado: 'pending' }]) });
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Montar la prueba de carga' } });
+ok(r.status === 409, `título repetido → 409 (fue ${r.status})`);
+const dup = await r.json();
+ok(dup.error.code === 'ya_existe', 'código propio `ya_existe`, distinto de datos_invalidos');
+ok(dup.error.message.includes('aaaaaaaa-1111'), 'el error dice CUÁL tarea ya existe');
+ok(!estado.llamadasRpc.some((l) => l.nombre === 'api_tarea_crear'), 'no llegó a crear nada');
+
+// La comparación es la MISMA que usa la interfaz: sin acentos, sin mayúsculas,
+// sin puntuación. Si esto falla, los dos guardias se separaron.
+reset({ keys: [keyBase()], rpcResp: abiertas([{ id: 'bbbbbbbb-1111-4111-8111-111111111111', titulo: 'Revisión de ADS', estado: 'in_progress' }]) });
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: '  revision   de  ads!! ' } });
+ok(r.status === 409, 'mismo título con acentos, mayúsculas y espacios distintos → también 409');
+
+// Una tarea ya cerrada NO bloquea: el mismo trabajo puede repetirse en otro ciclo.
+reset({ keys: [keyBase()], rpcResp: abiertas([{ id: 'cccccccc-1111-4111-8111-111111111111', titulo: 'Reporte semanal', estado: 'completed' }]) });
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Reporte semanal' } });
+ok(r.status === 201 || r.status === 200, `si la existente está completada → sí se crea (fue ${r.status})`);
+
+// Con external_id manda la idempotencia de la función SQL, no el texto.
+reset({ keys: [keyBase()], rpcResp: abiertas([{ id: 'dddddddd-1111-4111-8111-111111111111', titulo: 'Daily', estado: 'pending' }]) });
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Daily', external_id: 'paralelo:xyz:daily' } });
+ok(r.status === 201 || r.status === 200, 'con external_id el guard de título se salta: son dos compromisos distintos');
+ok(!estado.llamadasRpc.some((l) => l.nombre === 'api_tareas_listar'), 'y ni siquiera consulta: se ahorra la vuelta');
+
 reset({ keys: [keyBase()] });
 const pactada = new Date(Date.now() + 30 * 86400000).toISOString();
 await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Con fecha propia', etiqueta: 'ads', fecha_limite: pactada } });

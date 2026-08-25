@@ -13,6 +13,7 @@
 import { proteger, exito, error, errorInterno, CODIGOS, type Contexto } from '../_lib/auth';
 import { crearTarea, filtrosTareas, mensajeDeError } from '../_lib/esquemas';
 import { fechaLimiteDesdeSLA } from '../../../src/config/taskSLA';
+import { normTaskTitle } from '../../../src/utils/taskDedup';
 
 export const config = { runtime: 'edge' };
 
@@ -55,6 +56,51 @@ async function crear(ctx: Contexto): Promise<Response> {
     return error(CODIGOS.DATOS_INVALIDOS, mensajeDeError(parsed.error), 400);
   }
   const t = parsed.data;
+
+  /**
+   * ANTI-DUPLICADOS POR TÍTULO (25-ago-2026).
+   *
+   * Hasta hoy este guard vivía SOLO en el navegador (`dedupeExtracted`), donde
+   * protege las tareas que se sacan de una reunión. Con la app de Ikigai a punto
+   * de ser donde la gente trabaja, allá no hay navegador nuestro: cada reintento
+   * o cada doble clic crearía una copia.
+   *
+   * Se compara con `normTaskTitle`, la MISMA función que usa la interfaz. No se
+   * reescribe la limpieza de texto en SQL a propósito: dos copias de la misma
+   * lógica en dos idiomas se separan, y ya nos costó dos bugs (11 y 14 de
+   * agosto). Una sola función, aunque cueste una consulta extra.
+   *
+   * SE SALTA SI MANDAN `external_id`: ahí quien llama ya está gestionando la
+   * identidad de la tarea, y la función SQL es idempotente por ese campo. Dos
+   * tareas con el mismo título pero distinto external_id son dos compromisos
+   * distintos, y decidirlo por el texto sería adivinar.
+   *
+   * LÍMITE CONOCIDO: mira hasta 500 tareas abiertas del cliente. Por encima de
+   * eso podría no ver una. Se dice aquí en vez de fingir que es infalible.
+   */
+  if (!t.external_id) {
+    const { data: abiertas } = await ctx.admin.rpc('api_tareas_listar', {
+      p_agencia: ctx.agenciaId,
+      p_client_id: t.client_id,
+      p_status: null,
+      p_desde: null,
+      p_hasta: null,
+      p_limite: 500,
+      p_offset: 0,
+    });
+    // `titulo` y `estado` son los nombres que devuelve `api_tareas_listar`.
+    const objetivo = normTaskTitle(t.titulo);
+    const yaExiste = ((abiertas ?? []) as Array<{ id: string; titulo: string; estado: string }>)
+      .find((x) => x.estado !== 'completed' && normTaskTitle(String(x.titulo ?? '')) === objetivo);
+    if (yaExiste?.id) {
+      return error(
+        CODIGOS.YA_EXISTE,
+        `Ya existe una tarea abierta con ese título para este cliente (${yaExiste.id}). ` +
+          'Si de verdad son dos compromisos distintos, mándala con un external_id propio.',
+        409,
+      );
+    }
+  }
 
   const { data: id, error: e } = await ctx.admin.rpc('api_tarea_crear', {
     p_agencia: ctx.agenciaId,

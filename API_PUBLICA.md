@@ -346,6 +346,7 @@ Un tipo fuera de esta lista devuelve `400` con los valores permitidos.
 | 404 | `no_encontrado` | El recurso no existe o no es de tu agencia | Verifica el id |
 | 405 | `metodo_no_permitido` | Método incorrecto en esa ruta | Revisa la cabecera `Allow` |
 | 409 | `datos_invalidos` | Tarea en revisión | No la toques |
+| 409 | `ya_existe` | Ya hay una tarea **abierta** con ese mismo título para ese cliente | No es un error tuyo. El `message` trae el id de la que ya existe: úsala. Si de verdad son dos compromisos distintos, reenvía con un `external_id` propio |
 | 413 | `payload_muy_grande` | Body de más de 100 KB | Divídelo |
 | 429 | `demasiadas_solicitudes` | Superaste tu límite | Espera lo que diga `Retry-After` |
 | 500 | `error_interno` | Fallo de nuestro lado | Reintenta; si sigue, avisa |
@@ -369,6 +370,26 @@ solo después mira el resto — a quien no se ha identificado no se le cuenta qu
 métodos existen.
 
 ---
+
+
+### No se crean tareas duplicadas
+
+Un `POST /tasks` sin `external_id` se rechaza con **409 `ya_existe`** si el
+cliente ya tiene una tarea **abierta** con el mismo título. La comparación
+ignora mayúsculas, acentos, espacios de más y puntuación: «Revisión de ADS» y
+«  revision   de  ads!! » son la misma tarea.
+
+Esto protege del caso normal: un reintento por timeout, un doble clic, o dos
+personas creando lo mismo con minutos de diferencia.
+
+**Cómo saltárselo cuando de verdad son dos:** manda un `external_id` propio. Ahí
+tú gestionas la identidad de la tarea y el guard de título no se aplica —
+seguimos siendo idempotentes, pero por `external_id` y no por el texto. Dos
+tareas con el mismo título pero distinto `external_id` son dos compromisos
+distintos, y decidirlo por el texto sería adivinar.
+
+**Una tarea ya completada no bloquea.** El mismo trabajo puede repetirse en otro
+ciclo: «Reporte semanal» se crea todas las semanas sin problema.
 
 ## 7. Límites de uso
 

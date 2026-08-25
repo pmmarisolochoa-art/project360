@@ -44,6 +44,13 @@ export const CODIGOS = {
   PERMISO_INSUFICIENTE: 'permiso_insuficiente',
   DEMASIADAS_SOLICITUDES: 'demasiadas_solicitudes',
   NO_ENCONTRADO: 'no_encontrado',
+  /**
+   * 409: el recurso ya existe. Añadido el 25-ago con el anti-duplicados por
+   * título. Va aparte de `datos_invalidos` a propósito: quien llama tiene que
+   * poder distinguir "mandaste algo mal" (revisa tu código) de "esto ya está"
+   * (sigue adelante, no es un error tuyo). Con un solo código no se puede.
+   */
+  YA_EXISTE: 'ya_existe',
   DATOS_INVALIDOS: 'datos_invalidos',
   METODO_NO_PERMITIDO: 'metodo_no_permitido',
   HTTPS_REQUERIDO: 'https_requerido',

@@ -835,3 +835,70 @@ el producto primero.
 2. Habilitar RLS en Supabase con policy por agencia_id
 3. Activar tabla de medición de tokens por agencia
 4. Definir límites de uso de IA por plan
+---
+
+# Decisión registrada — Responsables de tarea: limpieza y deuda
+
+**Fecha:** 25 de agosto de 2026
+
+## Qué pasó
+
+La lista "Todas las personas" del módulo de Tareas mostraba **34 nombres
+distintos para 13 personas**. No era caos: eran cuatro causas separadas.
+
+1. **Apodos de las transcripciones** (Juanca, Tati, Santi, Robert, Jona, Luis,
+   Loro, Luisa, Cisco). La tabla de alias existe desde el 13-ago, pero solo se
+   aplica a lo importado DESPUÉS. Todo el histórico entró crudo.
+2. **Etiquetas de diarización** — "Speaker A" y "Speaker B" asignados como si
+   fueran personas. Corregidas a mano por la founder.
+3. 🔴 **Slugs de rol escritos donde va una persona** — `platforms`, `expert`,
+   `project_manager`, `designer`, `funnel_builder`. Vienen de
+   `ai_brain_data.initialDeliverables[].responsibleRole`, que trae un ROL.
+4. **Nombres de equipos** — "Equipo de marketing", "Equipo técnico/operacional".
+
+**Por qué importaba:** los KPIs buscan el nombre EXACTO
+(`tasks.assignedTo === memberName`). Juan Camilo aparecía con 35 tareas cuando
+tenía 46. Media plantilla llevaba meses mal medida.
+
+## Cómo se resolvió
+
+- 28 apodos inequívocos → unificados sin preguntar.
+- 16 más → resueltos por la founder uno a uno.
+- Los slugs de rol se resolvieron **por búsqueda, no por suposición**: cada
+  tarea es de un cliente, y se miró quién tiene ese rol en ese cliente. Donde
+  había DOS candidatos (`funnel_builder`) o NINGUNO, se preguntó.
+- Regla mantenida en todo momento: **un responsable raro se corrige en dos
+  clics; uno asignado a la persona equivocada no lo corrige nadie.**
+
+**Resultado: 34 → 14 nombres, 0 tareas sin ficha.**
+
+## Fichas nuevas (decisión de la founder)
+
+- **David Guerrero** como `expert` en su propio espacio — el cliente es el
+  experto de su nicho, que es justo para lo que existe ese rol.
+- **Francisco Otalvaro** como `onboarding` (Líder de Servicio) en David
+  Guerrero. No es de nómina; se acepta que cuente en el módulo de Equipo.
+
+## 🔴 DEUDA ACEPTADA — no arreglada a propósito
+
+**Juan Camilo Correa está registrado como `funnel_builder` (Líder Operativo) en
+los tres clientes, pero es COO de Ikigai.** El catálogo de 13 roles NO tiene un
+rol de dirección, y crear uno se decidió dejarlo para después. Efectos mientras
+tanto: se le miden KPIs de un rol que no ejerce, y sale como candidato cuando se
+busca quién es el Líder Operativo (que es Roberto Maestre).
+
+## Pendiente de revisar — fichas replicadas
+
+Cada persona tiene ficha en LOS TRES clientes, probablemente por "copiar el
+equipo desde otro cliente". Pero Sofía Vasquez es Content Manager solo de Andrea
+Torres y Santiago Ruiz solo de David Guerrero. O sea que hay fichas en clientes
+donde esa persona no trabaja, y eso ensucia los KPIs por cliente.
+**La founder pidió revisarlo DESPUÉS de cerrar esto.**
+
+## Lo que hay que arreglar para que no se repita
+
+1. **El generador de fichas de cliente** escribe el rol donde va la persona.
+   Mientras no se toque, cada cliente nuevo vuelve a generar tareas asignadas a
+   `platforms` o `designer`.
+2. **`assigned_to` es texto libre.** El arreglo de fondo es que asignar sea
+   ELEGIR DE UNA LISTA. Sin eso, esto se vuelve a ensuciar solo.

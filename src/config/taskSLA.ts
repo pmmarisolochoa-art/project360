@@ -14,7 +14,10 @@
  * cada cliente tenga su propio SLA, se puede mover a la BD (como la meta de KPI).
  */
 
-import type { Task, TaskTag } from '@/types/task';
+// Import RELATIVO a propósito, no con el atajo `@/`: este archivo también lo
+// lee el código de `api/`, que compila con otro tsconfig donde ese atajo no
+// existe. Con la ruta relativa lo entienden los dos mundos.
+import type { Task, TaskTag } from '../types/task';
 
 /** Días objetivo de entrega por tipo de tarea. */
 export const TASK_SLA_DAYS: Record<TaskTag, number> = {
@@ -74,4 +77,24 @@ export function evaluateSLA(task: Task, now: number = Date.now()): SLAResult {
       : 'fuera';
 
   return { state, targetDays, elapsedDays, overdueDays };
+}
+
+
+/**
+ * Fecha de entrega que le corresponde a una tarea según su tipo.
+ *
+ * POR QUÉ VIVE AQUÍ Y NO EN EL NAVEGADOR (25-ago-2026):
+ * hasta hoy el SLA solo se aplicaba en la interfaz. Una tarea creada por la API
+ * pública sin fecha caía en el default de la base — `now() + 7 días`, un número
+ * inventado que ignora esta tabla. Con la app de Ikigai escribiendo tareas eso
+ * dejaba de ser un caso raro para ser el caso normal.
+ *
+ * La regla es del negocio, así que se aplica donde nace la tarea, venga de
+ * donde venga.
+ */
+export function fechaLimiteDesdeSLA(tag: TaskTag | undefined, desde: Date = new Date()): string {
+  const dias = TASK_SLA_DAYS[tag ?? 'other'] ?? TASK_SLA_DAYS.other;
+  const d = new Date(desde.getTime());
+  d.setDate(d.getDate() + dias);
+  return d.toISOString();
 }

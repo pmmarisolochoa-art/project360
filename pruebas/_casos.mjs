@@ -135,6 +135,47 @@ ok((await r.json()).error.message.includes('pending'), 'el error lista los estad
 r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'x'.repeat(500) } });
 ok(r.status === 400, 'título de 500 chars → 400 (límite 300)');
 
+// ── Etiqueta: dejó de ser texto libre (25-ago) ──────────────────────────────
+// Antes aceptaba 60 caracteres cualesquiera. Como el SLA se busca POR etiqueta,
+// un "Ads " con mayúscula o con espacio entraba sin queja y esa tarea quedaba
+// fuera de toda medición de tiempos, en silencio.
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'X', etiqueta: 'Ads ' } });
+ok(r.status === 400, 'etiqueta inventada → 400 (antes entraba como texto libre)');
+ok((await r.json()).error.message.includes('deliverable'), 'el error lista las etiquetas válidas');
+
+reset({ keys: [keyBase()] });
+r = await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'X', etiqueta: 'ads' } });
+ok(r.status === 201 || r.status === 200, `etiqueta válida en minúscula → aceptada (fue ${r.status})`);
+
+// ── La fecha de entrega sale de NUESTRO SLA, no de un 7 inventado ───────────
+// Sin `fecha_limite`, la base ponía `now() + 7 días` — un número que no respeta
+// los tiempos acordados. Ahora la pone el SLA según la etiqueta.
+const diasHasta = (iso) => Math.round((new Date(iso).getTime() - Date.now()) / 86400000);
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Preparar la reunión', etiqueta: 'meeting' } });
+let sla = estado.llamadasRpc.find((l) => l.nombre === 'api_tarea_crear')?.args;
+ok(diasHasta(sla?.p_fecha_limite) === 1, `sin fecha + etiqueta 'meeting' → SLA de 1 día (fueron ${diasHasta(sla?.p_fecha_limite)})`);
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Entregable ROPRE', etiqueta: 'ropre' } });
+sla = estado.llamadasRpc.find((l) => l.nombre === 'api_tarea_crear')?.args;
+ok(diasHasta(sla?.p_fecha_limite) === 5, `sin fecha + etiqueta 'ropre' → SLA de 5 días (fueron ${diasHasta(sla?.p_fecha_limite)})`);
+
+reset({ keys: [keyBase()] });
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Sin etiqueta' } });
+sla = estado.llamadasRpc.find((l) => l.nombre === 'api_tarea_crear')?.args;
+ok(diasHasta(sla?.p_fecha_limite) === 3, `sin fecha ni etiqueta → SLA de 'other', 3 días (fueron ${diasHasta(sla?.p_fecha_limite)})`);
+ok(sla?.p_fecha_limite !== null, 'ya nunca llega null: la base no vuelve a inventar 7 días');
+
+reset({ keys: [keyBase()] });
+const pactada = new Date(Date.now() + 30 * 86400000).toISOString();
+await pedir(tasks, { metodo: 'POST', body: { client_id: AG_A, titulo: 'Con fecha propia', etiqueta: 'ads', fecha_limite: pactada } });
+sla = estado.llamadasRpc.find((l) => l.nombre === 'api_tarea_crear')?.args;
+ok(diasHasta(sla?.p_fecha_limite) === 30, 'si mandan fecha, manda la suya: el SLA no la pisa');
+
+reset({ keys: [keyBase()] });
+
 r = await pedir(tasks, { metodo: 'POST', headers: { 'content-length': String(200 * 1024) }, body: { client_id: AG_A, titulo: 'X' } });
 ok(r.status === 413, 'body declarado >100KB → 413');
 

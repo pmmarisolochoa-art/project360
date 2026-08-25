@@ -8,6 +8,8 @@
  */
 
 import { z } from 'zod';
+// Ruta relativa: `api/` compila con su propio tsconfig, sin el atajo `@/`.
+import { TASK_TAGS } from '../../../src/types/task';
 
 /**
  * Los 5 estados que acepta el CHECK de `tasks.status` en Postgres. Si esta
@@ -15,6 +17,17 @@ import { z } from 'zod';
  * la trampa que ya documentamos dos veces en este proyecto.
  */
 export const ESTADOS = ['pending', 'in_progress', 'in_review', 'completed', 'blocked'] as const;
+
+/**
+ * Las 7 etiquetas válidas. NO se copian aquí: se importan de `types/task.ts`,
+ * que es la fuente única. Una lista repetida es una lista que algún día se
+ * separa — y ya nos pasó dos veces con los CHECK de Postgres.
+ *
+ * Antes este campo aceptaba TEXTO LIBRE de 60 caracteres. Como el SLA se busca
+ * por etiqueta, un "Ads " con mayúscula o con espacio entraba sin queja y esa
+ * tarea quedaba fuera de toda medición de tiempos, en silencio.
+ */
+export const ETIQUETAS = TASK_TAGS;
 
 /** Prioridades del CHECK de `tasks.priority`. */
 export const PRIORIDADES = ['P1', 'P2', 'P3'] as const;
@@ -115,7 +128,11 @@ export const crearTarea = z
     prioridad: z.enum(PRIORIDADES).default('P2'),
     asignado_a: texto(120).optional(),
     fecha_limite: fechaISO.optional(),
-    etiqueta: texto(60).optional(),
+    etiqueta: z
+      .enum(ETIQUETAS, {
+        errorMap: () => ({ message: `Etiqueta inválida. Valores permitidos: ${ETIQUETAS.join(', ')}.` }),
+      })
+      .optional(),
     /**
      * El id de la tarea en la plataforma externa. Es lo que permite que un
      * reintento no cree una tarea duplicada: la función SQL lo usa como

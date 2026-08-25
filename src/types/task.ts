@@ -77,7 +77,18 @@ export const TASK_ORIGEN_LABEL: Record<TaskOrigen, string> = {
   ia: 'Generada por IA',
 };
 
-export type TaskTag = 'ads' | 'content' | 'strategy' | 'meeting' | 'deliverable' | 'ropre' | 'other';
+/**
+ * Las 7 etiquetas válidas. FUENTE ÚNICA — el tipo se deriva de esta lista, así
+ * que agregar una etiqueta aquí la habilita en todas partes a la vez: el tipo
+ * de TypeScript, la validación de la API pública y la tabla de SLA.
+ *
+ * Existe como valor (no solo como tipo) porque el servidor necesita
+ * COMPROBARLA en tiempo de ejecución: un tipo de TypeScript desaparece al
+ * compilar y no defiende nada frente a lo que mande una aplicación externa.
+ */
+export const TASK_TAGS = ['ads', 'content', 'strategy', 'meeting', 'deliverable', 'ropre', 'other'] as const;
+
+export type TaskTag = (typeof TASK_TAGS)[number];
 
 export const TASK_TAG_LABEL: Record<TaskTag, string> = {
   ads: 'ADS',

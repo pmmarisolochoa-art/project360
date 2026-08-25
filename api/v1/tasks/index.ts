@@ -12,6 +12,7 @@
 
 import { proteger, exito, error, errorInterno, CODIGOS, type Contexto } from '../_lib/auth';
 import { crearTarea, filtrosTareas, mensajeDeError } from '../_lib/esquemas';
+import { fechaLimiteDesdeSLA } from '../../../src/config/taskSLA';
 
 export const config = { runtime: 'edge' };
 
@@ -62,7 +63,15 @@ async function crear(ctx: Contexto): Promise<Response> {
     p_descripcion: t.descripcion ?? null,
     p_prioridad: t.prioridad,
     p_asignado_a: t.asignado_a ?? null,
-    p_fecha_limite: t.fecha_limite ?? null,
+    /**
+     * Si no mandan fecha, la pone NUESTRO SLA según la etiqueta — no el
+     * `now() + 7 días` de la base, que es un número inventado que no respeta
+     * los tiempos acordados con los clientes.
+     *
+     * Es la misma decisión que se tomó el 13-ago para las tareas de Paralelo:
+     * la fecha de entrega la manda nuestro acuerdo, no quien llama.
+     */
+    p_fecha_limite: t.fecha_limite ?? fechaLimiteDesdeSLA(t.etiqueta),
     p_etiqueta: t.etiqueta ?? null,
     p_external_id: t.external_id ?? null,
   });

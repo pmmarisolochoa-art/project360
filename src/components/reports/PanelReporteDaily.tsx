@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react';
+import { descargarArchivo } from '@/utils/descargarArchivo';
 import { FileText, RefreshCw, FileDown, Send } from 'lucide-react';
 import type { Client } from '@/types/client';
 import type { Meeting } from '@/types/meeting';
@@ -56,12 +57,7 @@ export function PanelReporteDaily({ client, meeting }: { client: Client; meeting
   const descargar = async () => {
     try {
       const { blob, fileName } = await pdfDaily(client, meeting, reporte);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      descargarArchivo(blob, fileName);
     } catch (e) {
       toast.error(`No se pudo generar el PDF: ${e instanceof Error ? e.message.slice(0, 120) : 'error'}`);
     }

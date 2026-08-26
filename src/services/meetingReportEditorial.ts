@@ -1,4 +1,5 @@
 import { format, parseISO } from 'date-fns';
+import { descargarArchivo } from '@/utils/descargarArchivo';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
 import type { Meeting } from '@/types/meeting';
@@ -255,12 +256,5 @@ export async function buildReportFromMeeting(
 /** Genera y DESCARGA el reporte (botón manual). */
 export async function downloadMeetingReportPdf(client: Client, meeting: Meeting): Promise<void> {
   const { blob, fileName } = await buildReportFromMeeting(client, meeting);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  descargarArchivo(blob, fileName);
 }

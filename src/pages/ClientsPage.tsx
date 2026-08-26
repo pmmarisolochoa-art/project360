@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Plus, Search, Grid3x3, List as ListIcon, Building2, Upload } from 'lucide-react';
+import { Plus, Search, Grid3x3, List as ListIcon, Building2, Upload, Download } from 'lucide-react';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
 import { ClientCard } from '@/components/dashboard/ClientCard';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { ImportarClientesCSVModal } from '@/components/clients/ImportarClientesCSVModal';
+import { ExportarPortafolioModal } from '@/components/clients/ExportarPortafolioModal';
 import type { ClientStatus, ProjectType } from '@/types/client';
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
@@ -44,6 +45,7 @@ export function ClientsPage() {
   const [fProject, setFProject] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [importarAbierto, setImportarAbierto] = useState(false);
+  const [exportarAbierto, setExportarAbierto] = useState(false);
 
   /** El cliente que representa a la agencia. No sale en la rejilla de abajo. */
   const espacioAgencia = clients.find((c) => c.isAgency);
@@ -95,6 +97,9 @@ export function ClientsPage() {
           {/* Alta en lote: el onboarding de al lado crea UN cliente con su
               cerebro; esto trae los que ya existen en otra hoja, sin inventarles
               nada. Son dos caminos distintos a propósito. */}
+          <Button variant="ghost" onClick={() => setExportarAbierto(true)}>
+            <Download className="h-4 w-4" /> Exportar
+          </Button>
           <Button variant="ghost" onClick={() => setImportarAbierto(true)}>
             <Upload className="h-4 w-4" /> Importar CSV
           </Button>
@@ -209,6 +214,7 @@ export function ClientsPage() {
       </div>
 
       <ImportarClientesCSVModal open={importarAbierto} onClose={() => setImportarAbierto(false)} />
+      <ExportarPortafolioModal open={exportarAbierto} onClose={() => setExportarAbierto(false)} />
     </div>
   );
 }

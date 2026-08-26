@@ -7,6 +7,7 @@ import { useClientStore } from '@/store/useClientStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { toast } from '@/store/useToastStore';
 import { ClientsRepo } from '@/services/repositories';
+import { descargarArchivo } from '@/utils/descargarArchivo';
 import type { Client } from '@/types/client';
 import {
   leerClientesCSV,
@@ -76,13 +77,10 @@ export function ImportarClientesCSVModal({ open, onClose }: Props) {
 
   const descargarPlantilla = () => {
     // El BOM hace que Excel abra los acentos bien.
-    const blob = new Blob(['﻿' + CSV_PLANTILLA], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'plantilla-clientes.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    descargarArchivo(
+      new Blob(['﻿' + CSV_PLANTILLA], { type: 'text/csv;charset=utf-8' }),
+      'plantilla-clientes.csv',
+    );
   };
 
   const importar = async () => {

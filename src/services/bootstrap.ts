@@ -168,7 +168,7 @@ async function runBootstrap(): Promise<BootstrapResult> {
           `[bootstrap] Espacios de agencia: ${espacios.length} → ` +
             (espacios.map((c) => c.name).join(', ') || 'ninguno'),
         );
-        console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
+        console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels, ${links.length} entregables.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
       } catch (e) {
         console.warn('[bootstrap] Falló hidratación parcial — UI usa estado local.', e);
       }

@@ -11,12 +11,13 @@
     "lint": "eslint .",
     "check": "npm run typecheck && npm run lint && npm run test:api && npm run test:csv",
     "test:api": "node pruebas/api-v1.mjs",
-    "test:csv": "node pruebas/csv-clientes.mjs"
+    "test:csv": "node pruebas/csv-clientes.mjs && node pruebas/exportar-portafolio.mjs && node pruebas/traspaso-datos.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
     "@supabase/supabase-js": "^2.106.2",
     "date-fns": "^4.1.0",
+    "fflate": "^0.8.3",
     "framer-motion": "^11.11.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",

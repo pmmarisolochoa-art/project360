@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Plus, Search, Grid3x3, List as ListIcon, Building2 } from 'lucide-react';
+import { Plus, Search, Grid3x3, List as ListIcon, Building2, Upload } from 'lucide-react';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
 import { ClientCard } from '@/components/dashboard/ClientCard';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
+import { ImportarClientesCSVModal } from '@/components/clients/ImportarClientesCSVModal';
 import type { ClientStatus, ProjectType } from '@/types/client';
 
 const STATUS_LABEL: Record<ClientStatus, string> = {
@@ -42,6 +43,7 @@ export function ClientsPage() {
   const [fStatus, setFStatus] = useState('');
   const [fProject, setFProject] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [importarAbierto, setImportarAbierto] = useState(false);
 
   /** El cliente que representa a la agencia. No sale en la rejilla de abajo. */
   const espacioAgencia = clients.find((c) => c.isAgency);
@@ -90,6 +92,12 @@ export function ClientsPage() {
               </Button>
             </Link>
           )}
+          {/* Alta en lote: el onboarding de al lado crea UN cliente con su
+              cerebro; esto trae los que ya existen en otra hoja, sin inventarles
+              nada. Son dos caminos distintos a propósito. */}
+          <Button variant="ghost" onClick={() => setImportarAbierto(true)}>
+            <Upload className="h-4 w-4" /> Importar CSV
+          </Button>
           <Link to="/onboarding">
             <Button>
               <Plus className="h-4 w-4" /> Nuevo cliente
@@ -199,6 +207,8 @@ export function ClientsPage() {
       <div className="text-xs text-text-muted">
         {filtered.length} de {clients.length} cliente{clients.length === 1 ? '' : 's'}
       </div>
+
+      <ImportarClientesCSVModal open={importarAbierto} onClose={() => setImportarAbierto(false)} />
     </div>
   );
 }

@@ -46,5 +46,8 @@ jobs:
       - name: Pruebas de la API pública (¿sigue siendo segura?)
         run: npm run test:api
 
+      - name: Pruebas de importación por CSV (¿lee bien el archivo?)
+        run: npm run test:csv
+
       - name: Build (¿construye la app?)
         run: npm run build

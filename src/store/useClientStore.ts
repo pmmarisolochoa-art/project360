@@ -28,6 +28,16 @@ interface ClientState {
   currentClientId: string | null;
   setCurrentClient: (id: string | null) => void;
   addClient: (c: Client) => void;
+  /**
+   * Mete en memoria clientes que YA quedaron guardados en Supabase.
+   *
+   * Existe aparte de `addClient` por la importación por CSV: allí se escribe
+   * fila por fila esperando la confirmación de cada una, para poder decir
+   * cuáles entraron y cuáles no (R-33). Escribir optimista y deshacer, como
+   * hace `addClient`, dejaría un lote a medias sin manera de contarlo.
+   * No escribe nada: quien la llama ya escribió.
+   */
+  registrarClientesGuardados: (cs: Client[]) => void;
   updateClient: (id: string, patch: Partial<Client>) => void;
   deleteClient: (id: string) => void;
   getClient: (id: string) => Client | undefined;
@@ -67,6 +77,16 @@ export const useClientStore = create<ClientState>((set, get) => ({
     void ClientsRepo.create(c).catch(
       onWriteError('clients.create', 'No se pudo crear el cliente. Se quitó de la lista: vuelve a intentarlo.', revertir),
     );
+  },
+  registrarClientesGuardados: (cs) => {
+    if (cs.length === 0) return;
+    // Idempotente también aquí: si una fila ya está en la lista no se repite.
+    // Un duplicado que solo vive en el navegador es peor que uno en la base,
+    // porque desaparece al recargar y parece que la base se rompió (R-44).
+    set((s) => {
+      const ids = new Set(s.clients.map((c) => c.id));
+      return { clients: [...s.clients, ...cs.filter((c) => !ids.has(c.id))] };
+    });
   },
   updateClient: (id, patch) => {
     const revertir = cambioOptimista(

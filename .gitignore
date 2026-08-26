@@ -20,3 +20,4 @@ supabase/.temp/
 # Credenciales locales del auditor (correo/Telegram). Nunca se sube.
 .env.auditor
 informes/.auditor.*
+.playwright-mcp/

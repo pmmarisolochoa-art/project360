@@ -4,6 +4,54 @@
 
 ---
 
+## 2026-08-26 — Los datos salen de la app: importar clientes y entregar el portafolio a un tercero
+
+**3 commits en `main`, sin migraciones.** La app deja de ser un sitio del que solo se entra: ahora los datos pueden salir, y salir con documentación.
+
+### El encargo real tardó tres intentos en aparecer, y la culpa es del método
+La sesión empezó con "sigue con CSV" y terminó tres entregas después. Se construyó **importar** clientes cuando lo que hacía falta era **exportar**; luego un **Excel bonito** cuando lo que hacía falta era un **paquete técnico**. La founder lo dijo con la frase que ordenó todo: *"cómo le paso esto a Ikigai para que ellos pongan en su servidor, no hay nada, solo una tabla sencilla"*.
+
+**La lección, que vale más que el código:** se preguntó *qué formato* cuando la pregunta era *quién lo recibe y qué hace con él*. El formato es una consecuencia; el destinatario es el dato. Un Excel legible y un JSON con ids son el mismo contenido y encargos opuestos, y ninguno de los dos sirve a medias para el otro.
+
+### Lo que se construyó
+**Importar clientes desde CSV** (`/clientes` → Importar CSV). Bandeja de revisión, no botón de sincronizar (R-23): entra lo que una persona marca. Idempotente por nombre normalizado (R-44) — lo que ya existe sale en gris (R-24), y también se detecta el repetido dentro del mismo archivo. **Un valor que no se reconoce rechaza la fila con su motivo en vez de caer al defecto**: un estado "inventado" convertido en "onboarding" en silencio es un cliente mal clasificado que nadie revisa. El cliente importado entra sin cerebro de IA — rellenárselo sería el fallo que ya puso en producción una ficha con un rol inexistente.
+
+**Exportar, con dos propósitos detrás de un botón.** "Para leer" (Excel de una hoja por tabla, o CSV) y "para cargar en otro sistema" (zip con JSON + `LEEME.md`). Son dos encargos y no un mismo archivo con otro nombre.
+
+### Las decisiones que sostienen el traspaso
+**El diccionario y los datos salen de la misma definición.** Si fueran dos listas, el día que alguien añada un campo actualizará una y no la otra, y el documento empezará a mentir — peor que no tenerlo, porque nadie duda de un documento.
+
+**El paquete dice lo que NO lleva**: cuántas filas privadas se excluyeron, si el contenido de las reuniones va o no, y qué tablas se dejaron fuera. Un archivo incompleto que calla su hueco se lee como "esta agencia no usa embudos".
+
+**Acordado con Ikigai qué tablas van**: clientes, tareas, reuniones, entregables, equipo, asignaciones, ROPRE y fasesEmbudo. Fuera `programas`, `embudos`, `contenido` y `proyecciones` — su servidor base ya los gestiona. **Se dejó como casillas y no fijo en el código**: el siguiente envío puede ser a otro sitio. La app avisa en amarillo cuando la selección rompe una referencia (hoy: `fasesEmbudo` sin `embudos`).
+
+**El LEEME avisa de cuatro trampas que solo se saben trabajando estos datos**: `assignedTo` puede ser un slug de rol y no una persona; `isDelayed` y `clientes.metrics` están guardados y no siempre al día; `externalId` es la clave anti-duplicados de lo que vino de Paralelo. Sin eso, quien importe las descubre a mitad de camino.
+
+**Privacidad sin interruptor**: no sale ninguna fila privada ni las marcas que la señalan. De las reuniones sale la agenda; transcripciones, notas y resúmenes solo con casilla explícita, apagada por defecto. Es la misma línea que ya traza la API pública.
+
+### Tres fallos propios, y ninguno era del código que se estaba escribiendo
+**(1) Cuatro maneras de descargar un archivo, y solo una correcta.** La exportación no bajaba nada: el enlace debe estar DENTRO del documento al hacer clic, y `revokeObjectURL` no puede llamarse en el mismo instante. Al unificarlo en `descargarArchivo` salió que **el PDF de la Daily tenía el mismo fallo y ya estaba en producción**. Es otra vez el patrón de los dos traductores de fila: dos maneras de hacer lo mismo, y la que se usa poco se queda atrás.
+
+**(2) Chrome bloquea la segunda descarga automática de una página.** Bajaba el JSON y el `LEEME.md` —la mitad del entregable— se perdía sin error ni aviso. No se pelea con el navegador: **un envío es un archivo**, todo en zip. El CSV de varias tablas también. `fflate` pasa a dependencia declarada: ya estaba instalado por dentro de `xlsx`, y usar algo que llegó de rebote se rompe el día que xlsx cambie de tripas.
+
+**(3) Los entregables se leían con una consulta propia** que se traga los errores y devuelve lista vacía — así que el aviso de fallo no podía saltar nunca y una consulta rota se habría leído como "no hay entregables". Ahora salen del store que hidrata el bootstrap, la misma fuente que ven las otras tres pantallas. El bootstrap además ya cuenta los entregables en su log: era justo el dato que faltaba para poder distinguirlo.
+
+### Lo que costó horas y no debería repetirse
+Se le dio a la founder el navegador de automatización (Playwright) para probar. Ese Chrome **se queda las descargas en una carpeta del proyecto**, así que durante tres rondas "no baja nada" mientras los archivos se generaban perfectamente. Se resolvió **midiendo** —leyendo los eventos de descarga del propio navegador— y no deduciendo. **Para probar en el navegador, el navegador es el suyo.**
+
+### Verificado contra datos reales
+El export dice 71 + 0 + 2 = **73 tareas pendientes**; la pantalla dice 73. De las 265 tareas cargadas salieron 254: las 11 privadas se quedaron fuera. El Excel se abrió y tiene sus 4 hojas; el zip se abre con `unzip` dentro de la propia prueba.
+
+**120 pruebas nuevas** (`npm run test:csv`, en el CI), la mitad dedicadas a que la privacidad no se escape al añadir una columna.
+
+### Pendientes
+- **El WhatsApp de David Guerrero dice "Colombia"** en su ficha — está mal en el dato, no en el export. Si se envía hoy, va con el error.
+- **Decidir si `fasesEmbudo` va sin `embudos`**. Hoy da igual (las dos en 0 filas); si empiezan a usarse, Ikigai recibiría fases huérfanas.
+- **Enviar el paquete a Ikigai** y ver qué pregunta su equipo: lo que pregunten es lo que le falta al `LEEME.md`.
+- Sigue abierto todo lo del 25: token de Telegram, que entren Lorenzo y Juan Camilo, que Paralelo dispare, plantillas 2-5, y si se retira ROPRE.
+
+---
+
 ## 2026-08-19 → 25 — El auditor empieza a encontrar lo que nosotros no veíamos
 
 **~20 commits en `main`, migraciones 040, 041 y 042 corridas.** La semana en que se dejó de construir features para sistematizar, y en que la app pasó a revisarse sola.

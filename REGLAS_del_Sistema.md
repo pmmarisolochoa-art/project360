@@ -173,6 +173,15 @@ llevaba meses mal medida.**
 
 **R-46 ✅ — Lo que la app calcula y lo que la app opina se distinguen a simple vista.** El lector tiene que poder saber qué es dato y qué es interpretación sin preguntar. En el reporte de la Daily las secciones que escribe la IA llevan la marca "lectura"; los conteos no.
 
+**R-50 ✅ — Antes de construir un entregable se pregunta QUIÉN LO RECIBE y qué hace con él, no qué formato quiere.** El formato es una consecuencia; el destinatario es el dato. Los mismos datos para una persona que los lee y para un sistema que los importa son dos entregables opuestos, y ninguno sirve a medias para el otro.
+*Origen:* el 26-ago se construyó importar cuando hacía falta exportar, y después un Excel legible cuando hacía falta un paquete técnico con ids. Tres entregas para un encargo, y las tres preguntas que se hicieron fueron sobre el formato.
+
+**R-51 ✅ — Un envío es UN archivo.** Si una entrega necesita varias piezas, van juntas y comprimidas. El navegador bloquea la segunda descarga automática de una página, así que "bajar dos archivos" significa en la práctica bajar el primero y perder el resto sin ningún aviso.
+*Origen:* el paquete de traspaso bajaba el JSON y perdía el `LEEME.md` —la mitad del entregable— en silencio. Lo mismo con los CSV de varias tablas: llegaba uno de cuatro.
+
+**R-52 ✅ — Un archivo que se entrega dice lo que NO lleva.** Las filas excluidas se cuentan y las tablas omitidas se nombran. Quien recibe un archivo incompleto que calla su hueco no sospecha: concluye. "Esta agencia no usa embudos" es una conclusión falsa sacada de un archivo al que le faltaba una tabla a propósito.
+*Origen:* el paquete de traspaso del 26-ago, donde se acordó con Ikigai dejar fuera cuatro tablas que su servidor ya gestiona.
+
 **R-38 ✅ — Un commit hecho no es un commit subido**, y un deploy listo no es un deploy propagado. Se comprueba, no se supone.
 
 ---

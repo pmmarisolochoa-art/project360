@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { esTelefonoPlausible, ERROR_TELEFONO } from '@/utils/telefono';
 
 // Cada paso tiene su propio schema para validación incremental por paso.
 // `OnboardingFormSchema` es la unión completa que se envía a Claude al final.
@@ -7,7 +8,7 @@ export const step1Schema = z.object({
   businessName: z.string().min(2, 'Requerido'),
   founderName: z.string().min(2, 'Requerido'),
   email: z.string().email('Email inválido'),
-  whatsapp: z.string().min(7, 'Incluye código de país'),
+  whatsapp: z.string().refine(esTelefonoPlausible, ERROR_TELEFONO),
   industry: z.string().min(2, 'Selecciona una industria'),
   industryOther: z.string().optional(),
   yearsInMarket: z.coerce.number().int().min(0).max(150),
@@ -103,7 +104,7 @@ export const step8Schema = z.object({
         name: z.string().min(1),
         role: z.string().min(1),
         email: z.string().email(),
-        whatsapp: z.string().min(7),
+        whatsapp: z.string().refine(esTelefonoPlausible, ERROR_TELEFONO),
       }),
     )
     .default([]),

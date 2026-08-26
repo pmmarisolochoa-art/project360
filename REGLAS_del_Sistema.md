@@ -173,6 +173,9 @@ llevaba meses mal medida.**
 
 **R-46 ✅ — Lo que la app calcula y lo que la app opina se distinguen a simple vista.** El lector tiene que poder saber qué es dato y qué es interpretación sin preguntar. En el reporte de la Daily las secciones que escribe la IA llevan la marca "lectura"; los conteos no.
 
+**R-53 ✅ — Una validación comprueba la propiedad que importa, no una que se le parezca.** Medir el largo de un texto no es comprobar que sea un teléfono, igual que "no está vacío" no es "es un email". Una validación que se parece a la buena da lo peor de las dos: molesta al que escribe bien y deja pasar al que escribe mal.
+*Origen:* el WhatsApp de un cliente decía **"Colombia"** y llevaba meses en producción. La regla era `min(7)` sobre el texto, y "Colombia" tiene ocho letras. Se descubrió al exportar el portafolio para enviárselo a un tercero — no en la app, donde nadie lo miraba. Ahora se cuentan las cifras.
+
 **R-50 ✅ — Antes de construir un entregable se pregunta QUIÉN LO RECIBE y qué hace con él, no qué formato quiere.** El formato es una consecuencia; el destinatario es el dato. Los mismos datos para una persona que los lee y para un sistema que los importa son dos entregables opuestos, y ninguno sirve a medias para el otro.
 *Origen:* el 26-ago se construyó importar cuando hacía falta exportar, y después un Excel legible cuando hacía falta un paquete técnico con ids. Tres entregas para un encargo, y las tres preguntas que se hicieron fueron sobre el formato.
 

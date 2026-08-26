@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { esTelefonoPlausible, ERROR_TELEFONO } from '@/utils/telefono';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Target, Gem, BookOpen, Users2, Globe, Mail, Phone,
@@ -200,6 +201,9 @@ function ClientCard({ client, accent, readOnly = false }: { client: Client; acce
     } else {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email)) e.email = 'Email inválido';
       if (!draft.whatsapp.trim()) e.whatsapp = 'Requerido';
+      // Contar dígitos y no medir el texto: la regla anterior era `min(7)` y
+      // por eso "Colombia" —ocho letras— llegó a producción como WhatsApp.
+      else if (!esTelefonoPlausible(draft.whatsapp)) e.whatsapp = ERROR_TELEFONO;
     }
     setErrors(e);
     return Object.keys(e).length === 0;

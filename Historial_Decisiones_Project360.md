@@ -4,6 +4,50 @@
 
 ---
 
+## 2026-09-07 — Se cierran dos decisiones arrastradas: ROPRE se queda (con salida propia), `fasesEmbudo` se aplaza
+
+Sesión sin features nuevas a propósito: la founder pidió cerrar decisiones pendientes en vez de construir. Las dos que llevaban semanas en la lista se decidieron **midiendo el costo, no opinando**.
+
+### ROPRE NO se retira — y la pregunta estaba mal planteada
+Se midió la superficie real antes de decidir: **~47 archivos de `src` y `api`, ~300 referencias**, y cinco puntos de contrato externo que no se revierten con un borrado:
+
+1. El endpoint público `/api/v1/ropre` y su scope de API key — **ya entregado a Paralelo**.
+2. La RPC `api_ropre_listar` en Supabase (migración 043).
+3. El `formatoVersion: 1` del paquete de traspaso, que incluye la tabla `ropre`.
+4. El volcado de riesgos y bloqueos de las reuniones importadas de Paralelo (`volcarAlRopre`), que **hoy no tiene otro destino**: retirarlo sin sustituto significa que esos riesgos se pierden en la importación.
+5. El `origin.type = 'ropre'` y el tag `ropre` **ya persistidos en datos reales** de tareas.
+
+No es un módulo muerto como lo fue el constructor visual de embudos, que se retiró el 25-ago sin coste. La comparación es instructiva: aquel **decía "guardado" y no escribía en ningún sitio**; este es el destino de un pipeline vivo.
+
+**Lo que la founder pidió en su lugar** no era menos código sino más salida: *"dejarlo pero como un informe que se envía desde la agenda"*. Es decir, el problema nunca fue que ROPRE existiera — era que no producía nada que se pudiera mandar. Se construyó eso.
+
+### `fasesEmbudo` sin `embudos`: se aplaza, y en el camino se descubrió que ya estaba roto
+La pregunta del 26-ago no era hipotética. El preset por defecto de `ExportarPortafolioModal.tsx` incluye `fasesEmbudo` pero **no** `embudos`, y `traspasoDatos.ts` declara `DEPENDENCIAS = { fasesEmbudo: 'embudos' }` — así que **cada paquete que ha salido dispara el aviso de "referencias sin destino"**. El aviso funcionó exactamente como se diseñó; lo que faltaba era que alguien lo leyera.
+
+La founder decide **no tocarlo ahora**: a Ikigai se le pasará "lo que le corresponde para gestionar el proyecto" y el traspaso sigue en pie, acotado. **Queda registrado como deuda conocida, no como olvido** — que es la diferencia entre un pendiente y una sorpresa.
+
+### Lo construido: informe ROPRE en PDF, descargable y enviable
+
+**Un motor, no dos.** `src/services/ropreReport.ts` reusa `composeReport` de `htmlReport.ts` (el mismo A4 paginado del semanal y del de reunión) y descarga por la única `descargarArchivo`. No se modificó ni una línea de `htmlReport.ts`: tocarlo es el riesgo de romper el semanal y el de reunión a la vez. Los estilos se copian localmente, que es lo que ya hacían `meetingStyles` y `meetingReportEditorial`.
+
+**Hallazgo del camino:** había **dos** rutas de PDF de reunión coexistiendo y la del drawer no era la del menú de reportes — `ReportsMenu` llama `exportMeetingReportHTML` (solo descarga) y `MeetingDrawer` llama `downloadMeetingReportPdf` de `meetingReportEditorial.ts`. Solo la segunda sabe producir base64, así que es la única que puede enviarse por correo. **Fue el molde**; la primera no habría servido.
+
+**Sin IA, a propósito.** El ROPRE ya es una estructura curada a mano — a diferencia de las notas de reunión, que sí hay que sintetizar. Todo lo que sale está **contado** desde los items. Así el informe no depende de que Claude responda, no añade latencia, y no hay nada que marcar como "lectura" (R-46). Si algún día se le quiere añadir interpretación, va como bloque extra al final, nunca sustituyendo lo contado.
+
+**Un solo endpoint de correo.** `api/enviar-reporte-reunion.ts` no validaba nada específico de reunión y ya autorizaba por `clientId`, así que se reusa entero. Se le añadió un `kind` opcional que **solo** cambia el asunto y el texto del cuerpo, **con default `'meeting'`**: una llamada sin `kind` —front viejo, o deploy sin propagar— se comporta exactamente como antes. El correo del ROPRE llega igual aunque el backend no haya subido todavía.
+
+**Dos redes de seguridad contra bugs ya conocidos de esta casa:**
+- `buildRopreReport` **vuelve a filtrar por `clientId`** aunque quien llama ya lo haya hecho — para que no se cuele el ROPRE de otro cliente.
+- Los items se leen con `useRopreStore.getState()` en el momento del clic, **no con un selector**: un selector que filtra crea array nuevo por render → bucle infinito → pantalla en blanco, que es el bug que `ReportsMenu.tsx` ya documenta en un comentario.
+- Y **fallback anti-página-en-blanco**: un cliente sin ningún item produce una página con la nota, nunca un PDF vacío. El "PDF en blanco" ya fue un fallo real el 20-ago.
+
+**Dónde se pide.** En el cerebro del cliente, "Informe ROPRE" entra en el menú de Reportes PDF. En la agenda, el pie del drawer **no crece**: "PDF" y "Enviar al equipo" pasan a ser menús de dos entradas (reunión / ROPRE), reusando el patrón de submenú que ya existía. El selector de destinatarios es el mismo, y **se le quitó la comprobación de "hay notas" cuando lo que se envía es el ROPRE** — el ROPRE tiene su propia fuente y no depende de que la reunión tenga notas.
+
+### Estado de la verificación
+Typecheck y build limpios, lint sin errores nuevos (62 avisos, los mismos de antes), 114/114 pruebas de API pasando. **Lo que falta es lo que solo se puede hacer desde el navegador de la founder** (R-45: no está hecho hasta que sobrevive y llega): abrir el PDF generado, comprobar que un cliente sin ROPRE da la página con la nota, medir el peso antes de enviar, recibir el correo, y **la regresión obligatoria** de que el semanal y los dos reportes de reunión siguen idénticos. Se deja explícito porque un PDF que compila no es un PDF que se abre.
+
+---
+
 ## 2026-08-26 — Los datos salen de la app: importar clientes y entregar el portafolio a un tercero
 
 **3 commits en `main`, sin migraciones.** La app deja de ser un sitio del que solo se entra: ahora los datos pueden salir, y salir con documentación.

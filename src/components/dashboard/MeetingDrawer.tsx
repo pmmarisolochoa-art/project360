@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useUIDrawerStore } from '@/store/useUIDrawerStore';
 import { motion } from 'framer-motion';
 import {
-  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain, Send,
+  X, Copy, ExternalLink, Sparkles, Trash2, CheckCircle2, Upload, FileText, Mic, ListChecks, Paperclip, FileDown, Brain, Send, Target, ChevronDown,
 } from 'lucide-react';
 import { sendMeetingReport } from '@/services/sendMeetingReport';
+import { sendRopreReport } from '@/services/sendRopreReport';
 // Cargas bajo demanda: el PDF arrastra jsPDF+html2canvas (~2 MB) y solo se usa
 // al pulsar "PDF"; marked/mammoth solo al subir un .md/.docx. Ninguno hace
 // falta para abrir el drawer. Todos los call sites están en try/catch con toast.
 const loadMeetingPdf = () => import('@/services/meetingReportEditorial');
+const loadRopreReport = () => import('@/services/ropreReport');
 const loadMarked = () => import('marked');
 const loadMammoth = () => import('mammoth');
 import { format, parseISO } from 'date-fns';
@@ -91,6 +93,9 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
   const [sendingTasks, setSendingTasks] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
   const [showRecipients, setShowRecipients] = useState(false);
+  /** Qué se genera/envía: el reporte de la reunión o el informe ROPRE del cliente. */
+  const [reportKind, setReportKind] = useState<'meeting' | 'ropre'>('meeting');
+  const [menuAbierto, setMenuAbierto] = useState<'pdf' | 'enviar' | null>(null);
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(() => new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [saveIndicator, setSaveIndicator] = useState<string>('');
@@ -495,9 +500,28 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     (meeting.summary?.trim().length ?? 0) >= 20;
 
   // Abre el selector de destinatarios (marca todos por defecto).
-  const openRecipientPicker = () => {
+  const menuPieRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuAbierto) return;
+    const onClick = (e: MouseEvent) => {
+      if (!menuPieRef.current?.contains(e.target as Node)) setMenuAbierto(null);
+    };
+    window.addEventListener('mousedown', onClick);
+    return () => window.removeEventListener('mousedown', onClick);
+  }, [menuAbierto]);
+
+  /** Los items de ROPRE del cliente, leídos en el momento del clic.
+   *  Se lee con getState() y no con un selector para no crear un array nuevo
+   *  por render (eso es el bucle infinito documentado en ReportsMenu). */
+  const ropreDelCliente = () =>
+    client ? useRopreStore.getState().items.filter((i) => i.clientId === client.id) : [];
+
+  const openRecipientPicker = (kind: 'meeting' | 'ropre' = 'meeting') => {
     if (!client) return;
-    if (!reportHasContent) {
+    setReportKind(kind);
+    // El ROPRE no depende de las notas de la reunión: tiene su propia fuente,
+    // así que esta comprobación solo aplica al reporte de reunión.
+    if (kind === 'meeting' && !reportHasContent) {
       toast.info('Agrega notas o extrae tareas antes de enviar el reporte.');
       return;
     }
@@ -517,13 +541,17 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
       toast.info('Elige al menos una persona.');
       return;
     }
+    const esRopre = reportKind === 'ropre';
+    const queCosa = esRopre ? 'el informe ROPRE' : 'el reporte';
     setSendingReport(true);
     setShowRecipients(false);
-    toast.info(`Generando y enviando el reporte a ${recipients.length} persona${recipients.length === 1 ? '' : 's'}…`);
+    toast.info(`Generando y enviando ${queCosa} a ${recipients.length} persona${recipients.length === 1 ? '' : 's'}…`);
     try {
       const merged = { ...meeting, notes, agenda } as Meeting;
-      const r = await sendMeetingReport(client, merged, { recipients });
-      if (r.sent > 0) toast.success(`Reporte enviado (${r.people} persona${r.people === 1 ? '' : 's'}) ✓${r.note ? ` · ${r.note}` : ''}`);
+      const r = esRopre
+        ? await sendRopreReport(client, ropreDelCliente(), { recipients, meeting: merged })
+        : await sendMeetingReport(client, merged, { recipients });
+      if (r.sent > 0) toast.success(`${esRopre ? 'Informe ROPRE' : 'Reporte'} enviado (${r.people} persona${r.people === 1 ? '' : 's'}) ✓${r.note ? ` · ${r.note}` : ''}`);
       else toast.info(r.note || 'No se envió: revisa los correos del equipo.');
     } catch (e) {
       console.warn('[doSendReport] falló', e);
@@ -833,36 +861,85 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
               Cancelar reunión
             </Button>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" ref={menuPieRef}>
             {client && (
-              <Button
-                size="sm"
-                variant="secondary"
-                leftIcon={<FileDown className="h-3.5 w-3.5" />}
-                onClick={async () => {
-                  try {
-                    toast.info('Generando el reporte ejecutivo…');
-                    await (await loadMeetingPdf()).downloadMeetingReportPdf(client, meeting);
-                    toast.success('Reporte de reunión generado');
-                  } catch (e) {
-                    console.warn('[meetingPdf]', e);
-                    toast.error('No se pudo generar el reporte');
-                  }
-                }}
-              >
-                PDF
-              </Button>
+              <div className="relative">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  leftIcon={<FileDown className="h-3.5 w-3.5" />}
+                  rightIcon={<ChevronDown className={`h-3 w-3 transition ${menuAbierto === 'pdf' ? 'rotate-180' : ''}`} />}
+                  onClick={() => setMenuAbierto((m) => (m === 'pdf' ? null : 'pdf'))}
+                >
+                  PDF
+                </Button>
+                {menuAbierto === 'pdf' && (
+                  <div className="absolute bottom-full left-0 mb-2 w-60 z-50 rounded-[12px] border border-border-subtle bg-bg-elevated shadow-xl overflow-hidden py-1">
+                    <OpcionPie
+                      icon={<Mic className="h-3.5 w-3.5" />}
+                      label="Reporte de reunión"
+                      hint="Decisiones, compromisos y riesgos"
+                      onClick={async () => {
+                        setMenuAbierto(null);
+                        try {
+                          toast.info('Generando el reporte ejecutivo…');
+                          await (await loadMeetingPdf()).downloadMeetingReportPdf(client, meeting);
+                          toast.success('Reporte de reunión generado');
+                        } catch (e) {
+                          console.warn('[meetingPdf]', e);
+                          toast.error('No se pudo generar el reporte');
+                        }
+                      }}
+                    />
+                    <OpcionPie
+                      icon={<Target className="h-3.5 w-3.5" />}
+                      label="Informe ROPRE"
+                      hint="Estado del ROPRE del cliente"
+                      onClick={async () => {
+                        setMenuAbierto(null);
+                        try {
+                          toast.info('Generando el informe ROPRE…');
+                          await (await loadRopreReport()).downloadRopreReportPdf(client, ropreDelCliente(), meeting);
+                          toast.success('Informe ROPRE generado');
+                        } catch (e) {
+                          console.warn('[ropreReport]', e);
+                          toast.error('No se pudo generar el informe ROPRE');
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             )}
             {!readOnly && client && (
-              <Button
-                size="sm"
-                variant="secondary"
-                leftIcon={<Send className="h-3.5 w-3.5" />}
-                loading={sendingReport}
-                onClick={openRecipientPicker}
-              >
-                Enviar al equipo
-              </Button>
+              <div className="relative">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  leftIcon={<Send className="h-3.5 w-3.5" />}
+                  rightIcon={<ChevronDown className={`h-3 w-3 transition ${menuAbierto === 'enviar' ? 'rotate-180' : ''}`} />}
+                  loading={sendingReport}
+                  onClick={() => setMenuAbierto((m) => (m === 'enviar' ? null : 'enviar'))}
+                >
+                  Enviar al equipo
+                </Button>
+                {menuAbierto === 'enviar' && (
+                  <div className="absolute bottom-full left-0 mb-2 w-60 z-50 rounded-[12px] border border-border-subtle bg-bg-elevated shadow-xl overflow-hidden py-1">
+                    <OpcionPie
+                      icon={<Mic className="h-3.5 w-3.5" />}
+                      label="Reporte de reunión"
+                      hint="Con las notas de esta reunión"
+                      onClick={() => { setMenuAbierto(null); openRecipientPicker('meeting'); }}
+                    />
+                    <OpcionPie
+                      icon={<Target className="h-3.5 w-3.5" />}
+                      label="Informe ROPRE"
+                      hint="Estado del ROPRE del cliente"
+                      onClick={() => { setMenuAbierto(null); openRecipientPicker('ropre'); }}
+                    />
+                  </div>
+                )}
+              </div>
             )}
             {!readOnly && !meeting.completed && (
               <Button size="sm" leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />} onClick={markDone}>
@@ -877,7 +954,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
       <Modal
         open={showRecipients}
         onClose={() => setShowRecipients(false)}
-        title="Enviar reporte al equipo"
+        title={reportKind === 'ropre' ? 'Enviar informe ROPRE al equipo' : 'Enviar reporte al equipo'}
         size="sm"
         footer={
           <div className="flex items-center justify-between gap-2">
@@ -900,14 +977,15 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
               disabled={selectedEmails.size === 0}
               onClick={doSendReport}
             >
-              Enviar reporte ({selectedEmails.size})
+              Enviar {reportKind === 'ropre' ? 'informe' : 'reporte'} ({selectedEmails.size})
             </Button>
           </div>
         }
       >
         <p className="text-xs text-text-secondary mb-3">
-          Elige a quién enviarle el reporte ejecutivo (PDF) de esta reunión. Solo aparecen los
-          miembros del equipo con correo registrado.
+          {reportKind === 'ropre'
+            ? 'Elige a quién enviarle el informe ROPRE (PDF) del cliente: resultado, objetivos, premisas, riesgos y entregables. Solo aparecen los miembros del equipo con correo registrado.'
+            : 'Elige a quién enviarle el reporte ejecutivo (PDF) de esta reunión. Solo aparecen los miembros del equipo con correo registrado.'}
         </p>
         <div className="space-y-1.5 max-h-[45vh] overflow-y-auto">
           {reportRecipients.map((r) => (
@@ -950,6 +1028,26 @@ function Field({ label, value }: { label: string; value: string }) {
       <dt className="text-[10px] uppercase tracking-wider text-text-muted">{label}</dt>
       <dd className="text-xs text-text-primary mt-0.5">{value}</dd>
     </div>
+  );
+}
+
+
+/** Una opción de los menús del pie del drawer (PDF / Enviar al equipo). */
+function OpcionPie({ icon, label, hint, onClick }: {
+  icon: React.ReactNode; label: string; hint: string; onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-start gap-2.5 px-3 py-2 text-left hover:bg-bg-base/50 transition"
+    >
+      <span className="mt-0.5 text-text-secondary shrink-0">{icon}</span>
+      <span className="min-w-0">
+        <span className="block text-sm text-text-primary">{label}</span>
+        <span className="block text-[11px] text-text-muted leading-snug">{hint}</span>
+      </span>
+    </button>
   );
 }
 

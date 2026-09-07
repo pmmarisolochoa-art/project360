@@ -53,7 +53,11 @@ export default async function handler(req: Request): Promise<Response> {
     return json({ error: 'Body inválido.' }, 400);
   }
   const clientId = String(body.clientId ?? '').trim();
-  const meetingTitle = String(body.meetingTitle ?? 'Reunión').trim();
+  // Qué se está enviando. Default 'meeting' a propósito: así una llamada que
+  // no manda `kind` (front antiguo, o deploy sin propagar) se comporta
+  // exactamente igual que antes.
+  const kind = body.kind === 'ropre' ? 'ropre' : 'meeting';
+  const meetingTitle = String(body.meetingTitle ?? (kind === 'ropre' ? 'ROPRE' : 'Reunión')).trim();
   const clientName = String(body.clientName ?? '').trim();
   const deck = String(body.deck ?? '').trim();
   const dateLabel = String(body.dateLabel ?? '').trim();
@@ -129,8 +133,10 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // ── 5. Enviar UN correo al equipo con el PDF adjunto ──
-  const subject = `📄 Reporte de reunión — ${meetingTitle}${clientName ? ` · ${clientName}` : ''}`;
-  const html = renderEmail({ meetingTitle, clientName, deck, dateLabel, appUrl, clientId });
+  const subject = kind === 'ropre'
+    ? `📊 Informe ROPRE — ${clientName || meetingTitle}`
+    : `📄 Reporte de reunión — ${meetingTitle}${clientName ? ` · ${clientName}` : ''}`;
+  const html = renderEmail({ kind, meetingTitle, clientName, deck, dateLabel, appUrl, clientId });
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -159,21 +165,31 @@ export default async function handler(req: Request): Promise<Response> {
 }
 
 function renderEmail(a: {
+  kind: 'meeting' | 'ropre';
   meetingTitle: string; clientName: string; deck: string; dateLabel: string; appUrl: string; clientId: string;
 }): string {
+  const esRopre = a.kind === 'ropre';
+  const eyebrow = esRopre ? 'Project360 · Informe ROPRE' : 'Project360 · Reporte de reunión';
+  const titulo = esRopre ? `ROPRE de ${a.clientName || a.meetingTitle}` : a.meetingTitle;
+  const cuerpo = esRopre
+    ? 'Adjuntamos el <b>informe completo del ROPRE</b> en PDF: resultado, objetivos, premisas, riesgos con sus mitigaciones y el estado de cada entregable.'
+    : 'Adjuntamos el <b>reporte ejecutivo completo</b> de la reunión en PDF: decisiones, compromisos con responsables, riesgos y próximos pasos.';
+  const cta = esRopre ? 'Ver el ROPRE →' : 'Ver la reunión →';
+  const ruta = esRopre ? 'ropre' : 'meetings';
+  const pie = esRopre ? 'Generado por Project360 desde el ROPRE del cliente.' : 'Generado automáticamente por Project360 al cerrar la reunión.';
   return `<!doctype html><html><body style="margin:0;background:#f5f6f8;font-family:Inter,Arial,sans-serif">
     <div style="max-width:540px;margin:0 auto;padding:28px 16px">
       <div style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e8eaee">
         <div style="background:#111318;padding:22px 26px;color:#fff">
-          <div style="font-size:11px;letter-spacing:2px;opacity:.7;text-transform:uppercase">Project360 · Reporte de reunión</div>
-          <div style="font-size:21px;font-weight:800;margin-top:6px">${escapeHtml(a.meetingTitle)}</div>
+          <div style="font-size:11px;letter-spacing:2px;opacity:.7;text-transform:uppercase">${escapeHtml(eyebrow)}</div>
+          <div style="font-size:21px;font-weight:800;margin-top:6px">${escapeHtml(titulo)}</div>
           ${a.clientName ? `<div style="font-size:13px;opacity:.75;margin-top:2px">${escapeHtml(a.clientName)}${a.dateLabel ? ` · ${escapeHtml(a.dateLabel)}` : ''}</div>` : ''}
         </div>
         <div style="padding:24px 26px">
           ${a.deck ? `<p style="font-size:15px;line-height:1.55;color:#333;margin:0 0 16px">${escapeHtml(a.deck)}</p>` : ''}
-          <p style="font-size:14px;color:#555;margin:0 0 18px">Adjuntamos el <b>reporte ejecutivo completo</b> de la reunión en PDF: decisiones, compromisos con responsables, riesgos y próximos pasos.</p>
-          <a href="${a.appUrl}/client/${a.clientId}/meetings" style="display:inline-block;background:#111318;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">Ver la reunión →</a>
-          <p style="font-size:12px;color:#999;margin:20px 0 0">Generado automáticamente por Project360 al cerrar la reunión.</p>
+          <p style="font-size:14px;color:#555;margin:0 0 18px">${cuerpo}</p>
+          <a href="${a.appUrl}/client/${a.clientId}/${ruta}" style="display:inline-block;background:#111318;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:11px 20px;border-radius:9px">${cta}</a>
+          <p style="font-size:12px;color:#999;margin:20px 0 0">${escapeHtml(pie)}</p>
         </div>
       </div>
     </div>

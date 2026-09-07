@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, ChevronDown, Calendar, CalendarRange, Mic, Rocket } from 'lucide-react';
+import { FileText, ChevronDown, Calendar, CalendarRange, Mic, Rocket, Target } from 'lucide-react';
 import type { Client } from '@/types/client';
 import { useClientStore } from '@/store/useClientStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
@@ -12,6 +12,7 @@ import { toast } from '@/store/useToastStore';
 // fallo con toast, incluido el caso de que no cargue el chunk).
 const loadReportsPdf = () => import('@/services/reportsPdf');
 const loadHtmlReport = () => import('@/services/htmlReport');
+const loadRopreReport = () => import('@/services/ropreReport');
 
 /**
  * Menú compacto en el header del cerebro: 4 reportes PDF.
@@ -109,6 +110,12 @@ export function ReportsMenu({ client }: { client: Client }) {
                   label="Reporte mensual"
                   hint="KPIs + pendientes del mes"
                   onClick={() => run(async () => (await loadReportsPdf()).exportMonthlyReport({ client, tasks, meetings }), 'Reporte mensual')}
+                />
+                <MenuItem
+                  icon={<Target className="h-3.5 w-3.5" />}
+                  label="Informe ROPRE"
+                  hint={ropreItems.length > 0 ? `${ropreItems.length} items` : 'Sin ROPRE registrado'}
+                  onClick={() => run(async () => (await loadRopreReport()).downloadRopreReportPdf(client, ropreItems), 'Informe ROPRE')}
                 />
                 <MenuItem
                   icon={<Mic className="h-3.5 w-3.5" />}

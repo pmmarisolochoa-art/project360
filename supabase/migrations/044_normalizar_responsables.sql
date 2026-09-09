@@ -22,6 +22,20 @@
 -- normal, así que revertir es un UPDATE ... FROM contra ella.
 --
 -- Es idempotente: a la segunda corrida ya no queda ningún alias que coincida.
+--
+-- VERIFICADA el 9-sep-2026 contra una copia local del esquema real de
+-- producción, CON FILAS (pruebas/probar_044_con_datos.sh) y no solo contra el
+-- esquema vacío — aquí lo que puede fallar es la lógica, no la sintaxis.
+-- Resultado con los 31 nombres reales del desplegable:
+--   · 31 nombres distintos → 17
+--   · Cisco, "  cisco  " y Francisco Otalvaro → una sola entrada
+--   · Toño y TOÑO → Antonio Espitia (la ñ y las mayúsculas no estorban)
+--   · Jona / Jonathan / Jhonatan → Jhonatan Rengifo
+--   · Speaker A, Speaker D, Hablante 2 y los 4 grupos → Marisol Ochoa
+--   · David, Tony, Antonio Vital, David Castaño y David Guerrero: intactos
+--   · el jsonb dentro de la reunión reescrito; una reunión con [] no se rompe
+--   · respaldo con las 31 tareas y los 3 ítems de ROPRE
+--   · segunda pasada: cero cambios
 
 begin;
 

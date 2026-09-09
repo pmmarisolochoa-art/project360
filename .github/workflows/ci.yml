@@ -49,5 +49,8 @@ jobs:
       - name: Pruebas de import/export y traspaso de datos
         run: npm run test:csv
 
+      - name: Pruebas de normalización de responsables (¿nombres duplicados?)
+        run: npm run test:alias
+
       - name: Build (¿construye la app?)
         run: npm run build

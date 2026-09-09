@@ -1,3 +1,5 @@
+import ALIAS_PERSONAS from './aliasPersonas.json';
+
 /**
  * Equivalencias entre los proyectos de Paralelo y los clientes de Project360.
  *
@@ -118,45 +120,60 @@ export const PARALELO_VENTANA_DIAS = 20;
  * Apodos de la transcripción → persona real del equipo.
  *
  * Paralelo saca los responsables de la diarización del audio, así que llegan
- * como los nombra la gente hablando: "Bala", "Balita (David F)", "Cami". La
- * misma persona aparece con tres etiquetas distintas, y ninguna se parece al
- * nombre con el que está registrada en Project360.
+ * como los nombra la gente hablando: "Cisco", "Juanca", "Loro", "Balita
+ * (David F)". La misma persona aparece con tres etiquetas distintas, y ninguna
+ * se parece al nombre con el que está registrada en Project360.
  *
- * Esta tabla la dio la founder (13-ago). Es la ÚNICA fuente: lo que no esté
- * aquí y no coincida por nombre con alguien del equipo se deja como texto
- * crudo. NO se adivina — "Bala" no se parece a "David Castaño" por ningún
- * algoritmo, y asignarle trabajo a quien no es cuesta más que dejar la tarea
- * con un nombre raro que alguien corrige a mano.
+ * LA TABLA VIVE EN `aliasPersonas.json`, NO AQUÍ. Es la misma que lee el
+ * generador de la migración que limpia las filas ya guardadas. Si estuviera
+ * escrita dos veces, el día que alguien añada un apodo arreglaría lo que entra
+ * de ahora en adelante y dejaría roto lo de antes — el fallo de los dos
+ * traductores del 11-ago, otra vez.
  *
- * Las claves se comparan en minúsculas y sin acentos; los sufijos entre
- * paréntesis ("(Speaker B)") se quitan antes de buscar aquí.
+ * Lo que no esté en la tabla y no coincida con alguien del equipo cae en la
+ * regla de desconocidos de abajo. NO se adivina por parecido: "Bala" no se
+ * parece a "David Castaño" por ningún algoritmo.
  */
-export const PARALELO_ALIAS: Record<string, string> = {
-  bala: 'David Castaño',
-  balita: 'David Castaño',
-  'david f': 'David Castaño',
-  cami: 'Camilo Beltrán',
-  camilo: 'Camilo Beltrán',
-  // 14-ago, founder: así la nombra el equipo en las reuniones de David Guerrero.
-  'mari cruz': 'Marisol Ochoa',
-  mari: 'Marisol Ochoa',
-};
+export const PARALELO_ALIAS: Record<string, string> = ALIAS_PERSONAS.alias;
 
 /**
- * POR QUÉ "Speaker A" NO ESTÁ AQUÍ, aunque sepamos quién es.
+ * A quién va lo que NO ES UN NOMBRE.
+ *
+ * Se aplica solo a tres cosas: etiquetas de diarización ("Speaker A"), grupos
+ * ("Equipo de Marketing", que están en la tabla de alias) y el vacío. Esas
+ * tareas no eran de nadie: convivían con la gente real en el filtro de
+ * personas y nadie las reclamaba.
+ *
+ * NO se aplica a un nombre real que no reconozcamos. Un "Arnoldo Lorenzo" se
+ * deja tal cual — es feo pero visible, y alguien lo corrige en dos clics;
+ * mandarlo a la bandeja de otro lo esconde. La primera versión de esta regla
+ * mandaba a Marisol TODO lo desconocido y se llevó por delante a "Tony" y al
+ * cliente "David Guerrero". Lo cazó `pruebas/alias-personas.mjs` antes de tocar
+ * un solo dato: por eso la lista de esa prueba es la real del desplegable y no
+ * un ejemplo inventado.
+ */
+export const PARALELO_DESCONOCIDO: string = ALIAS_PERSONAS._desconocido;
+
+/**
+ * Nombres que ninguna regla puede tocar. Ver el porqué de cada uno en el JSON.
+ * Se comparan en minúsculas y sin acentos, como las claves de alias.
+ */
+export const PARALELO_CONSERVAR: ReadonlySet<string> = new Set(ALIAS_PERSONAS.conservar);
+
+/**
+ * POR QUÉ "Speaker A" SIGUE SIN MAPEARSE A UNA PERSONA CONCRETA.
  *
  * En la reunión del 5-ago Speaker A es Jhonatan Rengifo. En la del 12 puede ser
  * cualquier otro: "Speaker A" no es un apodo, es el orden en que la diarización
- * oyó las voces, y se reparte de nuevo en CADA reunión.
+ * oyó las voces, y se reparte de nuevo en CADA reunión. La propia founder lo
+ * confirmó el 9-sep: "Speaker A puede ser media buyer o David Castaño".
  *
- * Ponerlo aquí le asignaría a Jhonatan, en silencio y para siempre, el trabajo
- * del primero que hable en cada reunión. Es justo el fallo que esta tabla
- * existe para evitar: una tarea con un nombre raro se corrige en dos clics
- * porque salta a la vista; una asignada a la persona equivocada no la corrige
- * nadie, porque nadie sabe que está mal.
+ * Por eso no está en la tabla de alias: cae en la regla de desconocidos y va a
+ * Marisol para que lo reparta. Que es distinto de fijarlo a un compañero, que
+ * sería asignarle en silencio y para siempre el trabajo del primero que hable.
  *
- * Estas se corrigen a mano al importar. Si algún día Paralelo entrega un id de
- * hablante estable por persona, se resuelve bien y se quita esta nota.
+ * Si algún día Paralelo entrega un id de hablante estable por persona, se
+ * resuelve bien y esta nota se cae.
  */
 
 /**
@@ -244,30 +261,45 @@ export const limpiarNombreParalelo = (crudo: string): string => {
  * Resuelve el responsable que dijo la transcripción a una persona del equipo.
  *
  * Orden: alias explícito (PARALELO_ALIAS) → nombre exacto del equipo → primer
- * nombre del equipo → el texto crudo tal cual.
+ * nombre del equipo → `PARALELO_DESCONOCIDO`.
  *
- * El último escalón es a propósito: una tarea con responsable "Arnoldo Lorenzo"
- * que nadie reconoce es visible y se corrige en dos clics. Una tarea asignada
- * en silencio a la persona equivocada no la corrige nadie, porque nadie sabe
- * que está mal.
+ * El último escalón cambió el 9-sep: antes devolvía el texto crudo. El porqué
+ * del cambio, y lo que cuesta, están escritos en `PARALELO_DESCONOCIDO`.
  */
 export function resolverResponsableParalelo(crudo: string, nombresEquipo: string[]): string {
   const limpio = limpiarNombreParalelo(crudo);
-  if (!limpio) return crudo;
-
-  const alias = PARALELO_ALIAS[sinAcentos(limpio)];
-  if (alias) return alias;
+  if (!limpio) return PARALELO_DESCONOCIDO;
 
   const objetivo = sinAcentos(limpio);
+
+  // Va PRIMERO: son los que ninguna regla debe tocar, ni siquiera la de primer
+  // nombre único (sin esto, "David" se fundiría con "David Castaño").
+  if (PARALELO_CONSERVAR.has(objetivo)) return limpio;
+
+  const alias = PARALELO_ALIAS[objetivo];
+  if (alias) return alias;
+
   const exacto = nombresEquipo.find((n) => sinAcentos(n) === objetivo);
   if (exacto) return exacto;
 
   // "Andrés" ↔ "Andrés Ramírez": basta con el primer nombre, y solo si es único.
   // Si dos personas del equipo se llaman Andrés, no se elige ninguna.
-  const candidatos = nombresEquipo.filter(
-    (n) => sinAcentos(n).split(' ')[0] === objetivo.split(' ')[0],
-  );
+  //
+  // SOLO si lo que llega es UNA palabra. Con dos, el apellido es información y
+  // contradecirla es inventar: "David Guerrero" (un cliente) se convertía en
+  // "David Castaño" (del equipo) porque compartían el primer nombre. Lo
+  // encontró la prueba de alias el 9-sep; el fallo estaba desde el 14-ago y
+  // nunca saltó porque hasta ahora nadie con nombre compuesto había caído aquí.
+  const esUnaPalabra = !objetivo.includes(' ');
+  const candidatos = esUnaPalabra
+    ? nombresEquipo.filter((n) => sinAcentos(n).split(' ')[0] === objetivo)
+    : [];
   if (candidatos.length === 1) return candidatos[0];
 
+  // "Speaker A" / "Hablante 2": no es un nombre, es el orden en que el audio
+  // oyó las voces. A la bandeja de quien reparte.
+  if (ETIQUETA_DIARIZACION.test(limpio)) return PARALELO_DESCONOCIDO;
+
+  // Un nombre real que no reconocemos se deja VISIBLE. Ver PARALELO_DESCONOCIDO.
   return limpio;
 }

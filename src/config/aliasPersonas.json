@@ -1,0 +1,91 @@
+{
+  "_comentario": [
+    "Apodos y variantes → la persona real, para TODA la app.",
+    "",
+    "Es JSON y no TypeScript a propósito: esta misma tabla la lee el código",
+    "(src/config/paralelo.ts) y el generador de la migración que limpia los datos",
+    "ya guardados (pruebas/generar_migracion_responsables.mjs). Si fueran dos",
+    "listas, el día que alguien añada un apodo arreglaría las importaciones",
+    "nuevas y dejaría las viejas rotas — que es el fallo de los dos traductores",
+    "del 11-ago, y el mismo motivo por el que el diccionario del export sale de",
+    "la misma definición que los datos.",
+    "",
+    "Las claves se comparan en MINÚSCULAS y SIN ACENTOS. No pongas mayúsculas.",
+    "",
+    "Tabla dada por la founder el 9-sep-2026 sobre la lista real del filtro de",
+    "personas, donde la misma persona aparecía hasta con tres etiquetas.",
+    "",
+    "Para añadir un apodo: agrégalo aquí, y si además hay que arreglar filas ya",
+    "guardadas, regenera la migración con:",
+    "  node pruebas/generar_migracion_responsables.mjs"
+  ],
+
+  "alias": {
+    "cisco": "Francisco Otalvaro",
+
+    "jona": "Jhonatan Rengifo",
+    "jhonatan": "Jhonatan Rengifo",
+    "jonathan": "Jhonatan Rengifo",
+
+    "juanca": "Juan Camilo Correa",
+
+    "loro": "Lorenzo Cadavid",
+
+    "lucho": "Luis David Flores",
+    "luisa": "Luis David Flores",
+    "teo": "Luis David Flores",
+
+    "robert": "Roberto Maestre",
+
+    "santi": "Santiago Ruiz",
+
+    "sophie": "Sofía Vasquez",
+
+    "tati": "Tatiana Echeverri Gomez",
+
+    "tono": "Antonio Espitia",
+
+    "andrea": "Andrea Torres",
+
+    "bala": "David Castaño",
+    "balita": "David Castaño",
+    "david f": "David Castaño",
+
+    "cami": "Camilo Beltrán",
+    "camilo": "Camilo Beltrán",
+
+    "mari cruz": "Marisol Ochoa",
+    "mari": "Marisol Ochoa",
+
+    "equipo": "Marisol Ochoa",
+    "equipo de contenido": "Marisol Ochoa",
+    "equipo de marketing": "Marisol Ochoa",
+    "el grupo": "Marisol Ochoa"
+  },
+
+  "_comentario_conservar": [
+    "Nombres que se dejan EXACTAMENTE como están, aunque alguna regla los",
+    "tocaría. Están escritos para que nadie los 'arregle' luego creyendo que se",
+    "olvidaron.",
+    "",
+    "  · 'David' a secas — sin esto, la regla de primer nombre único lo fundiría",
+    "    con David Castaño. Pero también existe David Guerrero (cliente), así",
+    "    que elegir uno sería una moneda al aire (founder, 9-sep-2026).",
+    "",
+    "Tony, Antonio Vital y David Guerrero NO necesitan estar aquí: al ser",
+    "nombres que no se reconocen, la regla de abajo ya los deja intactos."
+  ],
+  "conservar": ["david"],
+
+  "_comentario_desconocido": [
+    "A quién va lo que NO es un nombre: etiquetas de diarización ('Speaker A'),",
+    "grupos ('Equipo de Marketing', que están arriba en alias) y el vacío.",
+    "",
+    "OJO — esto NO se aplica a un nombre real que no reconozcamos. Un 'Arnoldo",
+    "Lorenzo' se deja tal cual: es feo pero visible, y alguien lo corrige en dos",
+    "clics. La primera versión de esta regla mandaba a Marisol todo lo",
+    "desconocido y se llevó por delante a 'Tony' y a 'David Guerrero' — lo cazó",
+    "la prueba pruebas/alias-personas.mjs antes de tocar un solo dato."
+  ],
+  "_desconocido": "Marisol Ochoa"
+}

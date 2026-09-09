@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 #
-# Prueba la migración 044 CON FILAS, no solo contra el esquema vacío.
+# Prueba una migración de responsables CON FILAS, no solo contra el esquema vacío.
+#
+# USO:
+#   bash pruebas/probar_migracion_con_datos.sh supabase/migrations/045_*.sql
+#
+# Se le pueden pasar varias y las aplica EN ORDEN, que es como se puede
+# reproducir el estado real: la 044 ya corrió en producción, así que probar la
+# 045 sola no dice nada útil.
 #
 # POR QUÉ EXISTE, además de probar_migracion.sh: ese script comprueba que el
 # SQL no revienta y qué columnas añade. Aquí lo que puede fallar no es la
@@ -13,7 +20,7 @@
 # Necesita Docker corriendo y el esquema ya descargado por probar_migracion.sh.
 set -uo pipefail
 export PATH="/usr/local/bin:$PATH"
-C=p360_044
+C=p360_migracion_datos
 ESQUEMA="${TMPDIR:-/tmp}/p360_schema_real.sql"
 cd /Users/marisolochoalopez/Desktop/CLAUDE/project360
 
@@ -63,7 +70,11 @@ insert into public.meetings (id, client_id, title, type, scheduled_at, duration_
 SQL
 
 echo "ANTES: $(docker exec "$C" psql -U postgres -tAc "select count(distinct assigned_to) from public.tasks") nombres distintos"
-docker exec -i "$C" psql -U postgres -v ON_ERROR_STOP=1 -q < supabase/migrations/044_normalizar_responsables.sql
+for M in "$@"; do
+  echo "  → $(basename "$M")"
+  docker exec -i "$C" psql -U postgres -v ON_ERROR_STOP=1 -q < "$M" || exit 1
+done
+ULTIMA="${!#}"
 echo
 echo "── TAREAS DESPUÉS ──"
 docker exec "$C" psql -U postgres -c "select assigned_to, count(*) from public.tasks group by 1 order by 1"
@@ -74,10 +85,11 @@ docker exec "$C" psql -U postgres -tAc "select extracted_tasks from public.meeti
 echo "── REUNIÓN VACÍA ──"
 docker exec "$C" psql -U postgres -tAc "select extracted_tasks from public.meetings where id='33333333-3333-3333-3333-333333333333'"
 echo "── RESPALDO ──"
-docker exec "$C" psql -U postgres -c "select tabla, count(*) from public.respaldo_responsables_044 group by 1 order by 1"
+NUM=$(basename "$ULTIMA" | grep -oE '^[0-9]+')
+docker exec "$C" psql -U postgres -c "select tabla, count(*) from public.respaldo_responsables_${NUM} group by 1 order by 1"
 echo
 docker exec "$C" psql -U postgres -tAc "select md5(string_agg(assigned_to,',' order by id::text)) from public.tasks" > /tmp/h1
-docker exec -i "$C" psql -U postgres -q -v ON_ERROR_STOP=1 < supabase/migrations/044_normalizar_responsables.sql >/dev/null 2>&1
+docker exec -i "$C" psql -U postgres -q -v ON_ERROR_STOP=1 < "$ULTIMA" >/dev/null 2>&1
 docker exec "$C" psql -U postgres -tAc "select md5(string_agg(assigned_to,',' order by id::text)) from public.tasks" > /tmp/h2
 diff -q /tmp/h1 /tmp/h2 >/dev/null && echo "IDEMPOTENTE ✅" || echo "IDEMPOTENTE ❌ cambió"
 docker rm -f "$C" >/dev/null 2>&1

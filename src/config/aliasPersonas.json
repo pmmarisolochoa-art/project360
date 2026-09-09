@@ -44,6 +44,7 @@
     "tati": "Tatiana Echeverri Gomez",
 
     "tono": "Antonio Espitia",
+    "tony": "Antonio Vital",
 
     "andrea": "Andrea Torres",
 
@@ -72,8 +73,13 @@
     "    con David Castaño. Pero también existe David Guerrero (cliente), así",
     "    que elegir uno sería una moneda al aire (founder, 9-sep-2026).",
     "",
-    "Tony, Antonio Vital y David Guerrero NO necesitan estar aquí: al ser",
-    "nombres que no se reconocen, la regla de abajo ya los deja intactos."
+    "David Guerrero NO necesita estar aquí: al ser un nombre que no se reconoce,",
+    "la regla de desconocidos ya lo deja intacto.",
+    "",
+    "OJO con 'Tony': el 9-sep se decidió dejarlo aparte y ese mismo día la",
+    "founder corrigió — Tony ES Antonio Vital, y está arriba en alias. Se deja",
+    "escrito porque el historial de esta tabla es la única forma de saber si un",
+    "nombre falta por olvido o por decisión."
   ],
   "conservar": ["david"],
 

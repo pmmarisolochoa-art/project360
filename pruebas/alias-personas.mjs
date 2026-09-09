@@ -51,6 +51,8 @@ ok(r('Santi') === 'Santiago Ruiz', 'Santi → Santiago Ruiz');
 ok(r('Sophie') === 'Sofía Vasquez', 'Sophie → Sofía Vasquez');
 ok(r('Tati') === 'Tatiana Echeverri Gomez', 'Tati → Tatiana Echeverri Gomez');
 ok(r('Toño') === 'Antonio Espitia', 'Toño → Antonio Espitia');
+// Corregido por la founder el mismo 9-sep: primero se dejó Tony aparte.
+ok(r('Tony') === 'Antonio Vital', 'Tony → Antonio Vital (NO Antonio Espitia)');
 
 seccion('acentos y mayúsculas no deben importar');
 ok(r('TOÑO') === 'Antonio Espitia', 'TOÑO en mayúsculas');
@@ -58,7 +60,6 @@ ok(r('Tono') === 'Antonio Espitia', 'Tono sin la tilde de la ñ');
 ok(r('  cisco  ') === 'Francisco Otalvaro', 'con espacios de sobra');
 
 seccion('lo que NO se toca (decisión explícita, no olvido)');
-ok(r('Tony') === 'Tony', 'Tony sigue siendo Tony, no es ninguno de los dos Antonios');
 ok(r('Antonio Vital') === 'Antonio Vital', 'Antonio Vital no se funde con Antonio Espitia');
 ok(r('Antonio Espitia') === 'Antonio Espitia', 'un nombre ya correcto se queda igual');
 
@@ -75,7 +76,7 @@ ok(r('') === PARALELO_DESCONOCIDO, 'vacío');
 seccion('un nombre real desconocido se deja VISIBLE, no se esconde');
 ok(r('Arnoldo Lorenzo') === 'Arnoldo Lorenzo', 'un nombre que nadie reconoce se queda tal cual');
 ok(r('David Guerrero') === 'David Guerrero', 'David Guerrero (cliente) NO se funde con David Castaño');
-ok(r('Tony') === 'Tony', 'Tony tampoco cae en la bandeja de nadie');
+
 
 seccion('lo que ya funcionaba no se rompió');
 ok(r('Balita (David F)') === 'David Castaño', 'el nombre FUERA del paréntesis');
@@ -101,13 +102,13 @@ console.log('  Después:' + despues.length + ' entradas → ' + despues.join(', 
 
 // Ninguno de los apodos que ella nombró puede sobrevivir.
 const APODOS = ['Cisco', 'Jona', 'Jonathan', 'Juanca', 'Loro', 'Lucho', 'Luisa',
-  'Teo', 'Robert', 'Santi', 'Sophie', 'Tati', 'Toño', 'Andrea',
+  'Teo', 'Robert', 'Santi', 'Sophie', 'Tati', 'Toño', 'Tony', 'Andrea',
   'El grupo', 'Equipo', 'Equipo de Contenido', 'Equipo de Marketing',
   'Speaker A', 'Speaker D'];
 for (const a of APODOS) ok(!despues.includes(a), `"${a}" ya no aparece en la lista`);
 
 // Y los que decidió conservar tienen que seguir ahí.
-for (const n of ['David', 'Tony', 'Antonio Vital', 'David Castaño', 'David Guerrero'])
+for (const n of ['David', 'Antonio Vital', 'David Castaño', 'David Guerrero'])
   ok(despues.includes(n), `"${n}" se conserva, como se decidió`);
 
 console.log(`\n${fallos === 0 ? '🟢' : '🔴'} ${total - fallos}/${total} PASARON`);

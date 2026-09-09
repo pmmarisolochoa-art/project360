@@ -1,45 +1,4 @@
-/**
- * Genera la migración que normaliza los responsables YA GUARDADOS.
- *
- * La tabla de alias NO se escribe aquí: se lee de src/config/aliasPersonas.json,
- * el mismo archivo que usa la app para las importaciones nuevas. Así no hay dos
- * listas que puedan divergir — que es el fallo de los dos traductores del
- * 11-ago y el motivo por el que el diccionario del export sale de la misma
- * definición que los datos.
- *
- *   node pruebas/generar_migracion_responsables.mjs
- *
- * La migración resultante es IDEMPOTENTE: correrla dos veces no cambia nada la
- * segunda vez, porque después de la primera ya no queda ningún alias que
- * coincida.
- */
-import { readFileSync, writeFileSync } from 'node:fs';
-
-const TABLA = JSON.parse(readFileSync(new URL('../src/config/aliasPersonas.json', import.meta.url), 'utf8'));
-// El número va por argumento porque una migración ya aplicada NO se reescribe:
-// el log de migraciones es el historial de lo que se le hizo a la base.
-// Aplicar la tabla entera otra vez es seguro — lo ya normalizado no casa con
-// ningún alias, así que solo cambian los apodos nuevos.
-//   node pruebas/generar_migracion_responsables.mjs 045
-const NUM = process.argv[2] ?? '044';
-const SALIDA = new URL(`../supabase/migrations/${NUM}_normalizar_responsables.sql`, import.meta.url);
-
-const alias = TABLA.alias;
-const desconocido = TABLA._desconocido;
-const pares = Object.entries(alias);
-
-// Las claves ya vienen en minúsculas y sin acentos (es la regla del JSON).
-// Se comprueba aquí en vez de confiar: una clave con mayúscula no casaría nunca
-// y el fallo sería silencioso — la fila simplemente no se actualizaría.
-for (const [k] of pares) {
-  const norm = k.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  if (k !== norm) throw new Error(`La clave "${k}" tiene mayúsculas o acentos. Debe ser "${norm}".`);
-}
-
-const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
-const valores = pares.map(([k, v]) => `    (${q(k)}, ${q(v)})`).join(',\n');
-
-const sql = `-- ${NUM} · Normalizar los responsables ya guardados
+-- 045 · Normalizar los responsables ya guardados
 --
 -- GENERADO por pruebas/generar_migracion_responsables.mjs desde
 -- src/config/aliasPersonas.json. NO editar a mano: cambia el JSON y regenera,
@@ -61,12 +20,27 @@ const sql = `-- ${NUM} · Normalizar los responsables ya guardados
 -- ANTES DE CORRER: la sección 1 hace un RESPALDO. No la saltes. Es una tabla
 -- normal, así que revertir es un UPDATE ... FROM contra ella.
 --
+-- POR QUÉ HAY UNA 045 SI YA CORRIÓ LA 044. La founder corrigió el mismo día:
+-- "Tony" no era un nombre aparte, es Antonio Vital. Una migración ya aplicada
+-- NO se reescribe — el log de migraciones es el historial de lo que se le hizo
+-- a la base, y editarlo deja a quien lo lea sin saber qué se corrió de verdad.
+-- Esta vuelve a aplicar la tabla ENTERA: lo que la 044 ya normalizó no casa con
+-- ningún alias, así que en la práctica solo cambia Tony.
+--
 -- Es idempotente: a la segunda corrida ya no queda ningún alias que coincida.
+--
+-- VERIFICADA el 9-sep-2026 contra una copia local del esquema real de
+-- producción, CON FILAS y ENCIMA DE LA 044 (que es el estado real):
+--   bash pruebas/probar_migracion_con_datos.sh supabase/migrations/044_*.sql supabase/migrations/045_*.sql
+--   · "Tony" desaparece; Antonio Vital pasa a 2 (Tony + el suyo)
+--   · también en ropre_items y en el jsonb dentro de la reunión
+--   · David, David Castaño y David Guerrero: intactos
+--   · segunda pasada: cero cambios
 
 begin;
 
 -- ── 1 · Respaldo, para poder deshacer ────────────────────────────────────────
-create table if not exists public.respaldo_responsables_${NUM} as
+create table if not exists public.respaldo_responsables_045 as
   select 'tasks'::text as tabla, id, assigned_to as valor from public.tasks
   union all
   select 'ropre_items'::text, id, responsible from public.ropre_items where responsible is not null;
@@ -83,7 +57,33 @@ $$ language sql immutable;
 
 create temporary table alias_personas (apodo text primary key, persona text not null) on commit drop;
 insert into alias_personas (apodo, persona) values
-${valores};
+    ('cisco', 'Francisco Otalvaro'),
+    ('jona', 'Jhonatan Rengifo'),
+    ('jhonatan', 'Jhonatan Rengifo'),
+    ('jonathan', 'Jhonatan Rengifo'),
+    ('juanca', 'Juan Camilo Correa'),
+    ('loro', 'Lorenzo Cadavid'),
+    ('lucho', 'Luis David Flores'),
+    ('luisa', 'Luis David Flores'),
+    ('teo', 'Luis David Flores'),
+    ('robert', 'Roberto Maestre'),
+    ('santi', 'Santiago Ruiz'),
+    ('sophie', 'Sofía Vasquez'),
+    ('tati', 'Tatiana Echeverri Gomez'),
+    ('tono', 'Antonio Espitia'),
+    ('tony', 'Antonio Vital'),
+    ('andrea', 'Andrea Torres'),
+    ('bala', 'David Castaño'),
+    ('balita', 'David Castaño'),
+    ('david f', 'David Castaño'),
+    ('cami', 'Camilo Beltrán'),
+    ('camilo', 'Camilo Beltrán'),
+    ('mari cruz', 'Marisol Ochoa'),
+    ('mari', 'Marisol Ochoa'),
+    ('equipo', 'Marisol Ochoa'),
+    ('equipo de contenido', 'Marisol Ochoa'),
+    ('equipo de marketing', 'Marisol Ochoa'),
+    ('el grupo', 'Marisol Ochoa');
 
 -- ── 3 · Tareas ───────────────────────────────────────────────────────────────
 update public.tasks t
@@ -97,13 +97,13 @@ update public.tasks t
 -- reunión. No se pueden mapear a una persona concreta sin mentir, así que van a
 -- quien reparte el trabajo.
 update public.tasks
-   set assigned_to = ${q(desconocido)}
+   set assigned_to = 'Marisol Ochoa'
  where pg_temp.norm(assigned_to) ~ '^(speaker|hablante|participante)[[:space:]]*[a-z0-9]{1,2}$'
-   and assigned_to <> ${q(desconocido)};
+   and assigned_to <> 'Marisol Ochoa';
 
 -- Sin responsable: misma regla — a la bandeja de quien reparte.
 update public.tasks
-   set assigned_to = ${q(desconocido)}
+   set assigned_to = 'Marisol Ochoa'
  where trim(coalesce(assigned_to, '')) = '';
 
 -- ── 4 · Entregables del ROPRE ────────────────────────────────────────────────
@@ -114,9 +114,9 @@ update public.ropre_items r
    and r.responsible <> a.persona;
 
 update public.ropre_items
-   set responsible = ${q(desconocido)}
+   set responsible = 'Marisol Ochoa'
  where pg_temp.norm(responsible) ~ '^(speaker|hablante|participante)[[:space:]]*[a-z0-9]{1,2}$'
-   and responsible <> ${q(desconocido)};
+   and responsible <> 'Marisol Ochoa';
 
 -- ── 5 · Las tareas extraídas que viven DENTRO de cada reunión ────────────────
 -- meetings.extracted_tasks es un jsonb con el responsable en 'responsibleRole'.
@@ -130,7 +130,7 @@ update public.meetings m
              case
                when a.persona is not null then jsonb_set(tarea, '{responsibleRole}', to_jsonb(a.persona))
                when pg_temp.norm(tarea->>'responsibleRole') ~ '^(speaker|hablante|participante)[[:space:]]*[a-z0-9]{1,2}$'
-                 then jsonb_set(tarea, '{responsibleRole}', to_jsonb(${q(desconocido)}::text))
+                 then jsonb_set(tarea, '{responsibleRole}', to_jsonb('Marisol Ochoa'::text))
                else tarea
              end
              order by orden
@@ -152,7 +152,7 @@ commit;
 -- lista que verás en el filtro de personas.
 --
 --   select assigned_to, count(*) from public.tasks
---    where lower(assigned_to) in (${pares.map(([k]) => q(k)).join(', ')})
+--    where lower(assigned_to) in ('cisco', 'jona', 'jhonatan', 'jonathan', 'juanca', 'loro', 'lucho', 'luisa', 'teo', 'robert', 'santi', 'sophie', 'tati', 'tono', 'tony', 'andrea', 'bala', 'balita', 'david f', 'cami', 'camilo', 'mari cruz', 'mari', 'equipo', 'equipo de contenido', 'equipo de marketing', 'el grupo')
 --       or assigned_to ~* '^(speaker|hablante|participante)'
 --    group by 1;
 --
@@ -160,14 +160,9 @@ commit;
 --
 -- Para DESHACER todo:
 --   update public.tasks t set assigned_to = r.valor
---     from public.respaldo_responsables_${NUM} r
+--     from public.respaldo_responsables_045 r
 --    where r.tabla = 'tasks' and r.id = t.id and t.assigned_to <> r.valor;
 --   update public.ropre_items i set responsible = r.valor
---     from public.respaldo_responsables_${NUM} r
+--     from public.respaldo_responsables_045 r
 --    where r.tabla = 'ropre_items' and r.id = i.id;
 --   (extracted_tasks no se respalda: se regenera reimportando la reunión.)
-`;
-
-writeFileSync(SALIDA, sql);
-console.log(`✅ ${pares.length} alias → ${SALIDA.pathname.split('/').pop()}`);
-console.log(`   desconocidos y "Speaker X" → ${desconocido}`);

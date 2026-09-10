@@ -4,6 +4,38 @@
 
 ---
 
+## 2026-09-09 — Los nombres duplicados: una sola tabla de apodos, y dos bugs que solo vio la prueba
+
+**4 commits. Migraciones 044 y 045 corridas por la founder.** El filtro "Todas las personas" mostraba **37 entradas para 17 personas**: la misma gente con hasta tres etiquetas — "Cisco" y "Francisco Otalvaro", "Jona"/"Jhonatan"/"Jonathan", "Lucho"/"Luisa"/"Luis David Flores".
+
+### El diagnóstico: no era un bug, eran dos trabajos que nadie había separado
+Los alias YA existían desde el 14-ago y funcionaban. Pero se aplicaban **solo al importar**, así que arreglaban lo que entraba de ahí en adelante y dejaban intacto todo lo anterior. **Una tabla de equivalencias y una limpieza de datos son dos encargos distintos**, y hacer solo el primero da la sensación de haberlo resuelto.
+
+### La tabla se muda a JSON, y el motivo no es técnico
+`src/config/aliasPersonas.json` la lee **el código** (para lo que entra) y **el generador de la migración** (para lo que ya está). En TypeScript habrían sido dos listas, y la que se toca poco se queda atrás — el fallo de los dos traductores del 11-ago, y el mismo principio por el que el diccionario del export sale de la misma definición que los datos. La migración **se genera**, no se escribe a mano.
+
+### Dos bugs que encontró la prueba, no la lectura del código
+**(1) La regla de desconocidos era demasiado ancha.** La primera versión mandaba a la bandeja de Marisol *todo* lo que no reconocía, y se llevó por delante a "Tony" y al cliente "David Guerrero". La lectura correcta de lo que pidió la founder —*"algunos sin saber con el nombre de speaker u otro"*— eran **etiquetas**, no nombres: `Speaker A`, los grupos y el vacío. Un nombre real desconocido se sigue dejando VISIBLE, porque así se corrige en dos clics; escondido en la bandeja de otro, no lo corrige nadie.
+
+**(2) Un bug del 14-ago que nunca había saltado.** La regla de "primer nombre único" no miraba cuántas palabras traía el nombre: **"David Guerrero" (cliente) se convertía en "David Castaño" (del equipo)** por compartir el primer nombre. Ahora solo aplica a nombres de UNA palabra — con dos, el apellido es información y contradecirla es inventar.
+
+Los dos salieron porque **la lista de casos de la prueba es la real del desplegable**, no un ejemplo inventado. Es la diferencia entre una prueba que confirma lo que ya creías y una que te contradice.
+
+### Speaker A: la regla vieja se mantiene, la conclusión cambia
+Sigue sin mapearse a una persona — no es un apodo, es el orden en que la diarización oyó las voces y se reparte de nuevo en cada reunión. La propia founder lo confirmó: *"Speaker A puede ser media buyer o David Castaño"*. Lo que cambia es a dónde va: antes se quedaba en crudo y **nadie lo reclamaba nunca**; ahora cae en quien reparte el trabajo. **No es adivinar: es que lo que no es de nadie tenga dueño de triaje.**
+
+### La 044 no se reescribió, aunque la corrección fuera de una línea
+La founder corrigió el mismo día ("Tony es Antonio Vital") **después** de haber corrido la 044. Se hizo una **045** que vuelve a aplicar la tabla entera (lo ya normalizado no casa con ningún alias, así que en la práctica solo mueve a Tony). **Editar una migración ya aplicada deja a quien la lea sin saber qué se ejecutó de verdad** — el log de migraciones es el historial de lo que se le hizo a la base, no un archivo de configuración.
+
+Por el mismo motivo, la tabla deja escrito que **Tony está ahí por corrección y no por olvido**, y que David / David Guerrero se conservan a propósito. Es la única forma de distinguir "se decidió así" de "se nos pasó" — que es literalmente el problema que se está arrastrando con `fasesEmbudo`.
+
+### Verificación
+No bastó con `probar_migracion.sh` (comprueba que el SQL no revienta, contra un esquema vacío): **aquí lo que podía fallar era la lógica**, así que se probó **con filas** y **encima de la 044 ya aplicada**, que es el estado real. Resultado con los 31 nombres reales: 31 distintos → 16, la ñ y las mayúsculas no estorban, el jsonb dentro de las reuniones se reescribe (si no, el nombre viejo reaparece al abrirla), una reunión con `[]` no rompe la consulta, hay respaldo y la segunda pasada no cambia nada. 58 comprobaciones en `npm run test:alias`, ya en el CI. **CI verde y desplegado.**
+
+**Pendiente menor:** la founder escribió "Antonio Vitale" y en la app está "Antonio Vital". Se usó el de la app para no crear un duplicado nuevo; si la grafía correcta lleva la e, se arregla en Equipo y no en la tabla.
+
+---
+
 ## 2026-09-07 — Se cierran dos decisiones arrastradas: ROPRE se queda (con salida propia), `fasesEmbudo` se aplaza
 
 Sesión sin features nuevas a propósito: la founder pidió cerrar decisiones pendientes en vez de construir. Las dos que llevaban semanas en la lista se decidieron **midiendo el costo, no opinando**.

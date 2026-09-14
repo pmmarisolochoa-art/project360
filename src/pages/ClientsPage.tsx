@@ -47,8 +47,16 @@ export function ClientsPage() {
   const [importarAbierto, setImportarAbierto] = useState(false);
   const [exportarAbierto, setExportarAbierto] = useState(false);
 
-  /** El cliente que representa a la agencia. No sale en la rejilla de abajo. */
-  const espacioAgencia = clients.find((c) => c.isAgency);
+  /**
+   * Los clientes marcados como espacio de agencia. No salen en la rejilla.
+   *
+   * Es una LISTA y no un `find` desde el 14-sep. La casilla de Perfil deja
+   * marcar a cualquiera, y con `find` solo se enlazaba al primero: el segundo
+   * desaparecía de la rejilla, del sidebar y de aquí a la vez — inalcanzable
+   * salvo escribiendo la URL. Pasó de verdad, con David Guerrero marcado por
+   * error: dejó fuera a Ikigai Agencia, que sí lo es.
+   */
+  const espaciosAgencia = useMemo(() => clients.filter((c) => c.isAgency), [clients]);
 
   const filtered = useMemo(
     () =>
@@ -87,13 +95,13 @@ export function ClientsPage() {
               cerebro —equipo, agenda, tareas internas— y hasta ahora no había un
               solo enlace que llevara a él. Se llegaba escribiendo la URL a mano,
               que es como no poder llegar. */}
-          {espacioAgencia && (
-            <Link to={`/client/${espacioAgencia.id}`}>
+          {espaciosAgencia.map((esp) => (
+            <Link key={esp.id} to={`/client/${esp.id}`}>
               <Button variant="ghost" leftIcon={<Building2 className="h-4 w-4" />}>
-                Espacio de {espacioAgencia.name}
+                Espacio de {esp.name}
               </Button>
             </Link>
-          )}
+          ))}
           {/* Alta en lote: el onboarding de al lado crea UN cliente con su
               cerebro; esto trae los que ya existen en otra hoja, sin inventarles
               nada. Son dos caminos distintos a propósito. */}

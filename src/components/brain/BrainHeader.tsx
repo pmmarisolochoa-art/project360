@@ -36,7 +36,15 @@ export function BrainHeader({ client }: { client: Client }) {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="relative overflow-hidden border-b border-border-subtle"
+      // OJO con `overflow-hidden` aquí: lo tuvo hasta el 14-sep y RECORTABA el
+      // desplegable de "Reportes PDF" — solo se veía la primera opción, así que
+      // el mensual, el de reunión y el de lanzamiento eran inalcanzables sin que
+      // nada fallara. El recorte que hace falta es solo para el círculo
+      // decorativo, y vive ahora en su propia capa.
+      //
+      // `z-30` porque BrainNav es `sticky z-20`: sin esto el menú queda por
+      // debajo de la barra de módulos.
+      className="relative z-30 border-b border-border-subtle"
       style={{
         // Banner difuminado con el color del cliente sobre el fondo base del tema.
         // En dark mode queda oscuro, en light queda claro — el accent del cliente
@@ -44,10 +52,14 @@ export function BrainHeader({ client }: { client: Client }) {
         background: `linear-gradient(135deg, ${withAlpha(accent, 0.18)} 0%, ${withAlpha(accent, 0.04)} 45%, var(--bg-base) 90%)`,
       }}
     >
-      <div
-        className="absolute -top-32 -right-32 h-72 w-72 rounded-full blur-3xl opacity-25"
-        style={{ background: accent }}
-      />
+      {/* El difuminado se recorta aquí dentro, no en el header, para no recortar
+          también lo que se despliega desde los botones. */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div
+          className="absolute -top-32 -right-32 h-72 w-72 rounded-full blur-3xl opacity-25"
+          style={{ background: accent }}
+        />
+      </div>
       <div className="relative max-w-[1600px] mx-auto px-6 lg:px-8 py-6">
         <Link
           to="/"

@@ -52,5 +52,8 @@ jobs:
       - name: Pruebas de normalización de responsables (¿nombres duplicados?)
         run: npm run test:alias
 
+      - name: Plantilla de la Daily (¿sigue aplicando a Ikigai?)
+        run: npm run test:daily
+
       - name: Build (¿construye la app?)
         run: npm run build

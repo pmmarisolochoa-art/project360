@@ -9,10 +9,11 @@
     "preview": "vite preview",
     "typecheck": "tsc -b && tsc -p tsconfig.api.json",
     "lint": "eslint .",
-    "check": "npm run typecheck && npm run lint && npm run test:api && npm run test:csv && npm run test:alias",
+    "check": "npm run typecheck && npm run lint && npm run test:api && npm run test:csv && npm run test:alias && npm run test:daily",
     "test:api": "node pruebas/api-v1.mjs",
     "test:csv": "node pruebas/csv-clientes.mjs && node pruebas/exportar-portafolio.mjs && node pruebas/traspaso-datos.mjs && node pruebas/telefono.mjs",
-    "test:alias": "node pruebas/alias-personas.mjs"
+    "test:alias": "node pruebas/alias-personas.mjs",
+    "test:daily": "node pruebas/daily-plantilla.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

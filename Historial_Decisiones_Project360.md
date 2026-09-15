@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-09-15 — Ikigai deja de ser la agencia y pasa a ser un cliente: el espacio interno se separa
+
+**2 commits. Migración 046 corrida y verificada.** Empezó como "no me salen los clientes" y terminó en una decisión de modelo.
+
+### El síntoma y la causa
+El Dashboard decía "1 clientes activos de 1 totales" con 3 clientes en la base. Causa: **`clients.is_agency` hace DOS trabajos a la vez** — marca "este es mi espacio interno" (donde cuelgan las tareas personales, porque `tasks.client_id` es obligatorio) y "no lo muestres en la lista de clientes". Con Ikigai y David Guerrero marcados, quedaba una sola card.
+
+David Guerrero estaba marcado **por error**. Ikigai lo estaba **con razón, en su momento**: cuando la app se llamaba "Ikigai Agencia", Ikigai *era* la agencia que operaba. El 26-ago la app volvió a ser Project360 y **el modelo cambió pero el dato no**. Ese desfase es el mismo patrón del 18-ago: no un bug técnico, sino distancia entre lo que la app supone y lo que la founder espera.
+
+### La decisión
+Ikigai pasa a ser un cliente como Andrea, y **la agencia se queda con un espacio interno propio y vacío** (migración 046). No se desmarcó Ikigai a secas porque de esa casilla colgaban tres cosas:
+
+1. **El reporte de la Daily** — `esDaily()` exigía `isAgency`.
+2. **"🔒 Personal" de Mi Espacio** — `mi_espacio_personal()` devuelve el cliente con `is_agency`; sin ninguno, devuelve null y la opción desaparece para todo el equipo.
+3. **El filtro Cliente/Internas** de la Agenda.
+
+El (3) **se resuelve solo y no era una rotura**: si Ikigai es cliente, sus dailies son reuniones de cliente. Reclasificarlas es lo correcto.
+
+El (1) sí era una rotura, y **de las mudas**: el reporte genérico le pide todo a la IA a partir de las NOTAS, y una daily de Paralelo no tiene notas sino resumen — sale un titular, un párrafo y una página en blanco. Es literalmente el bug del 20-ago. La condición pasa a `CLIENTES_CON_DAILY`, declarado **por nombre** como `PARALELO_PROYECTOS` y por el mismo motivo (los UUID cambian entre local y producción).
+
+### Lo que la migración NO hace, a propósito
+No mueve las reuniones de Ikigai (son suyas). Y **no toca las tareas privadas de David Guerrero**: una tarea privada en un cliente normal es legítima, y desde SQL no hay forma de saber si la escribió "Personal" mientras estuvo mal marcado. La migración las cuenta para que las mire una persona. **Cuando no se puede distinguir, se cuenta y se pregunta; no se decide en silencio.**
+
+### Dos fallos propios, los dos encontrados con la prueba de datos
+`on conflict do nothing` **no hacía nada** —no hay restricción única en `name`— así que la segunda corrida creaba un SEGUNDO espacio interno: la migración no era idempotente. Y el respaldo iba *después* de crear el espacio, así que se guardaba a sí mismo y deshacer lo habría dejado marcado como agencia.
+
+Ninguno de los dos se ve leyendo el SQL. Salieron al ejecutarlo contra filas que reproducían el estado real. **Es la tercera vez esta semana que el fallo aparece al medir y no al deducir.**
+
+### Antes, dos bugs viejos de la misma captura
+**El menú "Reportes PDF" llevaba meses recortado.** `BrainHeader` tenía `overflow-hidden`, que corta lo que se despliega fuera del borde: solo se veía la primera opción, así que el mensual, el de reunión y el de lanzamiento eran inalcanzables **sin que nada fallara**. Por eso nadie lo reportó.
+
+**Y `ClientsPage` enlazaba el espacio de agencia con `find`**, o sea solo el primero. Con dos marcados, el segundo desaparecía de la rejilla, del sidebar y del enlace a la vez: inalcanzable salvo escribiendo la URL. Pasó de verdad — David Guerrero dejó fuera a Ikigai.
+
+**Los dos los encontró la founder usando la app, no el CI ni las 172 pruebas.**
+
+---
+
 ## 2026-09-09 — Los nombres duplicados: una sola tabla de apodos, y dos bugs que solo vio la prueba
 
 **4 commits. Migraciones 044 y 045 corridas por la founder.** El filtro "Todas las personas" mostraba **37 entradas para 17 personas**: la misma gente con hasta tres etiquetas — "Cisco" y "Francisco Otalvaro", "Jona"/"Jhonatan"/"Jonathan", "Lucho"/"Luisa"/"Luis David Flores".

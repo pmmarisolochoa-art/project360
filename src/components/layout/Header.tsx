@@ -1,13 +1,12 @@
-import { Bell, Plus, Menu } from 'lucide-react';
+import { Plus, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '@/store/useAppStore';
-import { useNotificationStore } from '@/store/useNotificationStore';
+import { PanelPendientes } from '@/components/layout/PanelPendientes';
 import { Button } from '@/components/ui/Button';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const user = useAppStore((s) => s.currentUser);
-  const unread = useNotificationStore((s) => s.notifications.filter((n) => !n.isRead).length);
 
   return (
     <header
@@ -37,17 +36,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </Button>
         </Link>
 
-        <button
-          aria-label="Notificaciones"
-          className="relative h-10 w-10 inline-flex items-center justify-center rounded-[10px] bg-bg-surface border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition focus-ring"
-        >
-          <Bell className="h-4 w-4" />
-          {unread > 0 && (
-            <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-status-danger text-[10px] font-bold text-white flex items-center justify-center">
-              {unread}
-            </span>
-          )}
-        </button>
+        <PanelPendientes />
+
 
         <div className="flex items-center gap-2.5 sm:pl-3 sm:border-l border-border-subtle">
           <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-accent flex items-center justify-center text-white text-sm font-semibold">

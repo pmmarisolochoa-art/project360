@@ -29,8 +29,8 @@ import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { useProgramsStore } from '@/store/useProgramsStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useAppStore } from '@/store/useAppStore';
-import { resolveRoleLabel, resolveRoleLabels, resolveAssignee, isRoleSlug } from '@/utils/roleResolver';
+import { useIdentidadTareas } from '@/hooks/useTareasPropias';
+import { resolveRoleLabel, resolveRoleLabels, resolveAssignee } from '@/utils/roleResolver';
 import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { formatRelative } from '@/utils/dateHelpers';
@@ -256,7 +256,6 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
   // ── Identidad del usuario que mira ──
   // MIEMBRO → su nombre del acceso (NO el del owner). OWNER → currentUser.
   // Clave: no mezclar al owner (Marisol) en la identidad de un miembro.
-  const currentUser = useAppStore((s) => s.currentUser);
   const authRole = useAuthStore((s) => s.role);
   const clientAccesses = useAuthStore((s) => s.clientAccesses);
   const isMember = authRole === 'member';
@@ -266,33 +265,10 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
     (a) => (client ? a.clientId === client.id : true) && a.veTodasTareas,
   );
   const scopeToMine = isMember && !isCoordinator; // true → solo mis tareas
-  const myNames = useMemo(() => {
-    const set = new Set<string>();
-    if (isMember) {
-      for (const a of clientAccesses) {
-        if ((client ? a.clientId === client.id : true) && a.nombre) set.add(a.nombre.trim().toLowerCase());
-      }
-    } else if (currentUser?.name) {
-      set.add(currentUser.name.trim().toLowerCase());
-    }
-    return set;
-  }, [isMember, clientAccesses, currentUser, client]);
-  // Roles que tiene el usuario en este cliente → sus tareas asignadas por rol.
-  const myRoleSlugs = useMemo(
-    () => new Set<string>(
-      clientMembers.filter((m) => myNames.has(m.nombre.trim().toLowerCase())).map((m) => m.rol),
-    ),
-    [clientMembers, myNames],
-  );
-  const isMine = (t: Task): boolean => {
-    const an = (t.assignedTo ?? '').trim().toLowerCase();
-    if (an && myNames.has(an)) return true;
-    if (isRoleSlug(t.assignedTo) && myRoleSlugs.has(t.assignedTo)) return true;
-    // Se resuelve con el cliente DE LA TAREA (no el del módulo): en modo global
-    // las tareas vienen de varios clientes.
-    const resolved = resolveAssignee(t.assignedTo, t.clientId).trim().toLowerCase();
-    return myNames.has(resolved);
-  };
+  // La regla de "¿esta tarea es mía?" vive en useIdentidadTareas y la comparte
+  // con la campana. Estuvo aquí dentro hasta el 15-sep; copiarla para las
+  // notificaciones habría sido el fallo de los dos traductores del 11-ago.
+  const { myNames, myRoleSlugs, esMia: isMine } = useIdentidadTareas(client?.id);
 
   // Un MIEMBRO normal solo ve SUS tareas; el owner y el coordinador ven todas.
   // (allTasks se conserva completo para resolver dependencias entre tareas.)

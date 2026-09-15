@@ -10,6 +10,22 @@ import { useNotificationStore } from '@/store/useNotificationStore';
  *
  * Reemplazar en producción por un job server-side que también dispare
  * email + WhatsApp (WhatsApp Business Cloud API).
+ *
+ * OJO — ESTO NO ES LA CAMPANA. Desde el 15-sep hay dos cosas distintas, y es
+ * a propósito:
+ *
+ *   · La CAMPANA del header (`useMisPendientes`) es PERSONAL: solo tus tareas
+ *     retrasadas y las que vencen hoy. Se calcula en vivo y no guarda nada.
+ *   · Esto alimenta el panel de "Alertas pendientes" del Dashboard, que es la
+ *     vista de PORTAFOLIO: todo lo que requiere atención en la agencia.
+ *
+ * Por eso los dos números no coinciden, y no es un error. Si algún día parecen
+ * el mismo dato y alguien los unifica, lo que se pierde es que un miembro vea
+ * lo suyo sin el ruido de los otros clientes.
+ *
+ * Además de avisar, esto MANTIENE `isDelayed`/`delayDays` en las tareas, que
+ * son campos guardados y los usa el resto de la app (ver utils/vencidas.ts).
+ * No se puede quitar sin mover eso a otro sitio.
  */
 export function useTaskMonitor() {
   const tasks = useClientStore((s) => s.tasks);

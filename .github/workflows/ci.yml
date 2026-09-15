@@ -55,5 +55,8 @@ jobs:
       - name: Plantilla de la Daily (¿sigue aplicando a Ikigai?)
         run: npm run test:daily
 
+      - name: Mis pendientes (¿el corte de fechas sigue bien?)
+        run: npm run test:pendientes
+
       - name: Build (¿construye la app?)
         run: npm run build

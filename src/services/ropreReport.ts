@@ -7,6 +7,7 @@ import { composeReport, escapeReport as esc, type ReportModel } from '@/services
 import { resolveAssignee } from '@/utils/roleResolver';
 import { descargarArchivo } from '@/utils/descargarArchivo';
 import { BRAND } from '@/config/brand';
+import { diasEntre } from '@/utils/dias';
 
 /**
  * Informe del ROPRE de un cliente en PDF.
@@ -27,14 +28,6 @@ import { BRAND } from '@/config/brand';
  */
 
 const BRAND_V = '#6366F1';
-
-const TIPOS: Array<{ type: RopreType; cls: string; letter: string; lab: string; plural: string }> = [
-  { type: 'result',      cls: 'c1', letter: 'R', lab: 'Resultado',   plural: 'Resultados' },
-  { type: 'objective',   cls: 'c2', letter: 'O', lab: 'Objetivos',   plural: 'Objetivos' },
-  { type: 'premise',     cls: 'c3', letter: 'P', lab: 'Premisas',    plural: 'Premisas' },
-  { type: 'risk',        cls: 'c4', letter: 'R', lab: 'Riesgos',     plural: 'Riesgos' },
-  { type: 'deliverable', cls: 'c5', letter: 'E', lab: 'Entregables', plural: 'Entregables' },
-];
 
 const ESTADO_LABEL: Record<string, string> = {
   todo: 'Por hacer',
@@ -58,6 +51,7 @@ function ropreStyles(accent: string): string {
     .rep .chip{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:7px 12px;border-radius:7px;border-left:4px solid #6b7280;background:#f7f8fa;color:#334}
     .rep .chip.g{border-color:#10b981}.rep .chip.a{border-color:#f59e0b}.rep .chip.r{border-color:#ef4444}.rep .chip.b{border-color:${accent}}
     .rep .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+    .rep .kpis.kpis-3{grid-template-columns:repeat(3,1fr)}
     .rep .kpi{border:1px solid #e6e8ee;border-top:3px solid ${accent};border-radius:9px;padding:12px;background:#fff}
     .rep .kpi.g{border-top-color:#10b981}.rep .kpi.a{border-top-color:#f59e0b}.rep .kpi.r{border-top-color:#ef4444}.rep .kpi.b{border-top-color:${accent}}
     .rep .kpi .l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;font-weight:700}
@@ -87,6 +81,7 @@ function ropreStyles(accent: string): string {
     .rep tbody td{padding:9px 10px;border-bottom:1px solid #f0f1f5;color:#3a4150;vertical-align:top}
     .rep tbody tr:nth-child(even){background:#fafbfc}
     .rep td.task{color:#1f2430;font-weight:600}
+    .rep td.task .sub{font-weight:400;color:#8a93a2;font-size:10px;margin-top:2px}
     .rep td.due{white-space:nowrap;text-align:center}
     .rep .due-pill{font-size:10px;font-weight:700;color:${accent};background:${accent}14;padding:3px 9px;border-radius:6px;white-space:nowrap}
     .rep .due-pill.late{color:#b91c1c;background:#fee2e2}
@@ -114,7 +109,22 @@ function fechaCorta(iso?: string): string {
   return format(d, 'd MMM yyyy', { locale: es });
 }
 
-/** Arma los bloques HTML. Todo contado desde los items; nada interpretado. */
+/**
+ * Arma los bloques HTML. Todo contado desde los items; nada interpretado.
+ *
+ * FORMA: UNA PÁGINA, SOLO LO QUE REQUIERE ACCIÓN (founder, 16-sep-2026).
+ *
+ * La primera versión tenía 6 secciones y un tablero de 5 columnas, y el tablero
+ * imprimía el título de CADA item — los mismos que volvían a salir abajo con su
+ * detalle. Casi una página de duplicado exacto. También sacaba 5 KPIs, de los
+ * que 3 no deciden nada (saber que hay 4 premisas no cambia ninguna acción), y
+ * listaba los entregables ya completados, que convierten el informe en un
+ * archivo histórico en vez de una foto de qué falta.
+ *
+ * La pregunta que responde ahora es "¿qué está en riesgo y qué falta?", no
+ * "¿qué hay registrado?". Las premisas salen fuera: son supuestos de partida,
+ * no cambian de una semana a otra. Siguen vivas en el módulo ROPRE.
+ */
 function buildBlocks(client: Client, items: RopreItem[], meeting?: Meeting): string[] {
   const hoy = new Date();
   let secN = 0;
@@ -123,111 +133,95 @@ function buildBlocks(client: Client, items: RopreItem[], meeting?: Meeting): str
 
   const por = (t: RopreType) => items.filter((i) => i.type === t);
   const entregables = por('deliverable');
+  const abiertos = entregables.filter((e) => e.status !== 'done');
+  const cerrados = entregables.length - abiertos.length;
+  const vencidos = abiertos.filter((e) => estaVencido(e.dueDate, hoy)).length;
+
   const riesgos = por('risk').slice().sort((a, b) => (RISK_ORDER[a.riskLevel ?? 'medium'] ?? 1) - (RISK_ORDER[b.riskLevel ?? 'medium'] ?? 1));
-  const cerrados = entregables.filter((e) => e.status === 'done').length;
-  const vencidos = entregables.filter((e) => e.status !== 'done' && estaVencido(e.dueDate, hoy)).length;
+  // Los de nivel bajo se cuentan pero no se despliegan: ocupan lo mismo que un
+  // riesgo alto y no piden nada a nadie.
+  const riesgosVisibles = riesgos.filter((r) => r.riskLevel !== 'low');
+  const riesgosBajos = riesgos.length - riesgosVisibles.length;
   const riesgosAltos = riesgos.filter((r) => r.riskLevel === 'high').length;
 
   const blocks: string[] = [];
 
-  // ── Bloque 1: encabezado + chips + KPIs (todo contado) ──
-  const chips: Array<{ cls: string; txt: string }> = [
-    { cls: 'b', txt: `${items.length} item${items.length === 1 ? '' : 's'}` },
-  ];
-  if (riesgosAltos) chips.push({ cls: 'r', txt: `${riesgosAltos} riesgo${riesgosAltos === 1 ? '' : 's'} alto${riesgosAltos === 1 ? '' : 's'}` });
-  if (vencidos) chips.push({ cls: 'a', txt: `${vencidos} entregable${vencidos === 1 ? '' : 's'} vencido${vencidos === 1 ? '' : 's'}` });
-  if (entregables.length && cerrados === entregables.length) chips.push({ cls: 'g', txt: 'Entregables al día' });
-
-  const kpis = TIPOS.map((t) => {
-    const n = por(t.type).length;
-    const sub =
-      t.type === 'deliverable' ? `${cerrados} completado${cerrados === 1 ? '' : 's'}`
-      : t.type === 'risk' ? `${riesgosAltos} de nivel alto`
-      : '';
-    const cls = t.type === 'risk' && riesgosAltos ? 'r' : t.type === 'deliverable' && entregables.length && cerrados === entregables.length ? 'g' : 'b';
-    return `<div class="kpi ${cls}"><div class="l">${esc(t.plural)}</div><div class="n">${n}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>`;
-  }).join('');
+  // ── Encabezado: tres cifras, y solo las que deciden algo ──
+  const kpi = (l: string, n: string, sub: string, cls: string) =>
+    `<div class="kpi ${cls}"><div class="l">${esc(l)}</div><div class="n">${esc(n)}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>`;
 
   blocks.push(
     `<div class="lead">ROPRE de ${esc(client.name)}</div>` +
-    `<div class="deck">Resultado, Objetivos, Premisas, Riesgos y Entregables del cliente, con el estado de cada uno al ${esc(format(hoy, "d 'de' MMMM yyyy", { locale: es }))}. Todas las cifras de este informe están contadas desde los datos de la app.</div>` +
-    `<div class="chips">${chips.map((c) => `<span class="chip ${c.cls}">${esc(c.txt)}</span>`).join('')}</div>` +
-    `<div class="kpis">${kpis}</div>`,
+    `<div class="deck">Estado al ${esc(format(hoy, "d 'de' MMMM yyyy", { locale: es }))}. Todas las cifras están contadas desde los datos de la app.</div>` +
+    `<div class="kpis kpis-3">${
+      kpi('Entregables', `${cerrados}/${entregables.length}`, 'completados',
+          entregables.length > 0 && cerrados === entregables.length ? 'g' : 'b') +
+      kpi('Riesgos altos', String(riesgosAltos), riesgosBajos ? `${riesgos.length} en total` : '', riesgosAltos ? 'r' : 'g') +
+      kpi('Vencidos', String(vencidos), 'entregables fuera de fecha', vencidos ? 'a' : 'g')
+    }</div>`,
   );
 
-  // ── Sin datos: una página con la nota, nunca un PDF en blanco ──
+  // ── Nada registrado: una página con la nota, nunca un PDF en blanco ──
   if (!items.length) {
-    blocks.push(sh('Sin ROPRE registrado') + `<div class="note">Este cliente aún no tiene ningún item de ROPRE registrado. En cuanto se carguen resultados, objetivos, premisas, riesgos o entregables aparecerán en este informe.</div>`);
+    blocks.push(sh('Sin ROPRE registrado') + `<div class="note">Este cliente aún no tiene ningún item de ROPRE registrado. En cuanto se carguen resultados, objetivos, riesgos o entregables aparecerán en este informe.</div>`);
     return blocks;
   }
 
-  // ── Tablero R·O·P·R·E ──
-  const ropreCol = (cls: string, letter: string, lab: string, list: RopreItem[]) =>
-    `<div class="col ${cls}"><div class="ch"><span class="big">${letter}</span><span class="lab">${esc(lab)}</span></div><div class="items">${
-      list.length ? list.map((i) => `<div class="it">${esc(i.title)}</div>`).join('') : '<div class="it" style="color:#9aa3b2">—</div>'
-    }</div></div>`;
-  blocks.push(
-    sh('Tablero ROPRE') +
-    `<div class="ropre">${TIPOS.map((t) => ropreCol(t.cls, t.letter, t.lab, por(t.type))).join('')}</div>`,
-  );
-
-  // ── Resultado y Objetivos (con meta vs actual) ──
-  const conMeta = [...por('result'), ...por('objective')];
-  if (conMeta.length) {
-    blocks.push(
-      sh('Resultado y objetivos', `${conMeta.length}`) +
-      `<table><thead><tr><th>Objetivo</th><th>Meta</th><th>Actual</th></tr></thead><tbody>${
-        conMeta.map((i) => `<tr><td class="task">${esc(i.title)}${i.description ? `<div style="font-weight:400;color:#6b7280;font-size:10.5px;margin-top:3px">${esc(i.description)}</div>` : ''}</td><td>${esc(i.targetValue || '—')}</td><td>${esc(i.currentValue || '—')}</td></tr>`).join('')
-      }</tbody></table>`,
-    );
-  }
-
-  // ── Premisas ──
-  const premisas = por('premise');
-  if (premisas.length) {
-    blocks.push(
-      sh('Premisas', `${premisas.length}`) +
-      `<div class="lista">${premisas.map((p) => `<div class="li"><div class="t">${esc(p.title)}</div>${p.description ? `<div class="d">${esc(p.description)}</div>` : ''}</div>`).join('')}</div>`,
-    );
-  }
-
-  // ── Riesgos (altos primero) ──
-  if (riesgos.length) {
+  // ── 01 · Riesgos ──
+  if (riesgosVisibles.length) {
     const riskCard = (r: RopreItem) => {
-      const lvl = r.riskLevel === 'high' ? 'hi' : r.riskLevel === 'low' ? 'lo' : 'md';
-      const badge = r.riskLevel === 'high' ? 'ALTO' : r.riskLevel === 'low' ? 'BAJO' : 'MEDIO';
+      const lvl = r.riskLevel === 'high' ? 'hi' : 'md';
+      const badge = r.riskLevel === 'high' ? 'ALTO' : 'MEDIO';
       return `<div class="risk ${lvl}"><div class="rh">${esc(r.title)}<span class="badge">${badge}</span></div><div class="rb">${esc(r.description ?? '')}${r.mitigation ? `<div class="mit"><b>&rarr;</b> ${esc(r.mitigation)}</div>` : ''}</div></div>`;
     };
     blocks.push(
-      sh('Riesgos y mitigaciones', `${riesgos.length}`) +
-      `<div class="risks">${riesgos.map(riskCard).join('')}</div>`,
+      sh('Riesgos', riesgosBajos ? `+${riesgosBajos} de nivel bajo` : undefined) +
+      `<div class="risks">${riesgosVisibles.map(riskCard).join('')}</div>`,
     );
   }
 
-  // ── Entregables ──
-  if (entregables.length) {
+  // ── 02 · Qué falta — solo lo abierto. Lo cerrado es un número, no una lista ──
+  if (abiertos.length) {
+    const orden = abiertos.slice().sort((a, b) => {
+      const va = estaVencido(a.dueDate, hoy) ? 0 : 1;
+      const vb = estaVencido(b.dueDate, hoy) ? 0 : 1;
+      if (va !== vb) return va - vb;
+      return new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime();
+    });
     blocks.push(
-      sh('Entregables', `${cerrados}/${entregables.length} completados`) +
-      `<table><thead><tr><th>Entregable</th><th>Responsable</th><th>Estado</th><th style="text-align:center">Entrega</th></tr></thead><tbody>${
-        entregables.map((e) => {
-          const tarde = e.status !== 'done' && estaVencido(e.dueDate, hoy);
+      sh('Qué falta', `${abiertos.length} abierto${abiertos.length === 1 ? '' : 's'} · ${cerrados} cerrado${cerrados === 1 ? '' : 's'}`) +
+      `<table><thead><tr><th>Entregable</th><th>Responsable</th><th style="text-align:center">Entrega</th></tr></thead><tbody>${
+        orden.map((e) => {
+          const tarde = estaVencido(e.dueDate, hoy);
+          const dias = tarde && e.dueDate ? Math.max(1, diasEntre(new Date(e.dueDate), hoy)) : 0;
           const responsable = e.responsible ? resolveAssignee(e.responsible, client.id) : '—';
-          return `<tr><td class="task">${esc(e.title)}${e.linkedTaskId ? ' <span class="link">EN TAREAS</span>' : ''}</td><td>${esc(responsable)}</td><td>${esc(ESTADO_LABEL[e.status ?? 'todo'] ?? e.status ?? '—')}</td><td class="due"><span class="due-pill${tarde ? ' late' : ''}">${esc(fechaCorta(e.dueDate))}</span></td></tr>`;
+          const estado = ESTADO_LABEL[e.status ?? 'todo'] ?? '';
+          return `<tr><td class="task">${esc(e.title)}${e.linkedTaskId ? ' <span class="link">EN TAREAS</span>' : ''}${estado ? `<div class="sub">${esc(estado)}</div>` : ''}</td><td>${esc(responsable)}</td><td class="due"><span class="due-pill${tarde ? ' late' : ''}">${esc(tarde ? `${dias}d tarde` : fechaCorta(e.dueDate))}</span></td></tr>`;
         }).join('')
+      }</tbody></table>`,
+    );
+  } else if (entregables.length) {
+    blocks.push(sh('Qué falta') + `<div class="note">Los ${entregables.length} entregables están completados.</div>`);
+  }
+
+  // ── 03 · Objetivos, con meta contra realidad ──
+  const conMeta = [...por('result'), ...por('objective')];
+  if (conMeta.length) {
+    blocks.push(
+      sh('Objetivos') +
+      `<table><thead><tr><th>Objetivo</th><th style="text-align:center">Meta</th><th style="text-align:center">Hoy</th></tr></thead><tbody>${
+        conMeta.map((i) => `<tr><td class="task">${esc(i.title)}</td><td class="due">${esc(i.targetValue || '—')}</td><td class="due">${esc(i.currentValue || '—')}</td></tr>`).join('')
       }</tbody></table>`,
     );
   }
 
-  // ── Trazabilidad: qué tocó ESTA reunión ──
+  // ── Qué tocó ESTA reunión. Solo al mandarlo desde una, y en una línea ──
   if (meeting) {
     const tocados = items.filter((i) => i.lastEditedInMeetingId === meeting.id);
     if (tocados.length) {
       blocks.push(
-        sh('Editado en esta reunión', `${tocados.length}`) +
-        `<div class="lista">${tocados.map((i) => {
-          const tipo = TIPOS.find((t) => t.type === i.type);
-          return `<div class="li"><div class="t">${esc(i.title)}</div><div class="d">${esc(tipo?.lab ?? i.type)}${i.lastEditedAt ? ` · ${esc(fechaCorta(i.lastEditedAt))}` : ''}</div></div>`;
-        }).join('')}</div>`,
+        sh('Actualizado en esta reunión', `${tocados.length}`) +
+        `<div class="note">${tocados.map((i) => esc(i.title)).join(' · ')}</div>`,
       );
     }
   }
@@ -258,7 +252,7 @@ function buildModel(client: Client, items: RopreItem[], meeting: Meeting | undef
     client: client.name,
     agency,
     titleLines: ['Informe', 'ROPRE'],
-    subtitle: `Resultado · Objetivos · Premisas · Riesgos · Entregables`,
+    subtitle: 'Riesgos, entregables abiertos y objetivos',
     runningLabel: 'Informe ROPRE',
     meta: [
       { k: 'Cliente', v: client.name.slice(0, 28) },

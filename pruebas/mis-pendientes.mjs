@@ -15,7 +15,10 @@ import { dirname, join } from 'node:path';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
 await build({
-  entryPoints: { pendientes: join(aqui, '../src/utils/repartirPendientes.ts') },
+  entryPoints: {
+    pendientes: join(aqui, '../src/utils/repartirPendientes.ts'),
+    dias: join(aqui, '../src/utils/dias.ts'),
+  },
   bundle: true, format: 'esm', platform: 'neutral',
   outdir: join(aqui, '.build'), logLevel: 'error',
   alias: { '@': join(aqui, '../src') },
@@ -60,6 +63,15 @@ r = repartir([
 ], AHORA);
 ok(r.vencidas.length === 0 && r.hoy.length === 0, 'una completada no es un pendiente aunque esté vencidísima');
 ok(true, 'una fecha ilegible no revienta: la función devolvió sin lanzar');
+
+seccion('la cuenta de días, que ya se escribió mal dos veces');
+const { diasEntre } = await import('./.build/dias.js');
+ok(diasEntre(new Date('2026-09-14T10:00:00'), new Date('2026-09-15T09:00:00')) === 1,
+   'ayer a las 10:00, hoy a las 9:00 → 1 día (restando horas daba 0)');
+ok(diasEntre(new Date('2026-09-12T23:00:00'), new Date('2026-09-15T09:00:00')) === 3,
+   'hace 3 días a las 23:00 → 3 (restando horas daba 2)');
+ok(diasEntre(new Date('2026-09-15T23:00:00'), new Date('2026-09-15T00:30:00')) === 0,
+   'el mismo día son 0, aunque las horas vayan al revés');
 
 seccion('el orden importa: lo más atrasado primero');
 r = repartir([t('x','2026-09-14T10:00:00'), t('y','2026-09-01T10:00:00'), t('z','2026-09-13T10:00:00')], AHORA);

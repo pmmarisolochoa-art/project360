@@ -1,4 +1,5 @@
 import type { Task } from '@/types/task';
+import { diasEntre } from '@/utils/dias';
 
 export interface Pendientes {
   /** Vencidas, de la más atrasada a la más reciente. */
@@ -34,16 +35,9 @@ export function repartirPendientes(tareas: Task[], ahora: Date): Pendientes {
     if (Number.isNaN(due.getTime())) continue;
 
     if (due < inicioHoy) {
-      // Los días se cuentan entre DÍAS, no entre instantes. Restando marcas de
-      // tiempo, una tarea vencida ayer a las 10:00 daba 14 horas → "0 días",
-      // que se lee como "vence hoy" justo cuando ya se pasó. Lo encontró la
-      // prueba, no la lectura del código.
-      //
-      // Y se redondea en vez de truncar por los cambios de hora: un día con 23
-      // o 25 horas truncaría a uno menos.
-      const inicioDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
-      const dias = Math.round((inicioHoy.getTime() - inicioDue.getTime()) / 86400000);
-      vencidas.push({ task: t, dias });
+      // Los días se cuentan entre DÍAS y no entre instantes — ver utils/dias.ts,
+      // que existe porque esta cuenta ya se escribió mal dos veces.
+      vencidas.push({ task: t, dias: diasEntre(due, inicioHoy) });
     } else if (due < finHoy) {
       hoy.push(t);
     }

@@ -58,5 +58,8 @@ jobs:
       - name: Mis pendientes (¿el corte de fechas sigue bien?)
         run: npm run test:pendientes
 
+      - name: Periodos del informe (¿los cortes de fecha siguen bien?)
+        run: npm run test:periodos
+
       - name: Build (¿construye la app?)
         run: npm run build

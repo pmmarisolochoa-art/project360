@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
 import type { Meeting } from '@/types/meeting';
@@ -50,8 +50,35 @@ function ropreStyles(accent: string): string {
     .rep .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
     .rep .chip{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:7px 12px;border-radius:7px;border-left:4px solid #6b7280;background:#f7f8fa;color:#334}
     .rep .chip.g{border-color:#10b981}.rep .chip.a{border-color:#f59e0b}.rep .chip.r{border-color:#ef4444}.rep .chip.b{border-color:${accent}}
-    .rep .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-    .rep .kpis.kpis-3{grid-template-columns:repeat(3,1fr)}
+    /* Las cifras van en una TIRA de celdas pegadas, no en tarjetas sueltas con
+       borde propio: entran cinco donde antes cabían tres y ocupan menos alto. */
+    .rep .figs{display:grid;gap:1px;background:#e6e8ee;border:1px solid #e6e8ee;border-radius:6px;overflow:hidden}
+    .rep .fig{background:#fff;padding:7px 9px}
+    .rep .fig .l{font-size:7.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a93a2;font-weight:700}
+    .rep .fig .n{font-size:15px;font-weight:800;line-height:1.15;margin-top:2px}
+    .rep .fig .s{font-size:8px;color:#8a93a2;line-height:1.3;margin-top:1px}
+    .rep .fig.r .n{color:#9a2a2a}
+    .rep .fig.a .n{color:#b45309}
+    .rep .fig .stale{color:#8a5a12;font-weight:600}
+    /* Objetivos con barra de avance */
+    .rep .obj{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f1f5}
+    .rep .obj:last-child{border-bottom:0}
+    .rep .obj .t{font-size:11.5px;font-weight:600;flex:1;min-width:0}
+    .rep .obj .bar{width:84px;height:5px;border-radius:3px;background:#e6e8ee;overflow:hidden;flex:none}
+    .rep .obj .bar i{display:block;height:100%;background:${accent};border-radius:3px}
+    .rep .obj .v{font-size:11px;white-space:nowrap;color:#46505f}
+    .rep .obj .v b{color:#1f2430;font-weight:700}
+    .rep .resumen{font-size:10.5px;color:#46505f;line-height:1.55;border-left:2px solid ${accent};padding:2px 0 2px 10px}
+    /* Riesgos en FILAS. Como tarjetas, seis riesgos eran media página. */
+    .rep .riesgo{display:flex;gap:9px;padding:6px 0;border-bottom:1px solid #f0f1f5}
+    .rep .riesgo:last-child{border-bottom:0}
+    .rep .riesgo .franja{width:3px;border-radius:2px;flex:none;background:#9a2a2a}
+    .rep .riesgo.md .franja{background:#9a6a2a;opacity:.55}
+    .rep .riesgo .rtxt{min-width:0;flex:1}
+    .rep .riesgo .rtit{font-size:11px;font-weight:700;line-height:1.35}
+    .rep .riesgo .rmit{font-size:10px;color:#46505f;line-height:1.45;margin-top:1px}
+    .rep .riesgo .rlvl{font-size:7.5px;font-weight:800;letter-spacing:.08em;color:#9a2a2a;padding-top:1px}
+    .rep .riesgo.md .rlvl{color:#9a6a2a}
     .rep .kpi{border:1px solid #e6e8ee;border-top:3px solid ${accent};border-radius:9px;padding:12px;background:#fff}
     .rep .kpi.g{border-top-color:#10b981}.rep .kpi.a{border-top-color:#f59e0b}.rep .kpi.r{border-top-color:#ef4444}.rep .kpi.b{border-top-color:${accent}}
     .rep .kpi .l{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;font-weight:700}
@@ -109,78 +136,154 @@ function fechaCorta(iso?: string): string {
   return format(d, 'd MMM yyyy', { locale: es });
 }
 
+/** Un periodo con nombre. `undefined` = sin acotar, sale el estado completo. */
+export interface PeriodoInforme {
+  etiqueta: string;   // "Quincena", "Semana", "Mes", "Rango"
+  desde: Date;
+  hasta: Date;
+}
+
+/** Texto del periodo para la cabecera: "16 – 30 sep 2026". */
+function rotuloPeriodo(p: PeriodoInforme): string {
+  const mismoAnio = p.desde.getFullYear() === p.hasta.getFullYear();
+  const a = format(p.desde, mismoAnio ? 'd MMM' : 'd MMM yyyy', { locale: es });
+  const b = format(p.hasta, 'd MMM yyyy', { locale: es });
+  return `${a} – ${b}`;
+}
+
 /**
  * Arma los bloques HTML. Todo contado desde los items; nada interpretado.
  *
- * FORMA: UNA PÁGINA, SOLO LO QUE REQUIERE ACCIÓN (founder, 16-sep-2026).
+ * ORDEN Y RECORTE (founder, 16 y 17-sep-2026).
  *
- * La primera versión tenía 6 secciones y un tablero de 5 columnas, y el tablero
- * imprimía el título de CADA item — los mismos que volvían a salir abajo con su
- * detalle. Casi una página de duplicado exacto. También sacaba 5 KPIs, de los
- * que 3 no deciden nada (saber que hay 4 premisas no cambia ninguna acción), y
- * listaba los entregables ya completados, que convierten el informe en un
- * archivo histórico en vez de una foto de qué falta.
+ * Los OBJETIVOS van primero: son el marco con el que se lee todo lo demás.
+ * Debajo, el resumen de la reunión cuando el informe se manda desde una — sale
+ * de `meeting.summary`, que ya está guardado, así que no lo escribe una IA y no
+ * puede inventarse nada.
  *
- * La pregunta que responde ahora es "¿qué está en riesgo y qué falta?", no
- * "¿qué hay registrado?". Las premisas salen fuera: son supuestos de partida,
- * no cambian de una semana a otra. Siguen vivas en el módulo ROPRE.
+ * Fuera el tablero de 5 columnas (imprimía los mismos títulos que volvían a
+ * salir abajo: casi una página de duplicado), fuera las premisas (son supuestos
+ * de partida, no cambian de una semana a otra) y fuera los entregables ya
+ * cerrados, que convertían el informe en un archivo en vez de una foto de qué
+ * falta. Los riesgos bajos se cuentan pero no se despliegan.
+ *
+ * Dos hojas si hacen falta: la segunda ya no se aprieta.
  */
-function buildBlocks(client: Client, items: RopreItem[], meeting?: Meeting): string[] {
+function buildBlocks(
+  client: Client,
+  items: RopreItem[],
+  meeting?: Meeting,
+  periodo?: PeriodoInforme,
+): string[] {
   const hoy = new Date();
-  let secN = 0;
   const sh = (title: string, tag?: string) =>
-    `<div class="sec"><span class="no">${secN < 9 ? '0' : ''}${++secN}</span><h2>${esc(title)}</h2>${tag ? `<span class="tag">${esc(tag)}</span>` : ''}<span class="ln"></span></div>`;
+    `<div class="sec"><h2>${esc(title)}</h2>${tag ? `<span class="tag">${esc(tag)}</span>` : ''}<span class="ln"></span></div>`;
 
   const por = (t: RopreType) => items.filter((i) => i.type === t);
-  const entregables = por('deliverable');
+
+  // El periodo acota SOLO los entregables. Un riesgo vivo lo sigue estando
+  // aunque se registrara el mes pasado, y un objetivo del trimestre no cabe en
+  // una quincena: esos van con su estado de hoy.
+  const enPeriodo = (e: RopreItem) => {
+    if (!periodo || !e.dueDate) return true;
+    const d = new Date(e.dueDate);
+    return !Number.isNaN(d.getTime()) && d >= periodo.desde && d <= periodo.hasta;
+  };
+
+  const entregables = por('deliverable').filter(enPeriodo);
   const abiertos = entregables.filter((e) => e.status !== 'done');
   const cerrados = entregables.length - abiertos.length;
   const vencidos = abiertos.filter((e) => estaVencido(e.dueDate, hoy)).length;
 
   const riesgos = por('risk').slice().sort((a, b) => (RISK_ORDER[a.riskLevel ?? 'medium'] ?? 1) - (RISK_ORDER[b.riskLevel ?? 'medium'] ?? 1));
-  // Los de nivel bajo se cuentan pero no se despliegan: ocupan lo mismo que un
-  // riesgo alto y no piden nada a nadie.
   const riesgosVisibles = riesgos.filter((r) => r.riskLevel !== 'low');
   const riesgosBajos = riesgos.length - riesgosVisibles.length;
   const riesgosAltos = riesgos.filter((r) => r.riskLevel === 'high').length;
 
   const blocks: string[] = [];
 
-  // ── Encabezado: tres cifras, y solo las que deciden algo ──
-  const kpi = (l: string, n: string, sub: string, cls: string) =>
-    `<div class="kpi ${cls}"><div class="l">${esc(l)}</div><div class="n">${esc(n)}</div>${sub ? `<div class="s">${esc(sub)}</div>` : ''}</div>`;
+  // ── Cinco cifras en una tira baja ──
+  const m = client.metrics ?? ({} as Client['metrics']);
+  const fig = (l: string, n: string, sub: string, cls = '') =>
+    `<div class="fig ${cls}"><div class="l">${esc(l)}</div><div class="n">${esc(n)}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+
+  /**
+   * Inversión y ROAS son valores GUARDADOS y no siempre al día — lo avisa el
+   * propio LEEME del traspaso. En un informe que se le manda al cliente, un
+   * ROAS de hace dos semanas presentado como el de hoy es una mentira con
+   * número, y nadie duda de un número. Cuando no está fresco se dice desde
+   * cuándo; cuando no hay dato se pone "—" y NO se cae al presupuesto, que es
+   * lo que se pensaba gastar y no lo que se gastó.
+   */
+  const fresco = m.invertedThisMonthFresh === true;
+  const nota = fresco ? 'actualizado' : `<span class="stale">${esc(format(new Date(client.updatedAt ?? hoy), "'al' d MMM", { locale: es }))}</span>`;
+  const invertido = typeof m.invertedThisMonth === 'number'
+    ? `$${m.invertedThisMonth.toLocaleString('es-CO')}`
+    : '—';
+  const roas = typeof m.roas === 'number' ? `${m.roas.toFixed(1)}x` : '—';
 
   blocks.push(
-    `<div class="lead">ROPRE de ${esc(client.name)}</div>` +
-    `<div class="deck">Estado al ${esc(format(hoy, "d 'de' MMMM yyyy", { locale: es }))}. Todas las cifras están contadas desde los datos de la app.</div>` +
-    `<div class="kpis kpis-3">${
-      kpi('Entregables', `${cerrados}/${entregables.length}`, 'completados',
-          entregables.length > 0 && cerrados === entregables.length ? 'g' : 'b') +
-      kpi('Riesgos altos', String(riesgosAltos), riesgosBajos ? `${riesgos.length} en total` : '', riesgosAltos ? 'r' : 'g') +
-      kpi('Vencidos', String(vencidos), 'entregables fuera de fecha', vencidos ? 'a' : 'g')
+    `<div class="figs" style="grid-template-columns:repeat(5,1fr)">${
+      fig('Entregables', `${cerrados}/${entregables.length}`, 'completados',
+          entregables.length > 0 && cerrados === entregables.length ? '' : '') +
+      fig('Riesgos altos', String(riesgosAltos), riesgosBajos ? `${riesgos.length} en total` : '', riesgosAltos ? 'r' : '') +
+      fig('Vencidos', String(vencidos), 'fuera de fecha', vencidos ? 'a' : '') +
+      fig('Invertido', invertido, invertido === '—' ? 'sin dato' : 'este mes') +
+      fig('ROAS', roas, roas === '—' ? 'sin dato' : nota)
     }</div>`,
   );
 
-  // ── Nada registrado: una página con la nota, nunca un PDF en blanco ──
   if (!items.length) {
-    blocks.push(sh('Sin ROPRE registrado') + `<div class="note">Este cliente aún no tiene ningún item de ROPRE registrado. En cuanto se carguen resultados, objetivos, riesgos o entregables aparecerán en este informe.</div>`);
+    blocks.push(sh('Sin ROPRE registrado') + `<div class="note">Este cliente aún no tiene ningún item de ROPRE registrado. En cuanto se carguen objetivos, riesgos o entregables aparecerán en este informe.</div>`);
     return blocks;
   }
 
-  // ── 01 · Riesgos ──
-  if (riesgosVisibles.length) {
-    const riskCard = (r: RopreItem) => {
-      const lvl = r.riskLevel === 'high' ? 'hi' : 'md';
-      const badge = r.riskLevel === 'high' ? 'ALTO' : 'MEDIO';
-      return `<div class="risk ${lvl}"><div class="rh">${esc(r.title)}<span class="badge">${badge}</span></div><div class="rb">${esc(r.description ?? '')}${r.mitigation ? `<div class="mit"><b>&rarr;</b> ${esc(r.mitigation)}</div>` : ''}</div></div>`;
+  // ── Objetivos, primero ──
+  const objetivos = [...por('result'), ...por('objective')];
+  if (objetivos.length) {
+    const avance = (meta?: string, actual?: string): number | null => {
+      const n = (v?: string) => {
+        const x = parseFloat(String(v ?? '').replace(/[^0-9.,-]/g, '').replace(',', '.'));
+        return Number.isFinite(x) ? x : null;
+      };
+      const a = n(actual), b = n(meta);
+      if (a === null || b === null || b === 0) return null;
+      return Math.max(0, Math.min(100, Math.round((a / b) * 100)));
     };
     blocks.push(
-      sh('Riesgos', riesgosBajos ? `+${riesgosBajos} de nivel bajo` : undefined) +
-      `<div class="risks">${riesgosVisibles.map(riskCard).join('')}</div>`,
+      sh('Objetivos') +
+      objetivos.map((o) => {
+        const pct = avance(o.targetValue, o.currentValue);
+        return `<div class="obj"><span class="t">${esc(o.title)}</span>${
+          pct !== null ? `<span class="bar"><i style="width:${pct}%"></i></span>` : ''
+        }<span class="v">${o.currentValue ? `<b>${esc(o.currentValue)}</b>` : '—'}${o.targetValue ? ` / ${esc(o.targetValue)}` : ''}</span></div>`;
+      }).join(''),
     );
   }
 
-  // ── 02 · Qué falta — solo lo abierto. Lo cerrado es un número, no una lista ──
+  // ── De la reunión: texto YA guardado, sin IA ──
+  if (meeting?.summary?.trim()) {
+    blocks.push(
+      sh('De la última reunión', format(parseISO(meeting.scheduledAt), 'd MMM', { locale: es })) +
+      `<div class="resumen">${esc(meeting.summary.trim().slice(0, 700))}</div>`,
+    );
+  }
+
+  // ── Riesgos, en filas ──
+  if (riesgosVisibles.length) {
+    const riskRow = (r: RopreItem) => {
+      const md = r.riskLevel !== 'high';
+      return `<div class="riesgo${md ? ' md' : ''}"><span class="franja"></span><span class="rtxt"><span class="rtit">${esc(r.title)}</span>${
+        r.mitigation ? `<div class="rmit">&rarr; ${esc(r.mitigation)}</div>` : (r.description ? `<div class="rmit">${esc(r.description)}</div>` : '')
+      }</span><span class="rlvl">${md ? 'MEDIO' : 'ALTO'}</span></div>`;
+    };
+    blocks.push(
+      sh('Riesgos', riesgosBajos ? `+${riesgosBajos} de nivel bajo` : undefined) +
+      riesgosVisibles.map(riskRow).join(''),
+    );
+  }
+
+  // ── Qué falta: solo lo abierto, lo vencido primero ──
   if (abiertos.length) {
     const orden = abiertos.slice().sort((a, b) => {
       const va = estaVencido(a.dueDate, hoy) ? 0 : 1;
@@ -190,7 +293,7 @@ function buildBlocks(client: Client, items: RopreItem[], meeting?: Meeting): str
     });
     blocks.push(
       sh('Qué falta', `${abiertos.length} abierto${abiertos.length === 1 ? '' : 's'} · ${cerrados} cerrado${cerrados === 1 ? '' : 's'}`) +
-      `<table><thead><tr><th>Entregable</th><th>Responsable</th><th style="text-align:center">Entrega</th></tr></thead><tbody>${
+      `<table><thead><tr><th>Entregable</th><th>Responsable</th><th style="text-align:right">Entrega</th></tr></thead><tbody>${
         orden.map((e) => {
           const tarde = estaVencido(e.dueDate, hoy);
           const dias = tarde && e.dueDate ? Math.max(1, diasEntre(new Date(e.dueDate), hoy)) : 0;
@@ -201,29 +304,7 @@ function buildBlocks(client: Client, items: RopreItem[], meeting?: Meeting): str
       }</tbody></table>`,
     );
   } else if (entregables.length) {
-    blocks.push(sh('Qué falta') + `<div class="note">Los ${entregables.length} entregables están completados.</div>`);
-  }
-
-  // ── 03 · Objetivos, con meta contra realidad ──
-  const conMeta = [...por('result'), ...por('objective')];
-  if (conMeta.length) {
-    blocks.push(
-      sh('Objetivos') +
-      `<table><thead><tr><th>Objetivo</th><th style="text-align:center">Meta</th><th style="text-align:center">Hoy</th></tr></thead><tbody>${
-        conMeta.map((i) => `<tr><td class="task">${esc(i.title)}</td><td class="due">${esc(i.targetValue || '—')}</td><td class="due">${esc(i.currentValue || '—')}</td></tr>`).join('')
-      }</tbody></table>`,
-    );
-  }
-
-  // ── Qué tocó ESTA reunión. Solo al mandarlo desde una, y en una línea ──
-  if (meeting) {
-    const tocados = items.filter((i) => i.lastEditedInMeetingId === meeting.id);
-    if (tocados.length) {
-      blocks.push(
-        sh('Actualizado en esta reunión', `${tocados.length}`) +
-        `<div class="note">${tocados.map((i) => esc(i.title)).join(' · ')}</div>`,
-      );
-    }
+    blocks.push(sh('Qué falta') + `<div class="note">Los ${entregables.length} entregables del periodo están completados.</div>`);
   }
 
   return blocks;
@@ -241,25 +322,26 @@ function buildDeck(items: RopreItem[]): string {
   return partes.join(' · ');
 }
 
-function buildModel(client: Client, items: RopreItem[], meeting: Meeting | undefined, agency: string): ReportModel {
+function buildModel(client: Client, items: RopreItem[], meeting: Meeting | undefined, agency: string, periodo?: PeriodoInforme): ReportModel {
   const accent = client.primaryColor || BRAND_V;
   const hoy = new Date();
   const dateLabel = format(hoy, "EEEE d 'de' MMMM yyyy", { locale: es });
   return {
     styles: ropreStyles(accent),
-    blocks: buildBlocks(client, items, meeting),
+    blocks: buildBlocks(client, items, meeting, periodo),
     accentClient: accent,
     client: client.name,
     agency,
-    titleLines: ['Informe', 'ROPRE'],
+    titleLines: ['Informe ROPRE'],
     subtitle: 'Riesgos, entregables abiertos y objetivos',
     runningLabel: 'Informe ROPRE',
-    meta: [
-      { k: 'Cliente', v: client.name.slice(0, 28) },
-      { k: 'Items', v: String(items.length) },
-      { k: 'Fecha', v: format(hoy, 'd MMM yyyy', { locale: es }) },
-    ],
-    footerLeft: `${client.name} · Informe ROPRE · ${dateLabel}`,
+    // Portada baja: en un informe de una página la banda de 50 mm se comía un
+    // bloque entero. Ver `coverCompact` en htmlReport.
+    coverCompact: true,
+    meta: periodo
+      ? [{ k: periodo.etiqueta, v: rotuloPeriodo(periodo) }]
+      : [{ k: 'Fecha', v: format(hoy, 'd MMM yyyy', { locale: es }) }],
+    footerLeft: `${client.name} · Informe ROPRE · ${periodo ? rotuloPeriodo(periodo) : dateLabel}`,
     fileName: `Informe_ROPRE_${client.name.replace(/\s+/g, '_')}_${format(hoy, 'yyyy-MM-dd')}.pdf`,
     // JPEG comprimido → el PDF pesa poco y no excede el límite del Edge
     // Function al enviarlo por correo (un ROPRE grande pesa más que una reunión).
@@ -284,11 +366,11 @@ export interface BuildRopreReportResult {
 export async function buildRopreReport(
   client: Client,
   items: RopreItem[],
-  opts?: { meeting?: Meeting },
+  opts?: { meeting?: Meeting; periodo?: PeriodoInforme },
 ): Promise<BuildRopreReportResult> {
   const propios = items.filter((i) => i.clientId === client.id);
   const agency = ((client.onboardingData?.team ?? {}) as { agency?: string }).agency ?? BRAND.label;
-  const model = buildModel(client, propios, opts?.meeting, agency);
+  const model = buildModel(client, propios, opts?.meeting, agency, opts?.periodo);
   const doc = await composeReport(model);
   const blob = doc.output('blob') as Blob;
   const dataUri = doc.output('datauristring') as string;
@@ -297,7 +379,7 @@ export async function buildRopreReport(
 }
 
 /** Genera y DESCARGA el informe (botón manual). */
-export async function downloadRopreReportPdf(client: Client, items: RopreItem[], meeting?: Meeting): Promise<void> {
-  const { blob, fileName } = await buildRopreReport(client, items, { meeting });
+export async function downloadRopreReportPdf(client: Client, items: RopreItem[], meeting?: Meeting, periodo?: PeriodoInforme): Promise<void> {
+  const { blob, fileName } = await buildRopreReport(client, items, { meeting, periodo });
   descargarArchivo(blob, fileName);
 }

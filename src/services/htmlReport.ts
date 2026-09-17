@@ -54,6 +54,15 @@ export interface ReportModel {
    *  correo sin exceder el límite del servidor). Default PNG (más nítido). */
   imageFormat?: 'PNG' | 'JPEG';
   imageQuality?: number; // 0-1, solo para JPEG (default 0.85)
+  /**
+   * Portada baja: 28 mm en vez de 50, una sola línea de título y el `meta` en
+   * una fila en vez de una columna.
+   *
+   * Es OPCIONAL y por defecto va apagada, igual que `imageFormat`: el semanal y
+   * el de reunión no cambian ni un milímetro. La pidió el informe ROPRE, donde
+   * la banda de 50 mm se comía una sexta parte de la única página que tiene.
+   */
+  coverCompact?: boolean;
 }
 
 /** Helper de escape para HTML — reusable desde otros módulos de reporte. */
@@ -117,7 +126,7 @@ export async function composeReport(m: ReportModel): Promise<jsPDF> {
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     const PH = 297, MX = 14, GAP = 5;
-    const P1_TOP = 56, PN_TOP = 19, BOTTOM = PH - 15;
+    const P1_TOP = m.coverCompact ? 34 : 56, PN_TOP = 19, BOTTOM = PH - 15;
 
     // --- Layout: asigna bloques a páginas sin cortarlos ---
     const pages: Array<Array<{ img: typeof imgs[number]; y: number }>> = [[]];
@@ -147,6 +156,7 @@ export async function composeReport(m: ReportModel): Promise<jsPDF> {
 /* ───────────────────────── Header / Footer nativos ───────────────────────── */
 
 function drawCoverHeader(doc: jsPDF, m: ReportModel) {
+  if (m.coverCompact) return drawCoverCompact(doc, m);
   const PW = 210;
   doc.setFillColor(...hexRgb(BRAND.ink));
   doc.rect(0, 0, PW, 50, 'F');
@@ -172,6 +182,41 @@ function drawCoverHeader(doc: jsPDF, m: ReportModel) {
   doc.setFillColor(...hexRgb(BRAND.v)); doc.rect(0, 50, 70, 2, 'F');
   doc.setFillColor(...hexRgb(BRAND.p)); doc.rect(70, 50, 70, 2, 'F');
   doc.setFillColor(...hexRgb(BRAND.c)); doc.rect(140, 50, 70, 2, 'F');
+}
+
+/**
+ * Portada baja (28 mm). Misma identidad que la alta —banda oscura y regla de
+ * marca— pero en una línea: eyebrow, título y el `meta` en horizontal a la
+ * derecha. Deja 22 mm más de papel, que en un informe de una página es un
+ * bloque entero.
+ */
+function drawCoverCompact(doc: jsPDF, m: ReportModel) {
+  const PW = 210, H = 28;
+  doc.setFillColor(...hexRgb(BRAND.ink));
+  doc.rect(0, 0, PW, H, 'F');
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(154, 163, 178);
+  doc.text(`${m.client.toUpperCase()} · ${m.agency.toUpperCase()}`, 14, 10);
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(255, 255, 255);
+  doc.text(m.titleLines.join(' '), 14, 19);
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(174, 182, 196);
+  doc.text(m.subtitle, 14, 24.5, { maxWidth: 110 });
+
+  // `meta` en fila, de derecha a izquierda, para que quepa en la banda baja.
+  let mx = 196;
+  [...m.meta].reverse().forEach((row) => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(255, 255, 255);
+    doc.text(row.v, mx, 19, { align: 'right' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(126, 135, 154);
+    doc.text(row.k.toUpperCase(), mx, 13.5, { align: 'right' });
+    mx -= Math.max(26, doc.getTextWidth(row.v) + 12);
+  });
+
+  doc.setFillColor(...hexRgb(BRAND.v)); doc.rect(0, H, 70, 1.5, 'F');
+  doc.setFillColor(...hexRgb(BRAND.p)); doc.rect(70, H, 70, 1.5, 'F');
+  doc.setFillColor(...hexRgb(BRAND.c)); doc.rect(140, H, 70, 1.5, 'F');
 }
 
 function drawRunningHeader(doc: jsPDF, m: ReportModel, page: number, total: number) {

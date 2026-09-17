@@ -5,6 +5,10 @@ import type { Client } from '@/types/client';
 import { useClientStore } from '@/store/useClientStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { useRopreStore } from '@/store/useRopreStore';
+import { periodoDe, rangoDe, type ClavePeriodo } from '@/utils/periodos';
+import { Modal } from '@/components/ui/Modal';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
 import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
 // jsPDF + html2canvas pesan ~2 MB y solo hacen falta al pedir un reporte, no al
@@ -21,7 +25,10 @@ const loadRopreReport = () => import('@/services/ropreReport');
  */
 export function ReportsMenu({ client }: { client: Client }) {
   const [open, setOpen] = useState(false);
-  const [sub, setSub] = useState<'meetings' | 'funnels' | null>(null);
+  const [sub, setSub] = useState<'meetings' | 'funnels' | 'ropre' | null>(null);
+  const [rangoAbierto, setRangoAbierto] = useState(false);
+  const [rDesde, setRDesde] = useState('');
+  const [rHasta, setRHasta] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   // CRÍTICO: filtrar dentro del selector crea nuevo array por render →
   // bucle infinito → pantalla en blanco. Tomamos raw + useMemo.
@@ -115,7 +122,7 @@ export function ReportsMenu({ client }: { client: Client }) {
                   icon={<Target className="h-3.5 w-3.5" />}
                   label="Informe ROPRE"
                   hint={ropreItems.length > 0 ? `${ropreItems.length} items` : 'Sin ROPRE registrado'}
-                  onClick={() => run(async () => (await loadRopreReport()).downloadRopreReportPdf(client, ropreItems), 'Informe ROPRE')}
+                  onClick={() => setSub('ropre')}
                 />
                 <MenuItem
                   icon={<Mic className="h-3.5 w-3.5" />}
@@ -130,6 +137,45 @@ export function ReportsMenu({ client }: { client: Client }) {
                   hint={funnels.length > 0 ? `${funnels.length} embudos` : 'Sin embudos'}
                   disabled={funnels.length === 0}
                   onClick={() => setSub('funnels')}
+                />
+              </div>
+            )}
+
+            {sub === 'ropre' && (
+              <div className="py-1">
+                <SubHeader title="Periodo del informe" onBack={() => setSub(null)} />
+                {([
+                  ['semana', 'Esta semana', 'Lunes a domingo'],
+                  ['quincena', 'Esta quincena', 'Del 1 al 15, o del 16 a fin de mes'],
+                  ['mes', 'Este mes', 'El mes completo'],
+                ] as Array<[Exclude<ClavePeriodo, 'rango'>, string, string]>).map(([clave, label, hint]) => (
+                  <MenuItem
+                    key={clave}
+                    icon={<Target className="h-3.5 w-3.5" />}
+                    label={label}
+                    hint={hint}
+                    onClick={() => run(
+                      async () => (await loadRopreReport()).downloadRopreReportPdf(
+                        client, ropreItems, undefined, periodoDe(clave, new Date()),
+                      ),
+                      'Informe ROPRE',
+                    )}
+                  />
+                ))}
+                <MenuItem
+                  icon={<CalendarRange className="h-3.5 w-3.5" />}
+                  label="Rango a medida…"
+                  hint="Eliges las dos fechas"
+                  onClick={() => { setOpen(false); setSub(null); setRangoAbierto(true); }}
+                />
+                <MenuItem
+                  icon={<FileText className="h-3.5 w-3.5" />}
+                  label="Sin acotar"
+                  hint="Todo el ROPRE, sin filtrar por fecha"
+                  onClick={() => run(
+                    async () => (await loadRopreReport()).downloadRopreReportPdf(client, ropreItems),
+                    'Informe ROPRE',
+                  )}
                 />
               </div>
             )}
@@ -182,6 +228,53 @@ export function ReportsMenu({ client }: { client: Client }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Rango a medida — dos fechas y listo. Sale del menú para no meter
+          formularios dentro de un desplegable. */}
+      <Modal
+        open={rangoAbierto}
+        onClose={() => setRangoAbierto(false)}
+        title="Informe ROPRE de un rango"
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="text-xs text-text-muted hover:text-text-primary px-3 py-2"
+              onClick={() => setRangoAbierto(false)}
+            >
+              Cancelar
+            </button>
+            <Button
+              size="sm"
+              disabled={!rDesde || !rHasta}
+              onClick={() => {
+                const periodo = rangoDe(rDesde, rHasta);
+                if (!periodo) {
+                  toast.error('Revisa las dos fechas');
+                  return;
+                }
+                setRangoAbierto(false);
+                run(
+                  async () => (await loadRopreReport()).downloadRopreReportPdf(client, ropreItems, undefined, periodo),
+                  'Informe ROPRE',
+                );
+              }}
+            >
+              Generar
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs text-text-secondary mb-3">
+          El rango filtra los <b>entregables</b> por su fecha de entrega. Los riesgos y los
+          objetivos salen con su estado de hoy: un riesgo vivo lo sigue estando aunque se
+          registrara antes.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <Input type="date" label="Desde" value={rDesde} onChange={(e) => setRDesde(e.target.value)} />
+          <Input type="date" label="Hasta" value={rHasta} onChange={(e) => setRHasta(e.target.value)} />
+        </div>
+      </Modal>
     </div>
   );
 }

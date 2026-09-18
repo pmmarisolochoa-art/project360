@@ -31,8 +31,16 @@ async function callBackend<T>(feature: string, context: unknown): Promise<T> {
     body: JSON.stringify({ feature, context }),
   });
   if (!res.ok) {
+    /**
+     * Se desenvuelve el `{ error }` del backend en vez de arrastrar el JSON
+     * crudo. Con el recorte a 200 caracteres, el motivo de Anthropic quedaba
+     * fuera del mensaje y en pantalla solo se veía el principio del JSON.
+     */
     const errText = await res.text().catch(() => '');
-    throw new Error(`Claude backend error ${res.status}: ${errText.slice(0, 200)}`);
+    let motivo = errText.slice(0, 300);
+    try { motivo = (JSON.parse(errText) as { error?: string }).error ?? motivo; } catch { /* texto plano */ }
+    console.error('[claudeApi]', feature, res.status, motivo);
+    throw new Error(motivo);
   }
   return (await res.json()) as T;
 }
@@ -125,7 +133,7 @@ export async function generateMeetingAgenda(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] meeting_agenda falló, usando fallback.', e);
-    toast.warning(`IA no disponible — usando plantilla. (${msg.slice(0, 80)})`);
+    toast.warning(`IA no disponible — usando plantilla. (${msg.slice(0, 220)})`);
     return meetingAgendaFallback(args);
   }
 }
@@ -158,7 +166,7 @@ export async function extractTasksFromNotes(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] extract_tasks falló, usando fallback heurístico.', e);
-    toast.warning(`IA no disponible — usando heurístico. (${msg.slice(0, 80)})`);
+    toast.warning(`IA no disponible — usando heurístico. (${msg.slice(0, 220)})`);
     return extractTasksFallback(args);
   }
 }
@@ -222,7 +230,7 @@ export async function generateMeetingReport(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] meeting_report falló, usando fallback.', e);
-    toast.warning(`IA no disponible — reporte con estructura básica. (${msg.slice(0, 80)})`);
+    toast.warning(`IA no disponible — reporte con estructura básica. (${msg.slice(0, 220)})`);
     return meetingReportFallback(args);
   }
 }
@@ -273,7 +281,7 @@ export async function generateRopreFromTranscription(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] ropre_from_transcription falló', e);
-    toast.warning(`IA no disponible para ROPRE. (${msg.slice(0, 80)})`);
+    toast.warning(`IA no disponible para ROPRE. (${msg.slice(0, 220)})`);
     return { results: [], objectives: [], premises: [], risks: [], deliverables: [] };
   }
 }
@@ -308,7 +316,7 @@ export async function generateContentCopy(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] generate_content_copy falló', e);
-    toast.warning(`IA no disponible — usando heurístico. (${msg.slice(0, 80)})`);
+    toast.warning(`IA no disponible — usando heurístico. (${msg.slice(0, 220)})`);
     return contentCopyFallback(args);
   }
 }
@@ -353,7 +361,7 @@ export async function generateAdVariants(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn('[claudeApi] generate_ad_variants falló', e);
-    toast.warning(`IA no disponible — usando ejemplo. (${msg.slice(0, 80)})`);
+    toast.warning(`IA no disponible — usando ejemplo. (${msg.slice(0, 220)})`);
     return adVariantsFallback(args);
   }
 }

@@ -61,5 +61,8 @@ jobs:
       - name: Periodos del informe (¿los cortes de fecha siguen bien?)
         run: npm run test:periodos
 
+      - name: Limpieza de notas y transcripciones
+        run: npm run test:texto
+
       - name: Build (¿construye la app?)
         run: npm run build

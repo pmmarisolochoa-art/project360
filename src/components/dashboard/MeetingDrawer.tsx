@@ -11,7 +11,6 @@ import { sendRopreReport } from '@/services/sendRopreReport';
 // falta para abrir el drawer. Todos los call sites están en try/catch con toast.
 const loadMeetingPdf = () => import('@/services/meetingReportEditorial');
 const loadRopreReport = () => import('@/services/ropreReport');
-const loadMarked = () => import('marked');
 const loadMammoth = () => import('mammoth');
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -39,6 +38,7 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
 import { sendMeetingTasks, type MeetingTaskToSend } from '@/services/sendMeetingTasks';
 import { dedupeExtracted } from '@/utils/taskDedup';
+import { limpiarTextoPegado } from '@/utils/limpiarTexto';
 import { MeetingRecap } from './MeetingRecap';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
@@ -216,21 +216,28 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
     try {
       const name = file.name.toLowerCase();
       let plainText = '';
-      if (name.endsWith('.md') || name.endsWith('.markdown')) {
-        const raw = await file.text();
-        const { marked } = await loadMarked();
-        const html = await marked.parse(raw);
-        plainText = String(html)
-          .replace(/<[^>]+>/g, '\n')
-          .replace(/\n{3,}/g, '\n\n')
-          .trim();
+      if (name.endsWith('.md') || name.endsWith('.markdown') || name.endsWith('.txt')) {
+        /**
+         * El markdown se usa TAL CUAL.
+         *
+         * Antes se convertía a HTML con `marked` y se le quitaban las etiquetas
+         * con una expresión regular. Eso no decodifica las entidades, así que
+         * un `&nbsp;` del documento original llegaba a las notas como el texto
+         * literal "&nbsp;" — que es lo que se vio al subir unas notas de Gemini
+         * el 18-sep. Y además tiraba la estructura (los títulos y las viñetas
+         * se volvían saltos de línea), que es justo lo que ayuda a la IA a
+         * entender de qué va cada parte.
+         *
+         * El markdown ya es texto plano legible. No hacía falta traducirlo.
+         */
+        plainText = limpiarTextoPegado(await file.text());
       } else if (name.endsWith('.docx')) {
         const arrayBuffer = await file.arrayBuffer();
         const mammoth = (await loadMammoth()).default;
         const result = await mammoth.extractRawText({ arrayBuffer });
-        plainText = result.value.trim();
+        plainText = limpiarTextoPegado(result.value);
       } else {
-        toast.error('Formato no soportado. Usa .md o .docx');
+        toast.error('Formato no soportado. Usa .md, .txt o .docx');
         return;
       }
       if (!plainText) {
@@ -753,7 +760,7 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".md,.markdown,.docx"
+                    accept=".md,.markdown,.txt,.docx"
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];

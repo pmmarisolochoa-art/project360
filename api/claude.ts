@@ -282,8 +282,24 @@ async function callAnthropic(apiKey: string, system: string, user: string, maxTo
   });
 
   if (!res.ok) {
+    /**
+     * El motivo REAL, no el JSON crudo.
+     *
+     * Antes esto lanzaba el cuerpo entero sin parsear, y para cuando llegaba a
+     * la pantalla lo habían recortado dos veces: aquí a 300 caracteres y
+     * después el toast. La founder veía
+     * `Anthropic API 400: {\"type\":\"error\",\"err` y nadie —ella ni yo— podía
+     * saber qué había fallado. Un error que no se puede leer es un error que no
+     * existe hasta que cuesta una sesión entera.
+     */
     const errText = await res.text().catch(() => '');
-    throw new Error(`Anthropic API ${res.status}: ${errText.slice(0, 300)}`);
+    let motivo = errText.slice(0, 300);
+    try {
+      const j = JSON.parse(errText) as { error?: { type?: string; message?: string } };
+      if (j?.error?.message) motivo = j.error.message;
+    } catch { /* si no es JSON, se queda el texto crudo */ }
+    console.error('[anthropic]', res.status, model, errText.slice(0, 1000));
+    throw new Error(`Anthropic ${res.status} (${model}): ${motivo}`);
   }
 
   const data = await res.json() as { content?: Array<{ type: string; text?: string }> };

@@ -299,6 +299,24 @@ async function callAnthropic(apiKey: string, system: string, user: string, maxTo
       if (j?.error?.message) motivo = j.error.message;
     } catch { /* si no es JSON, se queda el texto crudo */ }
     console.error('[anthropic]', res.status, model, errText.slice(0, 1000));
+
+    /**
+     * Los dos motivos que NO son un fallo del código se dicen en claro.
+     *
+     * Pasó el 18-sep: la cuenta se quedó sin saldo y el aviso decía
+     * "Anthropic 400 (claude-sonnet-4-6): Your cred…". Técnicamente correcto y
+     * completamente inútil para quien tiene que resolverlo — que no es quien
+     * lee código, sino quien entra a la consola a poner la tarjeta.
+     */
+    if (/credit balance is too low/i.test(motivo)) {
+      throw new Error('La cuenta de Anthropic se quedó sin saldo. Entra a console.anthropic.com → Plans & Billing y añade crédito. (Es la cuenta de la API, distinta de la suscripción de Claude.)');
+    }
+    if (res.status === 401 || /invalid x-api-key/i.test(motivo)) {
+      throw new Error('La llave de Anthropic no es válida. Revisa ANTHROPIC_API_KEY en Vercel.');
+    }
+    if (/prompt is too long/i.test(motivo)) {
+      throw new Error(`El texto es demasiado largo para el modelo. Recorta las notas o divide la reunión. (${motivo})`);
+    }
     throw new Error(`Anthropic ${res.status} (${model}): ${motivo}`);
   }
 

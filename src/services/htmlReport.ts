@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { paginarBloques } from '@/utils/paginarBloques';
 import { format, parseISO, startOfWeek, endOfWeek, isWithinInterval, differenceInCalendarDays, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
@@ -119,32 +120,69 @@ export async function composeReport(m: ReportModel): Promise<jsPDF> {
     const blockEls = Array.from(holder.querySelectorAll('.block')) as HTMLElement[];
     const imgs: Array<{ data: string; wmm: number; hmm: number }> = [];
     const CONTENT_W = 182; // 210 - 2*14
+    const PH = 297, MX = 14, GAP = 5;
+    const P1_TOP = m.coverCompact ? 34 : 56, PN_TOP = 19, BOTTOM = PH - 15;
+    /** Alto aprovechable de una página de continuación. Un trozo que quepa aquí
+     *  cabe en cualquier página, porque la primera siempre empieza más abajo y
+     *  el que no entre se manda a una página nueva. */
+    const ALTO_UTIL = BOTTOM - PN_TOP;
+
     for (const el of blockEls) {
       const cv = await html2canvas(el, { scale: SCALE, backgroundColor: '#ffffff', useCORS: true, logging: false });
-      imgs.push({ data: cv.toDataURL(mime, quality), wmm: CONTENT_W, hmm: (cv.height / cv.width) * CONTENT_W });
+      const pxPorMm = cv.width / CONTENT_W;
+      const maxPx = Math.floor(ALTO_UTIL * pxPorMm);
+
+      if (cv.height <= maxPx) {
+        imgs.push({ data: cv.toDataURL(mime, quality), wmm: CONTENT_W, hmm: cv.height / pxPorMm });
+        continue;
+      }
+
+      /**
+       * UN BLOQUE MÁS ALTO QUE LA PÁGINA SE PARTE EN TROZOS.
+       *
+       * Hasta el 21-sep esto no existía: el bloque se colocaba igual y lo que
+       * pasaba del borde inferior SE PERDÍA. No fallaba nada —el PDF se
+       * generaba, se abría y tenía sus páginas— simplemente faltaba contenido,
+       * que es la peor forma de romperse. Lo cazó la founder al abrir el
+       * semanal de Ikigai: media página en blanco y los riesgos cortados.
+       *
+       * Se parte el BITMAP y no el HTML porque aquí ya no hay HTML: a esta
+       * altura el bloque es una imagen. Un corte puede caer a mitad de una
+       * línea, y es feo; perder el resto de la sección era peor. Para que no
+       * llegue a pasar, quien arma el reporte debería emitir secciones largas
+       * en varios bloques — eso hace que el corte caiga entre filas.
+       */
+      for (let y = 0; y < cv.height; y += maxPx) {
+        const alto = Math.min(maxPx, cv.height - y);
+        const trozo = document.createElement('canvas');
+        trozo.width = cv.width;
+        trozo.height = alto;
+        const ctx = trozo.getContext('2d');
+        if (!ctx) break;
+        // Fondo blanco explícito: sin esto un trozo con transparencias saldría
+        // con el fondo negro que pone JPEG por defecto.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cv.width, alto);
+        ctx.drawImage(cv, 0, y, cv.width, alto, 0, 0, cv.width, alto);
+        imgs.push({ data: trozo.toDataURL(mime, quality), wmm: CONTENT_W, hmm: alto / pxPorMm });
+      }
     }
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    const PH = 297, MX = 14, GAP = 5;
-    const P1_TOP = m.coverCompact ? 34 : 56, PN_TOP = 19, BOTTOM = PH - 15;
 
     // --- Layout: asigna bloques a páginas sin cortarlos ---
-    const pages: Array<Array<{ img: typeof imgs[number]; y: number }>> = [[]];
-    let pi = 0, cy = P1_TOP;
-    for (const img of imgs) {
-      if (cy + img.hmm > BOTTOM && pages[pi].length > 0) {
-        pi++; pages[pi] = []; cy = PN_TOP;
-      }
-      pages[pi].push({ img, y: cy });
-      cy += img.hmm + GAP;
-    }
+    // La regla vive en utils/paginarBloques.ts, aparte y probada: aquí dentro
+    // hacía falta un navegador para ejecutarla, así que no se probaba nunca.
+    const pages = paginarBloques(imgs, {
+      topPrimera: P1_TOP, topResto: PN_TOP, fondo: BOTTOM, hueco: GAP,
+    });
     const total = pages.length;
 
     pages.forEach((blocks, i) => {
       if (i > 0) doc.addPage();
       if (i === 0) drawCoverHeader(doc, m); else drawRunningHeader(doc, m, i + 1, total);
       drawFooter(doc, m);
-      blocks.forEach(({ img, y }) => doc.addImage(img.data, fmt, MX, y, img.wmm, img.hmm));
+      blocks.forEach(({ bloque, y }) => doc.addImage(bloque.data, fmt, MX, y, bloque.wmm, bloque.hmm));
     });
 
     return doc;
@@ -226,7 +264,11 @@ function drawRunningHeader(doc: jsPDF, m: ReportModel, page: number, total: numb
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(154, 163, 178);
   doc.text(m.client.toUpperCase(), 14, 8.5);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(154, 163, 178);
-  doc.text(`${m.runningLabel} · Pág. ${page} de ${total} · Confidencial`, 196, 8.5, { align: 'right' });
+  // El número va CENTRADO en la página (210/2 = 105), no metido dentro de la
+  // frase de la derecha, donde se perdía entre el nombre del reporte y el
+  // "Confidencial".
+  doc.text(`Pág. ${page} de ${total}`, 105, 8.5, { align: 'center' });
+  doc.text(`${m.runningLabel} · Confidencial`, 196, 8.5, { align: 'right' });
   doc.setFillColor(...hexRgb(BRAND.v)); doc.rect(0, 13, 70, 1.2, 'F');
   doc.setFillColor(...hexRgb(BRAND.p)); doc.rect(70, 13, 70, 1.2, 'F');
   doc.setFillColor(...hexRgb(BRAND.c)); doc.rect(140, 13, 70, 1.2, 'F');
@@ -367,6 +409,7 @@ async function buildReportModel(input: WeeklyHtmlInput): Promise<ReportModel> {
     .rep td.task{color:#1f2430;font-weight:600}
     .rep .dot{display:inline-block;width:9px;height:9px;border-radius:50%}
     .rep .dot.g{background:#10b981}.rep .dot.a{background:#f59e0b}.rep .dot.x{background:#c7ccd6}
+    .rep .note{border:1px solid #e6e8ee;border-left:4px solid ${accentClient};border-radius:10px;padding:14px 16px;font-size:12.5px;color:#3a4150;line-height:1.6}
     .rep .hitos{display:grid;grid-template-columns:repeat(${hitos.length},1fr);gap:8px}
     .rep .hito{border:1px solid #e6e8ee;border-top:3px solid ${BRAND.v};border-radius:9px;padding:11px 9px;text-align:center}
     .rep .hito .hd{font-size:11px;font-weight:800;color:${BRAND.v}}
@@ -408,13 +451,50 @@ async function buildReportModel(input: WeeklyHtmlInput): Promise<ReportModel> {
       ropreCol('c5', 'E', 'Entregables', byType('deliverable'))
     }</div>`);
   }
+  /**
+   * Las dos secciones largas se emiten en VARIOS bloques, no en uno solo.
+   *
+   * El motor pagina por bloque y desde el 21-sep parte el que no cabe, pero el
+   * corte cae donde toque — a mitad de una tarjeta o de una línea. Partiéndolo
+   * aquí, en grupos de filas, el corte cae siempre entre filas. La red de
+   * seguridad del motor sigue estando; esto es para que no haga falta.
+   */
+  const enGrupos = <T,>(arr: T[], n: number): T[][] =>
+    arr.reduce<T[][]>((acc, x, i) => (i % n ? acc[acc.length - 1].push(x) : acc.push([x]), acc), []);
+
   if (risks.length) {
-    blocks.push(sh('Riesgos activos', `${risks.length} a vigilar`) + `<div class="risks">${risks.slice(0, 4).map(riskCard).join('')}</div>`);
+    // Dos por bloque = una fila de la rejilla de dos columnas.
+    enGrupos(risks.slice(0, 4), 2).forEach((grupo, i) => {
+      blocks.push(
+        (i === 0 ? sh('Riesgos activos', `${risks.length} a vigilar`) : '') +
+        `<div class="risks">${grupo.map(riskCard).join('')}</div>`,
+      );
+    });
   }
-  blocks.push(sh('Plan de acción · esta semana', `${pending.length} tareas`) +
-    `<table><thead><tr><th>Tarea</th><th>Responsable</th><th>Prioridad</th><th style="text-align:center">Estado</th></tr></thead><tbody>${
-      pending.slice(0, 14).map((t) => `<tr><td class="task">${esc(t.title)}</td><td>${esc(resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo)}</td><td>${esc(t.priority)}</td><td style="text-align:center"><span class="dot ${t.status === 'in_progress' ? 'a' : 'x'}"></span></td></tr>`).join('')
-    }</tbody></table>`);
+
+  /**
+   * Se listan TODAS las tareas pendientes. Antes se cortaban en 14 mientras la
+   * etiqueta decía el total —"18 tareas" con 14 filas—, así que el reporte se
+   * contradecía a sí mismo y nadie lo notaba. Ahora que la paginación funciona,
+   * no hay motivo para esconder cuatro.
+   */
+  const filaTarea = (t: Task) =>
+    `<tr><td class="task">${esc(t.title)}</td><td>${esc(resolveRoleLabel(t.assignedTo, client.id) ?? t.assignedTo)}</td><td>${esc(t.priority)}</td><td style="text-align:center"><span class="dot ${t.status === 'in_progress' ? 'a' : 'x'}"></span></td></tr>`;
+  const cabeceraTabla = '<thead><tr><th>Tarea</th><th>Responsable</th><th>Prioridad</th><th style="text-align:center">Estado</th></tr></thead>';
+
+  enGrupos(pending, 12).forEach((grupo, i) => {
+    blocks.push(
+      (i === 0
+        ? sh('Plan de acción · esta semana', `${pending.length} tarea${pending.length === 1 ? '' : 's'}`)
+        : '') +
+      // La cabecera se repite en cada trozo: una tabla que sigue en la página
+      // siguiente sin decir qué es cada columna no se puede leer.
+      `<table>${cabeceraTabla}<tbody>${grupo.map(filaTarea).join('')}</tbody></table>`,
+    );
+  });
+  if (!pending.length) {
+    blocks.push(sh('Plan de acción · esta semana') + `<div class="note">No hay tareas pendientes esta semana.</div>`);
+  }
   if (hitos.length) {
     blocks.push(sh('Hitos clave') + `<div class="hitos">${hitos.map((h, i) => `<div class="hito" style="border-top-color:${PALETTE[i % PALETTE.length]}"><div class="hd">${esc(h.d)}</div><div class="ht">${esc(h.t)}</div></div>`).join('')}</div>`);
   }

@@ -64,5 +64,8 @@ jobs:
       - name: Limpieza de notas y transcripciones
         run: npm run test:texto
 
+      - name: Paginación del PDF (¿algo se sale del papel?)
+        run: npm run test:paginar
+
       - name: Build (¿construye la app?)
         run: npm run build

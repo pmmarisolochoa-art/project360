@@ -9,7 +9,8 @@ import { useProgramsStore } from '@/store/useProgramsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { useLinksStore } from '@/store/useLinksStore';
-import { rowToClient, rowToTask, rowToMeeting, ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo } from './repositories';
+import { useLeadsStore } from '@/store/useLeadsStore';
+import { rowToClient, rowToTask, rowToMeeting, ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo, LeadsRepo, LeadEventsRepo } from './repositories';
 import { TaskLinksRepo } from './taskLinks';
 import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
@@ -142,7 +143,7 @@ async function runBootstrap(): Promise<BootstrapResult> {
 
       // Hidratar content_pieces y projections en paralelo
       try {
-        const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData, links] = await Promise.all([
+        const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData, links, leads, leadEvents] = await Promise.all([
           ContentRepo.listByClientIds(clientIds),
           ProjectionsRepo.listByClientIds(clientIds),
           RopreRepo.listByClientIds(clientIds),
@@ -151,6 +152,8 @@ async function runBootstrap(): Promise<BootstrapResult> {
           ProgramsRepo.listByClientIds(clientIds),
           FunnelLaunchRepo.listByClientIds(clientIds),
           TaskLinksRepo.listByClientIds(clientIds),
+          LeadsRepo.listByClientIds(clientIds),
+          LeadEventsRepo.listByClientIds(clientIds),
         ]);
         if (contentPieces.length > 0) useContentStore.setState({ pieces: contentPieces });
         if (Object.keys(projections).length > 0) useProjectionStore.setState({ states: projections });
@@ -160,6 +163,7 @@ async function runBootstrap(): Promise<BootstrapResult> {
         if (programs.length > 0) useProgramsStore.getState().hydrate(programs);
         if (funnelData.funnels.length > 0) useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
         if (links.length > 0) useLinksStore.getState().hydrate(links);
+        if (leads.length > 0) useLeadsStore.getState().hydrate(leads, leadEvents);
         // Se detalla cuántos son Espacio de Agencia: sin ese dato, un problema
         // de "no aparece la opción Personal" obliga a adivinar si el cliente no
         // llegó o si llegó sin su marca. Con esto se distingue de un vistazo.

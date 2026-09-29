@@ -60,9 +60,12 @@ function ropreStyles(accent: string): string {
     .rep .fig.r .n{color:#9a2a2a}
     .rep .fig.a .n{color:#b45309}
     .rep .fig .stale{color:#8a5a12;font-weight:600}
-    /* Objetivos con barra de avance */
+    /* Resultados/Objetivos con barra de avance. Sin :last-child a propósito:
+       ahora las filas se reparten en varios bloques (lotes) para que el PDF
+       no las corte a mitad entre páginas, y cada bloque es un contenedor
+       distinto — una línea de más al final de un lote es preferible a un
+       :last-child que no sabe si es el último de la sección real. */
     .rep .obj{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f1f5}
-    .rep .obj:last-child{border-bottom:0}
     .rep .obj .t{font-size:11.5px;font-weight:600;flex:1;min-width:0}
     .rep .obj .bar{width:84px;height:5px;border-radius:3px;background:#e6e8ee;overflow:hidden;flex:none}
     .rep .obj .bar i{display:block;height:100%;background:${accent};border-radius:3px}
@@ -238,26 +241,72 @@ function buildBlocks(
     return blocks;
   }
 
-  // ── Objetivos, primero ──
-  const objetivos = [...por('result'), ...por('objective')];
-  if (objetivos.length) {
-    const avance = (meta?: string, actual?: string): number | null => {
-      const n = (v?: string) => {
-        const x = parseFloat(String(v ?? '').replace(/[^0-9.,-]/g, '').replace(',', '.'));
-        return Number.isFinite(x) ? x : null;
-      };
-      const a = n(actual), b = n(meta);
-      if (a === null || b === null || b === 0) return null;
-      return Math.max(0, Math.min(100, Math.round((a / b) * 100)));
+  // ── Resultados y Objetivos, primero, separados y acotados ──
+  //
+  // Antes iban en una sola lista plana (resultados numéricos + objetivos
+  // cualitativos mezclados, sin orden ni límite): con 11+ items era ilegible
+  // y, al ser UN SOLO bloque, el bitmap se cortaba a mitad de fila entre
+  // páginas (ver LOTE más abajo). Founder, 25-sep-2026: separar en dos
+  // secciones y mostrar solo lo más relevante — en Resultados, el de peor
+  // avance primero (el que necesita acción); en Objetivos, sin dato numérico
+  // para ordenar, se acotan pero se mantiene el orden en que llegan.
+  const avance = (meta?: string, actual?: string): number | null => {
+    const n = (v?: string) => {
+      const x = parseFloat(String(v ?? '').replace(/[^0-9.,-]/g, '').replace(',', '.'));
+      return Number.isFinite(x) ? x : null;
     };
-    blocks.push(
-      sh('Objetivos') +
-      objetivos.map((o) => {
-        const pct = avance(o.targetValue, o.currentValue);
-        return `<div class="obj"><span class="t">${esc(o.title)}</span>${
-          pct !== null ? `<span class="bar"><i style="width:${pct}%"></i></span>` : ''
-        }<span class="v">${o.currentValue ? `<b>${esc(o.currentValue)}</b>` : '—'}${o.targetValue ? ` / ${esc(o.targetValue)}` : ''}</span></div>`;
-      }).join(''),
+    const a = n(actual), b = n(meta);
+    if (a === null || b === null || b === 0) return null;
+    return Math.max(0, Math.min(100, Math.round((a / b) * 100)));
+  };
+
+  const objRow = (o: RopreItem, pct: number | null) =>
+    `<div class="obj"><span class="t">${esc(o.title)}</span>${
+      pct !== null ? `<span class="bar"><i style="width:${pct}%"></i></span>` : ''
+    }<span class="v">${o.currentValue ? `<b>${esc(o.currentValue)}</b>` : '—'}${o.targetValue ? ` / ${esc(o.targetValue)}` : ''}</span></div>`;
+
+  /**
+   * Empuja un header + sus filas en LOTES pequeños en vez de un bloque único.
+   * `paginarBloques` no corta bitmaps entre bloques, solo dentro de uno que
+   * excede una página — con lotes de 3 filas ningún bloque es tan alto como
+   * para superar una página, así que el corte cae siempre entre filas
+   * completas y nunca a mitad de una (htmlReport.ts, comentario línea ~152).
+   */
+  const pushSeccionEnLotes = (titulo: string, tag: string | undefined, filas: string[], tamañoLote = 3) => {
+    blocks.push(sh(titulo, tag));
+    for (let i = 0; i < filas.length; i += tamañoLote) {
+      blocks.push(filas.slice(i, i + tamañoLote).join(''));
+    }
+  };
+
+  const MAX_RESULTADOS = 6;
+  const MAX_OBJETIVOS = 4;
+
+  const resultadosConAvance = por('result').map((o) => ({ o, pct: avance(o.targetValue, o.currentValue) }));
+  resultadosConAvance.sort((a, b) => {
+    if (a.pct === null && b.pct === null) return 0;
+    if (a.pct === null) return 1;   // sin dato: al final, no arriba
+    if (b.pct === null) return -1;
+    return a.pct - b.pct;            // peor avance primero
+  });
+  if (resultadosConAvance.length) {
+    const mostrados = resultadosConAvance.slice(0, MAX_RESULTADOS);
+    const restantes = resultadosConAvance.length - mostrados.length;
+    pushSeccionEnLotes(
+      'Resultados',
+      restantes > 0 ? `+${restantes} más` : undefined,
+      mostrados.map(({ o, pct }) => objRow(o, pct)),
+    );
+  }
+
+  const cualitativos = por('objective');
+  if (cualitativos.length) {
+    const mostrados = cualitativos.slice(0, MAX_OBJETIVOS);
+    const restantes = cualitativos.length - mostrados.length;
+    pushSeccionEnLotes(
+      'Objetivos',
+      restantes > 0 ? `+${restantes} más` : undefined,
+      mostrados.map((o) => objRow(o, null)),
     );
   }
 

@@ -9,6 +9,7 @@ import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { TeamMember } from '@/types/teamMember';
 import type { TeamRoleSlug } from '@/types/team';
 import type { Program } from '@/types/program';
+import type { Lead, LeadEvent, LeadStage } from '@/types/lead';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { useRopreStore } from '@/store/useRopreStore';
 
@@ -108,6 +109,145 @@ export const MeetingsRepo = {
     if (error) throw error;
   },
 };
+
+/* ─────────────── LEADS (cajón Ventas) ─────────────── */
+
+export const LeadsRepo = {
+  async listByClient(clientId: string): Promise<Lead[]> {
+    if (!usingRemote || !supabase) return [];
+    const { data, error } = await supabase.from('leads').select('*').eq('client_id', clientId);
+    if (error) throw error;
+    return (data ?? []).map(rowToLead);
+  },
+  async listByClientIds(clientIds: string[]): Promise<Lead[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase.from('leads').select('*').in('client_id', clientIds);
+    if (error) throw error;
+    return (data ?? []).map(rowToLead);
+  },
+  async create(lead: Lead): Promise<Lead> {
+    if (!usingRemote || !supabase) return lead;
+    const { data, error } = await supabase.from('leads').insert(leadToRow(lead)).select().single();
+    if (error) throw error;
+    return rowToLead(data);
+  },
+  async update(id: string, patch: Partial<Lead>): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('leads').update(leadToRow(patch, true)).eq('id', id);
+    if (error) throw error;
+  },
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('leads').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+/**
+ * El viaje del lead — append-only. `add()` es la única escritura real; no hay
+ * update ni remove a propósito (ver comentario en la migración 047).
+ */
+export const LeadEventsRepo = {
+  async listByLead(leadId: string): Promise<LeadEvent[]> {
+    if (!usingRemote || !supabase) return [];
+    const { data, error } = await supabase
+      .from('lead_events').select('*').eq('lead_id', leadId).order('created_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map(rowToLeadEvent);
+  },
+  /** Todos los eventos de los leads de estos clientes, para el bootstrap. */
+  async listByClientIds(clientIds: string[]): Promise<LeadEvent[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase
+      .from('lead_events').select('*, leads!inner(client_id)').in('leads.client_id', clientIds);
+    if (error) throw error;
+    return (data ?? []).map(rowToLeadEvent);
+  },
+  async add(event: LeadEvent): Promise<LeadEvent> {
+    if (!usingRemote || !supabase) return event;
+    const { data, error } = await supabase.from('lead_events').insert(leadEventToRow(event)).select().single();
+    if (error) throw error;
+    return rowToLeadEvent(data);
+  },
+};
+
+function rowToLead(row: Record<string, unknown>): Lead {
+  const r = row as any;
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    nombre: r.nombre,
+    telefono: r.telefono ?? undefined,
+    email: r.email ?? undefined,
+    fuente: r.fuente,
+    etapa: r.etapa,
+    setterId: r.setter_id ?? undefined,
+    closerId: r.closer_id ?? undefined,
+    perfilRol: r.perfil_rol ?? undefined,
+    programValue: r.program_value ?? undefined,
+    cashCollected: r.cash_collected ?? 0,
+    lostReason: r.lost_reason ?? undefined,
+    externalId: r.external_id ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    closedAt: r.closed_at ?? undefined,
+  };
+}
+
+function leadToRow(l: Partial<Lead>, partial = false): Record<string, unknown> {
+  const map: Record<keyof Lead, string> = {
+    id: 'id',
+    clientId: 'client_id',
+    nombre: 'nombre',
+    telefono: 'telefono',
+    email: 'email',
+    fuente: 'fuente',
+    etapa: 'etapa',
+    setterId: 'setter_id',
+    closerId: 'closer_id',
+    perfilRol: 'perfil_rol',
+    programValue: 'program_value',
+    cashCollected: 'cash_collected',
+    lostReason: 'lost_reason',
+    externalId: 'external_id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    closedAt: 'closed_at',
+  };
+  const row: Record<string, unknown> = {};
+  for (const key of Object.keys(l) as Array<keyof Lead>) {
+    if (partial && l[key] === undefined) continue;
+    row[map[key]] = l[key];
+  }
+  return row;
+}
+
+function rowToLeadEvent(row: Record<string, unknown>): LeadEvent {
+  const r = row as any;
+  return {
+    id: r.id,
+    leadId: r.lead_id,
+    etapaAnterior: (r.etapa_anterior as LeadStage) ?? undefined,
+    etapaNueva: r.etapa_nueva,
+    nota: r.nota ?? undefined,
+    actorId: r.actor_id ?? undefined,
+    actorNombre: r.actor_nombre ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+function leadEventToRow(e: LeadEvent): Record<string, unknown> {
+  return {
+    id: e.id,
+    lead_id: e.leadId,
+    etapa_anterior: e.etapaAnterior ?? null,
+    etapa_nueva: e.etapaNueva,
+    nota: e.nota ?? null,
+    actor_id: e.actorId ?? null,
+    actor_nombre: e.actorNombre ?? null,
+    created_at: e.createdAt,
+  };
+}
 
 /* ─────────────── ROPRE ─────────────── */
 

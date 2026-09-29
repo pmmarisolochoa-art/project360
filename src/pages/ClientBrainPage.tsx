@@ -15,18 +15,28 @@ import { ContentModule } from '@/components/brain/modules/ContentModule';
 import { TeamModule } from '@/components/brain/modules/TeamModule';
 import { ProjectionsModule } from '@/components/brain/modules/ProjectionsModule';
 import { ProgramsModule } from '@/components/brain/modules/ProgramsModule';
+import { VentasModule } from '@/components/brain/modules/VentasModule';
 import { AgentPanel } from '@/components/agent/AgentPanel';
 import { useClientMode } from '@/hooks/useClientMode';
 
 const MODULE_DESCRIPTIONS: Record<string, { description: string; features: string[] }> = {
-  ropre: {
+  ventas: {
     description:
-      'Sistema ROPRE: Resultado esperado, Objetivos secundarios, Premisas estratégicas, Riesgos identificados y Entregables comprometidos.',
+      'Pipeline de leads con historial completo: de contacto inicial a cierre (o pérdida), con valor del programa y cash collected.',
     features: [
-      'Vista Kanban de entregables por estado',
-      'Línea de tiempo Gantt simplificada',
-      'Riesgos con nivel y plan de mitigación',
-      'OKR principal con seguimiento',
+      'Kanban de 8 etapas — Nuevo hasta Ganado/Perdido',
+      'Viaje del lead: cada movimiento queda registrado, nada se pierde',
+      'Valor del programa y cash collected por lead',
+      'Dashboard: embudo por etapa, leads por fuente, tiempo promedio',
+    ],
+  },
+  finanzas: {
+    description:
+      'Facturación y fuente de datos financieros del cliente — configurable por cliente (Excel/CSV, Stripe, Hotmart, u otra).',
+    features: [
+      'Fuente de datos elegida por cliente',
+      'Link de facturación (Stripe)',
+      'Vista consolidada de ingresos',
     ],
   },
   projections: {
@@ -169,6 +179,8 @@ export function ClientBrainPage() {
           <ProgramsModule client={client} readOnly={isMember} />
         ) : module === 'meetings' ? (
           <MeetingsModule client={client} readOnly={isMember} />
+        ) : module === 'ventas' ? (
+          <VentasModule client={client} readOnly={isMember && !canEditTasks} />
         ) : (
           <PlaceholderModule
             title={`${moduleDef.index.toString().padStart(2, '0')} · ${moduleDef.fullLabel}`}

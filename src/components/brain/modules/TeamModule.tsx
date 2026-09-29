@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ChevronDown, ChevronUp, Pencil, Save, X, AlertTriangle, TrendingUp, TrendingDown, Minus, Trophy,
-  Briefcase, Megaphone, Wand2, Palette, Users as UsersIcon, Wrench, Film, PhoneCall, HeartHandshake,
+  Briefcase, Megaphone, Wand2, Palette, Users as UsersIcon, Wrench, Film, PhoneCall, HeartHandshake, UserCheck,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, CartesianGrid, Tooltip as RTooltip, Legend,
@@ -35,6 +35,7 @@ const ROLE_ICON: Record<TeamRoleSlug, typeof Briefcase> = {
   funnel_builder: Wrench,
   editor: Film,
   closer: PhoneCall,
+  setter: UserCheck,
   onboarding: HeartHandshake,
   platforms: Wrench,
   creative_lead: Palette,

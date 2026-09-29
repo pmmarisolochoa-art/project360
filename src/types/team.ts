@@ -8,6 +8,7 @@ export type TeamRoleSlug =
   | 'funnel_builder'
   | 'editor'
   | 'closer'
+  | 'setter'
   | 'onboarding'
   | 'platforms'
   | 'creative_lead'
@@ -232,6 +233,25 @@ export const ROLE_DEFS: RoleDef[] = [
       { key: 'calls_per_setter', label: 'Llamadas/setter/día', target: 2, direction: 'higher_better', redThreshold: 0.5, yellowThreshold: 1 },
       { key: 'confirmed_rate', label: 'Confirmadas vs agendadas', unit: '%', target: 80, direction: 'higher_better', redThreshold: 50, yellowThreshold: 70 },
       { key: 'lead_response', label: 'Velocidad contacto lead', unit: 'h', target: 2, direction: 'lower_better', redThreshold: 8, yellowThreshold: 4 },
+      { key: 'weekly_report', label: 'Reporte semanal entregado', unit: '%', target: 100, direction: 'higher_better', redThreshold: 70, yellowThreshold: 90 },
+    ],
+  },
+  {
+    slug: 'setter',
+    title: 'Setter',
+    fullTitle: 'Setter / Calificador de Leads',
+    functions: [
+      'Contactar y calificar leads entrantes según criterio BANT',
+      'Agendar llamadas con el closer y confirmar asistencia',
+      'Hacer seguimiento a leads que no agendaron o no respondieron',
+      'Registrar el estado de cada lead en el pipeline de ventas',
+      'Reportar cuellos de botella en la calificación al PM o estratega',
+    ],
+    kpis: [
+      { key: 'contact_rate', label: 'Tasa de contactación', unit: '%', target: 80, direction: 'higher_better', redThreshold: 50, yellowThreshold: 65 },
+      { key: 'agendas_per_week', label: 'Agendas confirmadas/sem', target: 25, direction: 'higher_better', redThreshold: 8, yellowThreshold: 15 },
+      { key: 'show_rate', label: 'Show rate', unit: '%', target: 80, direction: 'higher_better', redThreshold: 50, yellowThreshold: 65 },
+      { key: 'response_time', label: 'Velocidad de contacto al lead', unit: 'h', target: 1, direction: 'lower_better', redThreshold: 6, yellowThreshold: 3 },
       { key: 'weekly_report', label: 'Reporte semanal entregado', unit: '%', target: 100, direction: 'higher_better', redThreshold: 70, yellowThreshold: 90 },
     ],
   },

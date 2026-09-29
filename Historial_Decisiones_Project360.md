@@ -4,6 +4,87 @@
 
 ---
 
+## 2026-09-29 (tarde) — Dashboard de Ventas ajustado sobre feedback de la founder, verificado en navegador
+
+Sobre lo construido el 28/29-sep (todavía sin commit): se cerró el pendiente #1 de esa sesión.
+
+**Corrección de fondo primero:** el tipo `LeadSource` en TypeScript se había quedado en los 4 valores viejos (meta/organico/referido/otro) mientras la migración 048 ya movió la base a 7 valores nuevos (meta_ads/reel/story/carrusel/perfil/referido/otro) y agregó `perfil_rol` — el código nunca se actualizó junto con la migración. `perfil_rol` tampoco estaba mapeado en `repositories.ts`. Los dos, corregidos antes de tocar el módulo.
+
+**`VentasModule.tsx` reestructurado:** tabs internos Pipeline/KPIs (el Kanban vive en Pipeline; KPIs es nuevo). Filtro de período (Hoy/7d/15d/30d/60d/Rango con fechas) — acota los KPIs y las gráficas por `createdAt`, pero el Kanban de Pipeline se deja SIN filtrar a propósito: es el estado vivo del pipeline, no un corte histórico. Tab KPIs: una tarjeta por Setter y por Closer (Leads/Ganados/Tasa de cierre/Cash collected), filtrable por el mismo período. El modal de alta de lead ahora pide Setter y Closer desde el inicio (antes solo se asignaban después, en el drawer).
+
+**Verificado en navegador contra datos reales de Alejo Luengas** (no maqueta): el lead real "Camila Restrepo" aparece con fuente "Meta Ads" (confirma que la migración 048 migró bien), las tarjetas de KPI por Setter muestran a Jessica Valdés y Omar (Rayo) con sus números, el filtro Rango despliega los dos campos de fecha, y el modal de nuevo lead trae los selects de Setter/Closer poblados con el equipo real del cliente.
+
+**Sigue sin commitear ni pushear** — la founder decide cuándo.
+
+---
+
+## 2026-09-28/29 — Arquitectura de 6 cajones EN CÓDIGO, cajón Ventas construido y verificado en producción, primer cliente real (Alejo Luengas) dado de alta
+
+**Sesión larga, varios hitos de código real + migraciones corridas en producción.**
+
+### Onboarding real: Alejo Luengas
+
+Primer cliente dado de alta con el brief completo del founder (18 grabaciones documentadas). Regla seguida al pie: **lo marcado "NO SÉ" en el brief no se inventó** — se preguntó antes de forzar campos obligatorios (metas 3/6/12 meses, facturación actual, email/WhatsApp de Alejo). Equipo cargado en el módulo Equipo, cada persona con KPIs independientes: Omar (Rayo) y Jessica Valdés como Setters separados, Sebastian Peralta como Closer (Natalia y Paola salieron del proyecto), Marisol Ochoa como Estratega+PM+Closer ocasional, Santiago Durán como Media Buyer, Alejo como Experto.
+
+**Corrección propia importante:** en un punto dije que el sistema solo admite una persona por rol por cliente — **era falso**, leí la tabla legada equivocada (`client_team_members`/`useTeamStore`) en vez de la real (`team_members`/`TeamMembersPanel`), que sí soporta múltiples personas por rol con KPIs propios. Corregido en el momento; queda como lección: verificar CUÁL sistema pinta la pantalla antes de describir sus límites.
+
+### Arquitectura de 6 cajones — implementada, no solo diseñada
+
+`BrainNav.tsx` rediseñado de 8 pestañas planas a **nivel 1 (6 cajones: Planeación, Management, Ventas, Métricas, Finanzas, Contenidos-oculto) + nivel 2 (sub-tabs contextuales)**. ROPRE sale del nav — su ruta sigue viva (usada desde Reportes) sin romper nada. Verificado en claro y oscuro sin CSS especial (reusa los tokens `html.theme-light` que ya existían). Rol **"Setter"** agregado al catálogo global de KPIs (`types/team.ts`).
+
+### Cajón Ventas — pipeline funcional, verificado extremo a extremo en producción
+
+Migración `047_ventas_pipeline.sql` (tablas `leads` + `lead_events` append-only) probada en local y **corrida en producción por CLI de Supabase** (el login web estaba trabado por recuperación de 2FA de GitHub — el CLI mantenía sesión propia, no dependía de eso). `VentasModule.tsx`: Kanban de 8 etapas SOP con drag-and-drop nativo, drawer "Viaje del lead", **`cash_collected` manual e independiente de las cuotas** (decisión ya tomada, no recalculado), motivo obligatorio al marcar "Perdido", asignación setter/closer. **Bug real encontrado probando contra la base real** (no aparecía con datos vacíos): un selector de Zustand con `.filter()` inline sin `useMemo` causaba loop infinito de renders — regla nueva para este proyecto: todo selector de store que arme un array/objeto nuevo debe envolverse en `useMemo`. Verificado con un lead de prueba que persistió tras recargar.
+
+**Se evaluaron y descartaron** Twenty (AGPLv3, backend propio) y Comp AI CRM (Prisma/Postgres propio, login Google/Microsoft) como base del CRM — ambos exigían infraestructura y login separados; se construyó nativo en el Supabase existente.
+
+### Migración 048 — corrida en producción (29-sep, sesión siguiente)
+
+`048_leads_perfil_fuente.sql`: `fuente` pasa de meta/orgánico/referido/otro a **meta_ads/reel/story/carrusel/perfil/referido/otro**, y se agrega `perfil_rol` (texto libre — quién es el comprador; cada cliente define sus categorías, no es enum fijo). **Fallo real al correrla la primera vez, encontrado y corregido en el momento**: el orden importa — hay que **soltar la restricción vieja ANTES de remapear los datos**, porque el propio `UPDATE` a `meta_ads` viola la restricción vieja (que no conoce ese valor) si todavía está puesta. El archivo de la migración quedó corregido con el orden real que funcionó. Verificado contra el lead real "Camila Restrepo": migró de `meta` a `meta_ads` sin perderse.
+
+### Pendiente para la próxima sesión
+
+1. **Feedback de la founder sobre el dashboard de Ventas** (maqueta de referencia suya, sin datos reales detrás): reestructurar en tabs internos (Pipeline/KPIs), agregar tarjetas de KPI por Closer y por Setter, filtros de período (Día/7d/15d/30d/60d + fecha), y que el formulario de alta de lead pida Setter+Closer desde el inicio (hoy solo se asignan después, en el drawer).
+2. **"Llamadas programadas" (agenda sincronizada con Calendly) queda deliberadamente fuera** — depende de la integración Calendly/Google Calendar del roadmap, todavía sin construir.
+3. **Nada de esto está commiteado ni pusheado** — todo vive local; la base de datos ya tiene 047 y 048 corridas. Falta decidir cuándo se hace commit+push para que Vercel lo despliegue.
+
+**Resuelto en esta sesión:** GitHub — la founder ya recuperó el acceso y regeneró los códigos de recuperación.
+
+---
+
+## 2026-09-24 — Campana personal, informe ROPRE rehecho, y arranca la planeación del dashboard nuevo
+
+**7 commits de código (18-21 sep) + una sesión larga de planeación sin tocar la app (22-24 sep).**
+
+### Código en producción
+
+**Campana personal.** Dejó de pintar un número sin acción: ahora es tuya — tus tareas retrasadas y las de hoy, calculadas en vivo, sin "leído" que mentir (una tarea sale de la lista al completarse, no al marcarla vista). La regla de "¿esta tarea es mía?" se sacó a `useIdentidadTareas`, compartida con Tareas, para no duplicarla.
+
+**El informe ROPRE se rehizo dos veces sobre feedback real.** Primera vuelta: quitado el tablero duplicado y los entregables ya cerrados — de "qué hay registrado" a "qué requiere acción". Segunda vuelta: objetivos primero (son el marco), resumen de la última reunión debajo (sale de `meeting.summary`, ya guardado — sin IA), ROAS e inversión en una tira de 5 celdas, y selector de periodo (semana/quincena/mes/rango). Cuando ROAS/inversión no están frescos, el informe lo dice en vez de aparentar que son de hoy.
+
+**Bug de fondo en el motor de PDF, afectaba a los tres reportes.** Un bloque más alto que una página se colocaba igual y lo que sobraba se perdía — sin error, sin aviso. Lo vio la founder en el semanal de Ikigai: media página en blanco y riesgos cortados. La regla de paginación salió a `utils/paginarBloques.ts`, probada con 20 casos; ahí mismo apareció un segundo hueco (un bloque que cabía en la página 2 pero no en la 1, por la portada, se seguía saliendo). De paso: el semanal listaba 14 tareas diciendo "18 tareas" en la etiqueta — se contradecía a sí mismo y nadie lo notó hasta que la paginación se pudo confiar.
+
+**Las notas subidas llegaban rotas, y el error de la IA no se podía leer.** Un `.md` de Gemini se convertía a HTML con `marked` y perdía las entidades (`&nbsp;` literal) y la estructura. Se usa el markdown tal cual ahora, con `limpiarTexto.ts` quitando además el pie de página del exportador. Y el motivo real de un fallo de Anthropic pasaba por tres recortes (300/200/80 caracteres) antes de llegar a pantalla — desenvueltos, y los tres casos que NO son bug de código (sin saldo, llave inválida, texto muy largo) se traducen a español con dónde arreglarlos.
+
+### La planeación del dashboard nuevo (sin código todavía)
+
+La founder pidió reorganizar el Dashboard en departamentos según lo que ya usa en otra herramienta (Ikigai Dashboard Comercial). Se armó la arquitectura completa a punta de maquetas HTML, iterando sobre feedback visual — **la primera versión inventó un sistema de diseño propio, corregido de inmediato**: todo se reconstruyó calcando los tokens y componentes reales de la app (colores de `index.css`/`tailwind.config.js`, `Button`, `ClientCard`, sidebar y header reales; los números en DM Sans y no en Syne, que al peso 800 se ve más grande de lo que es en píxeles).
+
+**Decidido:**
+- **Seis cajones** en el cerebro del cliente: Planeación (Perfil, Proyección), Management (Tareas, Agenda, Equipo, **+ Programas**, que se muda ahí), **Ventas** (nuevo: Setter, Agenda de Ventas, CRM), Métricas (Pauta + Orgánico + Embudo), **Finanzas** (nuevo), Contenidos (ya existe, apagado desde la beta).
+- **ROPRE sale del menú del cerebro** — queda solo como Informe ROPRE dentro de Reportes, que ya está construido.
+- **La Agenda se queda única, con filtro** Todas/Internas/Ventas — se descartó la opción de duplicarla en dos secciones.
+- **Finanzas: la fuente de datos se elige por cliente** (Excel/CSV, .md, Stripe, Hotmart, otra) — un cliente manda Excel, otro tiene Stripe.
+- **Facturación → link de Stripe. Agenda semanal → Calendly.** Leads: sigue sin fuente definida.
+- **Métricas Orgánico va por API oficial de cada red** (Meta Graph API, YouTube Data API, TikTok for Business), no a mano — aceptando que Meta/YouTube pueden tardar semanas en aprobar el acceso. Mientras tanto queda "sin conectar", igual que Pauta hoy (que también sigue en modo demo, sin OAuth real).
+- **Embudo visual nuevo dentro de Métricas**, con clic por fuente (Meta/Google/TikTok/Orgánico) que cambia Inversión/Revenue/ROAS/CPA y los 5 pasos del embudo — prototipado con clic funcional de verdad, a falta de las curvas tipo Sankey de la referencia que mandó.
+- **El portal del cliente final sigue sin dashboard propio** — hoy es solo un link público de un embudo, sin login. Construirlo es un producto aparte, no una pestaña más.
+- Los departamentos de acceso (hoy 3: PM/Finanzas/Content) van a tener que ampliarse para los seis cajones nuevos.
+
+**Pendiente de esta sesión:** de dónde salen los Leads; afinar el Embudo (curvas) o seguir con Finanzas; ampliar los departamentos de acceso; decidir qué distingue "Agenda de Ventas" de la Agenda interna a nivel de dato (ya resuelto en diseño: es el mismo componente con el filtro puesto).
+
+---
+
 ## 2026-09-15 — Ikigai deja de ser la agencia y pasa a ser un cliente: el espacio interno se separa
 
 **2 commits. Migración 046 corrida y verificada.** Empezó como "no me salen los clientes" y terminó en una decisión de modelo.

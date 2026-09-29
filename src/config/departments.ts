@@ -27,7 +27,7 @@ export const DEPARTMENTS: DepartmentDef[] = [
     id: 'pm',
     label: 'Project Manager',
     hint: 'gestión y seguimiento',
-    modules: ['profile', 'tasks', 'ropre', 'meetings', 'programs', 'team'],
+    modules: ['profile', 'tasks', 'meetings', 'programs', 'team'],
   },
   {
     id: 'finanzas',

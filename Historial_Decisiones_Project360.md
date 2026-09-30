@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-09-30 (tarde) — Auto-sync del Sheet de Alejo + webhook genérico de Meta Lead Ads (migración 051 corrida en producción)
+
+Dos piezas más sobre "de dónde salen los Leads", esta vez sin intervención manual:
+
+**(1) Apps Script para el Sheet** (`integraciones/apps-script-leads-sheet.gs`, vive en el repo pero se instala en Google, no en Vercel): revisa el Sheet cada N minutos (activador por tiempo, ella lo configura una vez) y manda las filas nuevas a `/api/v1/leads` — el mismo endpoint que ya usaría ManyChat. Busca columnas por NOMBRE, no por posición, así que sobrevive si el Sheet cambia el orden. Genérico por diseño: cambiar de cliente es cambiar 2 constantes (`API_KEY`, `CLIENT_ID`), no código.
+
+**(2) Webhook genérico de Meta Lead Ads** (`api/meta-leads/webhook.ts` + migración 051, tabla `meta_lead_pages`): Meta manda `page_id` + `leadgen_id`, nunca el `client_id` ni las respuestas del formulario — el mapeo página→cliente vive en una tabla nueva (sin policies RLS, solo `service_role`: guarda el Page Access Token, un secreto), y el detalle del lead se pide aparte a la Graph API. Firma `X-Hub-Signature-256` verificada con HMAC-SHA256 antes de procesar nada — sin eso, cualquiera en internet podría inventar leads. Idempotente por `leadgen_id` como `external_id`, mismo `api_lead_crear` que ya usan CSV y ManyChat.
+
+**Estado real, dicho sin adornos:** el webhook de Meta está escrito y tipa limpio, pero **no se ha probado contra una página real** — depende de que la app de Meta tenga el permiso `leads_retrieval` aprobado (revisión que puede tardar semanas para páginas ajenas a la cuenta de desarrollador). Documentado en el propio archivo qué falta para activarlo por cliente: app de Meta, suscripción del webhook, Page Access Token, una fila en `meta_lead_pages`. No se reclama como "funcionando" — queda como "listo para conectar".
+
+**Diseño confirmado con la founder:** ManyChat y el CSV YA eran genéricos antes de esta sesión — un cliente nuevo solo necesita una API key con scope `write:leads` y su `client_id`, cero código nuevo. Meta ahora sigue el mismo principio: el webhook no tiene nada de un cliente específico, todo vive en la tabla de mapeo.
+
+Documentado `POST /api/v1/leads` en `API_PUBLICA.md` (sección 5.12), para que quede al lado de los demás endpoints entregables a terceros.
+
+**Migración 051 corrida y verificada en producción** (tabla `meta_lead_pages` existe).
+
+**Pendiente:** que la founder rellene el Apps Script con su API key + client_id y lo instale en el Sheet real; conseguir la aprobación de Meta si se decide activar ese webhook para algún cliente.
+
+---
+
 ## 2026-09-30 — Leads trae su propia calificación: score/banda/ruta del formulario real de Alejo, migración 050 corrida en producción
 
 La founder compartió el Sheet real que alimenta el formulario de Alejo (RPM Method): no es un formulario simple de contacto, es un embudo de calificación con ramas A/B, 5 preguntas por rama, un **score numérico**, una **banda** (parcial/rojo/rojo-aviso/amarillo/verde) y una **ruta** sugerida (sprint/sprint+/academy/method), más todos los UTM de Meta Ads y un `lead_id` propio.

@@ -430,6 +430,45 @@ puerta.
 
 ---
 
+### 5.12 Crear un lead
+
+`POST /api/v1/leads` — permiso `write:leads`
+
+Pensado para integraciones que capturan leads en vivo (ManyChat, un backend de
+WhatsApp, un Apps Script de un Sheet). No es para llamarse desde el navegador
+de un visitante — expondría la llave.
+
+```json
+{
+  "client_id": "uuid del cliente",
+  "nombre": "Camila Restrepo",
+  "telefono": "+57 300 000 0000",
+  "email": "camila@ejemplo.com",
+  "fuente": "meta_ads",
+  "perfil_rol": "Mamá",
+  "external_id": "id del lead en tu plataforma",
+  "score": 85,
+  "banda": "verde",
+  "ruta": "sprint"
+}
+```
+
+Solo `client_id` y `nombre` son obligatorios. `fuente` acepta: `meta_ads`,
+`reel`, `story`, `carrusel`, `perfil`, `referido`, `otro` (por defecto `otro`).
+
+`score`/`banda`/`ruta` son **texto/número libre**: si tu formulario califica
+leads con su propia escala (un score 0-100, una banda de colores, una ruta o
+producto sugerido), se guardan tal cual — no se traducen a categorías nuestras.
+
+**Idempotente por `external_id`:** si mandas el mismo `external_id` dos veces
+para el mismo `client_id`, la segunda llamada devuelve el lead que ya existía
+en vez de duplicarlo. Mándalo siempre que tu plataforma tenga un id propio del
+lead — es lo que hace seguro reintentar un webhook que falló a medias.
+
+Devuelve `data.lead.id` con `201`.
+
+---
+
 ## 6. Códigos de error
 
 | HTTP | `code` | Qué pasó | Qué hacer |

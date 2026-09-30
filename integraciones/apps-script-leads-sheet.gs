@@ -65,22 +65,36 @@ function sincronizarLeads() {
     throw new Error('Falta configurar API_KEY y/o CLIENT_ID al inicio del script.');
   }
 
-  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('LEADS_WEB') || SpreadsheetApp.getActiveSheet();
+  const libro = SpreadsheetApp.getActiveSpreadsheet();
+  const hoja = libro.getSheetByName('LEADS_WEB') || libro.getActiveSheet();
   const datos = hoja.getDataRange().getValues();
-  if (datos.length < 2) return; // solo cabecera, nada que mandar
+
+  // Diagnóstico SIEMPRE, no solo cuando falla — así se ve de un vistazo en
+  // qué hoja buscó y cuántas filas encontró, sin adivinar por qué no mandó nada.
+  registrarLog(`Diagnóstico: hoja="${hoja.getName()}", filas totales=${datos.length} (incluye cabecera).`);
+
+  if (datos.length < 2) {
+    registrarLog('No hay filas de datos (solo cabecera o vacía) — nada que mandar.');
+    return;
+  }
 
   const cabecera = datos[0].map((h) => normalizar(String(h)));
+  registrarLog(`Cabecera leída: ${datos[0].join(' | ')}`);
+
   const indice = {};
   Object.keys(ALIAS_COLUMNAS).forEach((campo) => {
     const i = cabecera.findIndex((h) => ALIAS_COLUMNAS[campo].includes(h));
     indice[campo] = i;
   });
+  registrarLog(`Columnas encontradas: ${JSON.stringify(indice)}`);
 
   const props = PropertiesService.getScriptProperties();
   const ultimaFila = Number(props.getProperty(PROP_ULTIMA_FILA) || '1'); // fila 1 = cabecera
+  registrarLog(`Última fila ya procesada (según memoria del script): ${ultimaFila}. Se revisan filas ${ultimaFila + 1} a ${datos.length}.`);
 
   let procesadas = 0;
   let fallidas = 0;
+  let saltadas = 0;
 
   for (let fila = ultimaFila + 1; fila <= datos.length; fila++) {
     const celdas = datos[fila - 1];
@@ -90,7 +104,7 @@ function sincronizarLeads() {
     };
 
     const nombre = leer('nombre') || leer('whatsapp') || leer('correo');
-    if (!nombre) continue; // fila sin ningún identificador — se salta, no hay qué mandar
+    if (!nombre) { saltadas++; continue; } // fila sin ningún identificador — se salta, no hay qué mandar
 
     const utm = normalizar(leer('utmSource'));
     const scoreTexto = leer('score');
@@ -115,9 +129,19 @@ function sincronizarLeads() {
 
   props.setProperty(PROP_ULTIMA_FILA, String(datos.length));
 
-  if (fallidas > 0) {
-    registrarLog(`Sincronización: ${procesadas} ok, ${fallidas} con error. Revisa la hoja de log.`);
-  }
+  registrarLog(`Resultado: ${procesadas} enviados, ${fallidas} con error, ${saltadas} sin nombre/whatsapp/correo (no se mandaron).`);
+}
+
+/**
+ * Corre esto UNA vez a mano (▶, eligiendo esta función en el desplegable de
+ * arriba) si necesitas que `sincronizarLeads` vuelva a mirar TODAS las filas
+ * desde el principio — por ejemplo, tras corregir la cabecera del Sheet o el
+ * mapeo de columnas. Sin esto, el script recuerda hasta dónde llegó y solo
+ * mira filas nuevas.
+ */
+function reiniciarContador() {
+  PropertiesService.getScriptProperties().deleteProperty(PROP_ULTIMA_FILA);
+  registrarLog('Contador reiniciado a mano — la próxima corrida revisa todas las filas desde la 2.');
 }
 
 function mandarLead(payload) {

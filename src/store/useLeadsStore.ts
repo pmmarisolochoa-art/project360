@@ -12,6 +12,13 @@ interface LeadsState {
   update: (id: string, patch: Partial<Lead>) => void;
   remove: (id: string) => void;
   /**
+   * Registra leads ya guardados en Supabase (import CSV) sin volver a
+   * escribirlos — mismo patrón que `registrarClientesGuardados`. Idempotente
+   * por id: un duplicado que solo vive en el navegador desaparecería al
+   * recargar y parecería que la base se rompió.
+   */
+  registrarImportados: (leads: Lead[]) => void;
+  /**
    * Mueve el lead a una nueva etapa Y agrega la fila del historial en un solo
    * gesto — mover una tarjeta ES el registro, no hay paso extra para el setter.
    */
@@ -36,6 +43,14 @@ export const useLeadsStore = create<LeadsState>((set, get) => ({
   remove: (id) => {
     const revertir = bajaOptimista(() => get().leads, (leads) => set({ leads }), id);
     void LeadsRepo.remove(id).catch(onWriteError('leads.remove', 'No se pudo eliminar el lead. Vuelve a aparecer porque sigue ahí.', revertir));
+  },
+  registrarImportados: (leads) => {
+    if (leads.length === 0) return;
+    set((s) => {
+      const existentes = new Set(s.leads.map((l) => l.id));
+      const nuevos = leads.filter((l) => !existentes.has(l.id));
+      return nuevos.length === 0 ? s : { leads: [...s.leads, ...nuevos] };
+    });
   },
   moveStage: (lead, nuevaEtapa, actor, nota) => {
     if (lead.etapa === nuevaEtapa) return;

@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-09-29 (noche) — De dónde salen los Leads: import CSV + endpoint de ingesta para ManyChat/WhatsApp, migración 049 corrida en producción
+
+Sobre el pendiente #1 de la sesión anterior: la founder tiene 4 fuentes hoy (Meta Lead Ads, ManyChat, WhatsApp, formulario de landing). La landing no manda webhook — alimenta un Excel/Sheet que ella ya trackea a mano para Alejo. Eso cambió el plan de "construir 4 webhooks" a dos piezas reales, ambas construidas esta sesión:
+
+**(1) Importar leads por CSV/Excel** — mismo patrón que importar clientes (26-ago): `csvLeads.ts` (lógica pura, sin React/Supabase) + `ImportarLeadsCSVModal.tsx`, botón "Importar" junto a "Nuevo lead" en el cajón Ventas. No sincroniza (R-23): bandeja de revisión, entra solo lo marcado. Identidad de un lead en el archivo: NO es el nombre (dos leads pueden llamarse igual) — es teléfono o email normalizado; un lead ya existente con ese contacto sale en gris (R-24), uno repetido dentro del mismo archivo se rechaza. Cada fila importada agrega también su evento inicial en el viaje del lead ("Importado desde CSV"), igual que el alta manual.
+
+**(2) Endpoint `/api/v1/leads` para ManyChat/WhatsApp** — mismo patrón que `/api/v1/tasks`: función `security definer` `api_lead_crear` (migración 049) que recibe el `agencia_id` de la API key y hace el aislamiento DENTRO de la base, idempotente por `(client_id, external_id)` para que un reintento del webhook no duplique. Nuevo scope `write:leads`, agregado en el mismo commit al CHECK de Postgres (la trampa documentada en la 043: agregarlo solo en TypeScript rompe la emisión de llaves con un error críptico). Sin GET todavía — no hay consumidor externo pedido, y construirlo "por si acaso" es la misma trampa que `fasesEmbudo`.
+
+**Bug real encontrado probando en navegador:** `ImportarLeadsCSVModal` tenía dos `motion.div` como hijos directos de `AnimatePresence` sin `key` — React tiraba warning de "keys duplicadas". Corregido con `key="backdrop"`/`key="modal"` explícitos.
+
+**Verificado contra producción real, no maqueta:** se subió un CSV de prueba con 2 filas (una nueva, una con el mismo nombre de un lead real existente) al cliente Alejo Luengas — la bandeja mostró "2 nuevos" correctamente y el import escribió ambos leads en Supabase de verdad. **Aviso importante: el `npm run dev` de este proyecto apunta a la base de PRODUCCIÓN, no a una copia local** — las pruebas dejaron dos leads de prueba reales ("Laura Gómez" y un "Camila Restrepo" duplicado) que se identificaron por `created_at` y se borraron con confirmación de la founder antes de cerrar la sesión, sin tocar el lead real de Camila.
+
+**Migración 049 corrida y verificada en producción** (CHECK con `write:leads`, función `api_lead_crear` presente).
+
+**Pendiente:** emitir la key de ManyChat desde Configuración → API (ya existe el panel, solo falta que ManyChat la use) y probar el primer lead real entrando por ese camino; Meta Lead Ads y la ruta completa de WhatsApp quedan para después, como se acordó al arrancar. Nada de esto está commiteado todavía al cerrar este bloque de la sesión.
+
+---
+
 ## 2026-09-29 (tarde) — Dashboard de Ventas ajustado sobre feedback de la founder, verificado en navegador
 
 Sobre lo construido el 28/29-sep (todavía sin commit): se cerró el pendiente #1 de esa sesión.

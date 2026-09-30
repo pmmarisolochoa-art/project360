@@ -178,6 +178,30 @@ export const cambiarEstado = z
   })
   .strict();
 
+/**
+ * Fuente del lead — espejo del CHECK de `leads.fuente` (migración 048). Igual
+ * que `ETIQUETAS`: no se copia el valor, se declara aquí una sola vez porque
+ * la app y esta API son los dos únicos consumidores.
+ */
+export const FUENTES_LEAD = ['meta_ads', 'reel', 'story', 'carrusel', 'perfil', 'referido', 'otro'] as const;
+
+export const crearLead = z
+  .object({
+    client_id: uuid,
+    nombre: texto(200, 1),
+    telefono: texto(40).optional(),
+    email: texto(200).optional(),
+    fuente: z
+      .enum(FUENTES_LEAD, {
+        errorMap: () => ({ message: `Fuente inválida. Valores permitidos: ${FUENTES_LEAD.join(', ')}.` }),
+      })
+      .default('otro'),
+    perfil_rol: texto(120).optional(),
+    /** Id del contacto/lead en la plataforma externa (ManyChat, etc.) — idempotencia. */
+    external_id: texto(120).optional(),
+  })
+  .strict();
+
 export const crearReunion = z
   .object({
     client_id: uuid,

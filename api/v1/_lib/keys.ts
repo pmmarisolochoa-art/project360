@@ -88,6 +88,9 @@ export const SCOPES_VALIDOS = [
   'read:team',
   'read:ropre',
   'read:deliverables',
+  // Ingesta de leads (29-sep-2026): ManyChat/WhatsApp y cualquier integración
+  // server-to-server que capture leads. Migración 049 amplía el CHECK.
+  'write:leads',
 ] as const;
 
 export type Scope = (typeof SCOPES_VALIDOS)[number];

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Upload } from 'lucide-react';
+import { ImportarLeadsCSVModal } from './ImportarLeadsCSVModal';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCES, LEAD_SOURCE_LABELS } from '@/types/lead';
@@ -53,6 +54,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<LeadStage | null>(null);
   /** Lead a punto de marcarse "Perdido" — pide el motivo antes de confirmar el movimiento. */
@@ -137,13 +139,21 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">Pipeline</h3>
             {!readOnly && (
-              <button
-                onClick={() => setAddOpen(true)}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-[8px] px-3 py-1.5 focus-ring"
-                style={{ background: withAlpha(accent, 0.16), color: accent }}
-              >
-                <Plus className="h-3.5 w-3.5" /> Nuevo lead
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setImportOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-[8px] px-3 py-1.5 focus-ring text-text-secondary hover:bg-bg-hover border border-border-default"
+                >
+                  <Upload className="h-3.5 w-3.5" /> Importar
+                </button>
+                <button
+                  onClick={() => setAddOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-[8px] px-3 py-1.5 focus-ring"
+                  style={{ background: withAlpha(accent, 0.16), color: accent }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Nuevo lead
+                </button>
+              </div>
             )}
           </div>
 
@@ -321,6 +331,8 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
           />
         )}
       </AnimatePresence>
+
+      <ImportarLeadsCSVModal open={importOpen} clientId={client.id} onClose={() => setImportOpen(false)} />
     </div>
   );
 }

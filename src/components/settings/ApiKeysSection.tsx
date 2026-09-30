@@ -30,9 +30,12 @@ import {
 } from '@/services/apiKeys';
 
 /**
- * Solo estos 4 permisos se ofrecen. La v1 de la API expone únicamente Tareas y
- * Agenda; clientes, métricas, links y equipo no tienen endpoints todavía, así
- * que ofrecer sus permisos sería prometer algo que no existe.
+ * Solo estos permisos se ofrecen — tienen que existir primero en
+ * `SCOPES_VALIDOS` (api/v1/_lib/keys.ts) Y en el CHECK de `api_keys.scopes`
+ * en la base (última vez, migración 049). Si un permiso nuevo se agrega ahí y
+ * no aquí, nadie puede emitir una key con él desde la pantalla — pasó con
+ * `write:leads` el 30-sep-2026, encontrado porque la founder no podía marcar
+ * el permiso que necesitaba.
  */
 const SCOPES = [
   'read:tasks', 'write:tasks',
@@ -40,9 +43,10 @@ const SCOPES = [
   // Paso 2 de la integración: por ahora SOLO lectura. La escritura de estos se
   // abre después y de a una, cuando la lectura ya funcione (regla del 6-ago).
   'read:clients', 'read:team', 'read:ropre', 'read:deliverables',
+  'write:leads',
 ] as const;
 
-const ESCRITURA = new Set(['write:tasks', 'write:meetings']);
+const ESCRITURA = new Set(['write:tasks', 'write:meetings', 'write:leads']);
 
 const RATE_OPTIONS = [
   { value: '60', label: '60 llamadas / minuto' },

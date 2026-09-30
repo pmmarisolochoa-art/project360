@@ -213,4 +213,5 @@ export const SCOPE_LABELS: Record<string, string> = {
   'read:team': 'Leer equipo',
   'read:ropre': 'Leer ROPRE',
   'read:deliverables': 'Leer entregables',
+  'write:leads': 'Crear leads',
 };

@@ -199,6 +199,13 @@ export const crearLead = z
     perfil_rol: texto(120).optional(),
     /** Id del contacto/lead en la plataforma externa (ManyChat, etc.) — idempotencia. */
     external_id: texto(120).optional(),
+    /**
+     * Calificación del formulario externo — texto/número libre a propósito
+     * (migración 050): cada cliente trae su propia escala, no se normaliza.
+     */
+    score: z.coerce.number().optional(),
+    banda: texto(60).optional(),
+    ruta: texto(60).optional(),
   })
   .strict();
 

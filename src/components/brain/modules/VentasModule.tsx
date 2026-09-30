@@ -18,6 +18,18 @@ const SOURCE_TONE: Record<LeadSource, 'info' | 'success' | 'warning' | 'neutral'
   meta_ads: 'info', reel: 'success', story: 'success', carrusel: 'success', perfil: 'warning', referido: 'warning', otro: 'neutral',
 };
 
+/**
+ * Color del punto de "banda" en la tarjeta — banda es texto libre por cliente
+ * (migración 050), así que solo se reconocen los nombres más comunes de un
+ * semáforo de calificación; cualquier otro valor cae al gris neutro.
+ */
+const BANDA_COLOR: Record<string, string> = {
+  verde: '#0CA30C', amarillo: '#D08A00', rojo: '#D03B3B', 'rojo-aviso': '#D03B3B', eliminado: '#D03B3B', parcial: '#8A8F98',
+};
+function normalizarBanda(b: string): string {
+  return b.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
 type Period = 'hoy' | '7d' | '15d' | '30d' | '60d' | 'rango';
 const PERIOD_LABELS: Record<Period, string> = {
   hoy: 'Hoy', '7d': '7 días', '15d': '15 días', '30d': '30 días', '60d': '60 días', rango: 'Rango',
@@ -201,9 +213,13 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                           )}
                           style={{ borderColor: 'var(--border-default)' }}
                         >
-                          <div className="text-[12px] font-semibold text-text-primary truncate">{lead.nombre}</div>
-                          <div className="flex items-center gap-1.5 mt-1.5">
+                          <div className="flex items-center gap-1.5">
+                            {lead.banda && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: BANDA_COLOR[normalizarBanda(lead.banda)] ?? '#8A8F98' }} title={lead.banda} />}
+                            <div className="text-[12px] font-semibold text-text-primary truncate">{lead.nombre}</div>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                             <Badge tone={SOURCE_TONE[lead.fuente]} className="text-[8.5px] px-1.5 py-0">{LEAD_SOURCE_LABELS[lead.fuente]}</Badge>
+                            {lead.score !== undefined && <span className="text-[9.5px] font-mono text-text-muted">{lead.score}</span>}
                           </div>
                           {stage === 'ganado' && (
                             <div className="text-[10px] text-text-muted mt-1.5 font-mono">
@@ -497,7 +513,38 @@ function LeadDrawer({
           <div className="grid grid-cols-2 gap-3 text-[12px]">
             <Field label="Teléfono" value={lead.telefono || '—'} />
             <Field label="Fuente" value={LEAD_SOURCE_LABELS[lead.fuente]} />
+            {lead.email && <Field label="Email" value={lead.email} />}
+            {lead.perfilRol && <Field label="Perfil" value={lead.perfilRol} />}
           </div>
+
+          {(lead.banda || lead.score !== undefined || lead.ruta) && (
+            <div className="rounded-[10px] border border-border-default p-3">
+              <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-2">Calificación del formulario</div>
+              <div className="grid grid-cols-3 gap-2 text-[12px]">
+                {lead.banda && (
+                  <div>
+                    <div className="text-[10px] text-text-muted">Banda</div>
+                    <div className="font-medium flex items-center gap-1.5 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: BANDA_COLOR[normalizarBanda(lead.banda)] ?? '#8A8F98' }} />
+                      {lead.banda}
+                    </div>
+                  </div>
+                )}
+                {lead.score !== undefined && (
+                  <div>
+                    <div className="text-[10px] text-text-muted">Score</div>
+                    <div className="font-mono font-medium mt-0.5">{lead.score}</div>
+                  </div>
+                )}
+                {lead.ruta && (
+                  <div>
+                    <div className="text-[10px] text-text-muted">Ruta</div>
+                    <div className="font-medium mt-0.5">{lead.ruta}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block">

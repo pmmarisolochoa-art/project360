@@ -225,7 +225,9 @@ function FilaLeida({ fila, marcada, onToggle }: { fila: FilaLeadRevision; marcad
         {fila.motivo && <div className="text-xs text-text-secondary mt-0.5">{fila.motivo}</div>}
         {importable && d && (
           <div className="text-xs text-text-muted mt-0.5 truncate">
-            {[d.telefono, d.email, d.perfilRol].filter(Boolean).join(' · ') || 'Sin datos extra.'}
+            {[d.telefono, d.email, d.perfilRol, d.banda, d.score !== undefined ? `score ${d.score}` : undefined, d.ruta]
+              .filter(Boolean)
+              .join(' · ') || 'Sin datos extra.'}
           </div>
         )}
       </div>

@@ -9,11 +9,12 @@
  *   R-24 — lo que ya existe se muestra en gris, no se esconde.
  *   R-44 — idempotente: reimportar el mismo archivo no duplica.
  *
- * Identidad de un lead en el archivo: NO tiene nombre único como un cliente
- * (dos leads bien pueden llamarse igual). Se identifica por teléfono o email
- * normalizado — lo primero que traiga el formulario de captación. Un lead sin
- * ninguno de los dos se importa igual (no se rechaza): pasa a revisión manual
- * en el drawer, mejor que perderlo.
+ * Identidad de un lead en el archivo: si trae un id propio (`lead_id`,
+ * `external_id`...) ese manda — es la misma clave que usa el endpoint
+ * `/api/v1/leads` (migración 049), así que un archivo y un webhook del mismo
+ * formulario nunca se pisan. Sin id propio, se identifica por teléfono o
+ * email normalizado. Un lead sin ninguno de los tres se importa igual (no se
+ * rechaza): pasa a revisión manual en el drawer, mejor que perderlo.
  */
 import { parsearCSV } from './csvClientes';
 import type { Lead, LeadSource } from '@/types/lead';
@@ -25,7 +26,14 @@ export interface DatosFilaLead {
   email?: string;
   fuente: LeadSource;
   perfilRol?: string;
+  externalId?: string;
+  score?: number;
+  banda?: string;
+  ruta?: string;
+  createdAt?: string;
 }
+
+type CampoTexto = 'nombre' | 'telefono' | 'email' | 'fuente' | 'perfilRol' | 'externalId' | 'score' | 'banda' | 'ruta' | 'creadoEn' | 'utmSource';
 
 export type EstadoFilaLead = 'nueva' | 'existente' | 'rechazada';
 
@@ -52,12 +60,21 @@ function normalizarTelefono(s: string): string {
   return s.replace(/\D/g, '');
 }
 
-const COLUMNAS: Record<keyof DatosFilaLead, string[]> = {
+const COLUMNAS: Record<CampoTexto, string[]> = {
   nombre: ['nombre', 'lead', 'name', 'nombrelead', 'nombrecompleto'],
   telefono: ['telefono', 'whatsapp', 'celular', 'movil', 'phone', 'numero'],
   email: ['email', 'correo', 'correoelectronico', 'mail'],
   fuente: ['fuente', 'origen', 'source', 'canal'],
-  perfilRol: ['perfilrol', 'perfil', 'rol', 'quienes', 'tipodecomprador', 'comprador'],
+  // 'a5'/'b5' — patrón de formularios de calificación por ramas A/B (ej. RPM
+  // Method): la última pregunta de cada rama suele ser "quién decide" o "hace
+  // cuánto compite", que es justo el perfil del comprador.
+  perfilRol: ['perfilrol', 'perfil', 'rol', 'quienes', 'tipodecomprador', 'comprador', 'a5', 'b5'],
+  externalId: ['leadid', 'externalid', 'id'],
+  score: ['score', 'puntaje', 'puntuacion'],
+  banda: ['banda', 'tier', 'calificacion'],
+  ruta: ['ruta', 'producto', 'programa'],
+  creadoEn: ['enviado', 'fecha', 'fechaenvio', 'timestamp', 'creadoen'],
+  utmSource: ['utmsource'],
 };
 
 /** Alias generosos: el nombre exacto de la fuente en el CSV rara vez calza con nuestro enum. */
@@ -72,6 +89,15 @@ const FUENTES: Record<string, LeadSource> = {
 };
 const ETIQUETAS_FUENTE = LEAD_SOURCES.join(', ');
 
+/**
+ * `utm_source` es texto libre de la plataforma de ads (ig/fb/an…), no un dato
+ * que alguien tecleó — así que a diferencia de la columna `fuente` explícita,
+ * un valor que no reconocemos NO rechaza la fila: se cae a 'otro' en
+ * silencio. Rechazar leads reales por un UTM raro sería peor que clasificarlo
+ * genérico.
+ */
+const UTM_FUENTES: Record<string, LeadSource> = { ig: 'meta_ads', fb: 'meta_ads', an: 'meta_ads', instagram: 'meta_ads', facebook: 'meta_ads' };
+
 export function leerLeadsCSV(
   texto: string,
   clientId: string,
@@ -83,9 +109,9 @@ export function leerLeadsCSV(
   }
 
   const cabecera = crudas[0].map(normalizar);
-  const indice = {} as Record<keyof DatosFilaLead, number>;
+  const indice = {} as Record<CampoTexto, number>;
   const usadas = new Set<number>();
-  (Object.keys(COLUMNAS) as Array<keyof DatosFilaLead>).forEach((campo) => {
+  (Object.keys(COLUMNAS) as CampoTexto[]).forEach((campo) => {
     const i = cabecera.findIndex((h) => COLUMNAS[campo].includes(h));
     indice[campo] = i;
     if (i >= 0) usadas.add(i);
@@ -104,6 +130,7 @@ export function leerLeadsCSV(
     .filter(({ h, i }) => h !== '' && !usadas.has(i))
     .map(({ h }) => h);
 
+  const idsExternosExistentes = new Set(existentes.filter((l) => l.clientId === clientId && l.externalId).map((l) => l.externalId));
   const idsPorClave = new Map<string, string>(); // teléfono o email normalizado → id existente
   for (const l of existentes) {
     if (l.clientId !== clientId) continue;
@@ -111,10 +138,11 @@ export function leerLeadsCSV(
     if (l.email) idsPorClave.set(`mail:${normalizar(l.email)}`, l.id);
   }
   const vistosEnElArchivo = new Set<string>();
+  const idsExternosVistos = new Set<string>();
 
   const filas: FilaLeadRevision[] = crudas.slice(1).map((celdas, i) => {
     const linea = i + 2;
-    const leer = (campo: keyof DatosFilaLead): string => {
+    const leer = (campo: CampoTexto): string => {
       const idx = indice[campo];
       return idx >= 0 ? (celdas[idx] ?? '').trim() : '';
     };
@@ -124,22 +152,37 @@ export function leerLeadsCSV(
       return { linea, nombreCrudo: '', estado: 'rechazada', motivo: 'Sin nombre de lead.' };
     }
 
+    const externalId = leer('externalId') || undefined;
+    if (externalId) {
+      if (idsExternosExistentes.has(externalId)) {
+        return { linea, nombreCrudo: nombre, estado: 'existente', motivo: `Ya existe un lead con id "${externalId}".` };
+      }
+      if (idsExternosVistos.has(externalId)) {
+        return { linea, nombreCrudo: nombre, estado: 'rechazada', motivo: `Id "${externalId}" repetido en el archivo.` };
+      }
+      idsExternosVistos.add(externalId);
+    }
+
     const telefono = leer('telefono') || undefined;
     const email = leer('email') || undefined;
-    const claveTel = telefono ? `tel:${normalizarTelefono(telefono)}` : null;
-    const claveMail = email ? `mail:${normalizar(email)}` : null;
 
-    for (const clave of [claveTel, claveMail]) {
-      if (!clave || clave === 'tel:' || clave === 'mail:') continue;
-      if (idsPorClave.has(clave)) {
-        return { linea, nombreCrudo: nombre, estado: 'existente', motivo: 'Ya existe un lead con ese teléfono o email.' };
+    // El id propio, cuando viene, es la identidad — el teléfono/email solo
+    // decide para filas que no lo traen.
+    if (!externalId) {
+      const claveTel = telefono ? `tel:${normalizarTelefono(telefono)}` : null;
+      const claveMail = email ? `mail:${normalizar(email)}` : null;
+      for (const clave of [claveTel, claveMail]) {
+        if (!clave || clave === 'tel:' || clave === 'mail:') continue;
+        if (idsPorClave.has(clave)) {
+          return { linea, nombreCrudo: nombre, estado: 'existente', motivo: 'Ya existe un lead con ese teléfono o email.' };
+        }
+        if (vistosEnElArchivo.has(clave)) {
+          return { linea, nombreCrudo: nombre, estado: 'rechazada', motivo: 'Repetido en el archivo (mismo teléfono o email que otra línea).' };
+        }
       }
-      if (vistosEnElArchivo.has(clave)) {
-        return { linea, nombreCrudo: nombre, estado: 'rechazada', motivo: 'Repetido en el archivo (mismo teléfono o email que otra línea).' };
-      }
+      if (claveTel && claveTel !== 'tel:') vistosEnElArchivo.add(claveTel);
+      if (claveMail && claveMail !== 'mail:') vistosEnElArchivo.add(claveMail);
     }
-    if (claveTel && claveTel !== 'tel:') vistosEnElArchivo.add(claveTel);
-    if (claveMail && claveMail !== 'mail:') vistosEnElArchivo.add(claveMail);
 
     const fuenteTexto = leer('fuente');
     let fuente: LeadSource = 'otro';
@@ -149,9 +192,26 @@ export function leerLeadsCSV(
         return { linea, nombreCrudo: nombre, estado: 'rechazada', motivo: `Fuente "${fuenteTexto}" no reconocida. Valores válidos: ${ETIQUETAS_FUENTE}.` };
       }
       fuente = encontrada;
+    } else {
+      const utm = leer('utmSource');
+      if (utm) fuente = UTM_FUENTES[normalizar(utm)] ?? 'otro';
     }
 
-    const datos: DatosFilaLead = { nombre, telefono, email, fuente, perfilRol: leer('perfilRol') || undefined };
+    const scoreTexto = leer('score');
+    const score = scoreTexto && /^-?\d+([.,]\d+)?$/.test(scoreTexto) ? Number(scoreTexto.replace(',', '.')) : undefined;
+
+    const fechaTexto = leer('creadoEn');
+    const createdAt = fechaTexto && !Number.isNaN(Date.parse(fechaTexto)) ? new Date(fechaTexto).toISOString() : undefined;
+
+    const datos: DatosFilaLead = {
+      nombre, telefono, email, fuente,
+      perfilRol: leer('perfilRol') || undefined,
+      externalId,
+      score,
+      banda: leer('banda') || undefined,
+      ruta: leer('ruta') || undefined,
+      createdAt,
+    };
     return { linea, nombreCrudo: nombre, estado: 'nueva', datos };
   });
 
@@ -159,7 +219,7 @@ export function leerLeadsCSV(
 }
 
 export function construirLeadDesdeFila(datos: DatosFilaLead, clientId: string): Lead {
-  const ahora = new Date().toISOString();
+  const ahora = datos.createdAt ?? new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     clientId,
@@ -168,6 +228,10 @@ export function construirLeadDesdeFila(datos: DatosFilaLead, clientId: string): 
     email: datos.email,
     fuente: datos.fuente,
     perfilRol: datos.perfilRol,
+    externalId: datos.externalId,
+    score: datos.score,
+    banda: datos.banda,
+    ruta: datos.ruta,
     etapa: 'nuevo',
     cashCollected: 0,
     createdAt: ahora,

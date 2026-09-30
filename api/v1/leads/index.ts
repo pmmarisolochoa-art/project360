@@ -36,6 +36,9 @@ async function crear(ctx: Contexto): Promise<Response> {
     p_fuente: l.fuente,
     p_perfil_rol: l.perfil_rol ?? null,
     p_external_id: l.external_id ?? null,
+    p_score: l.score ?? null,
+    p_banda: l.banda ?? null,
+    p_ruta: l.ruta ?? null,
   });
 
   if (e) {

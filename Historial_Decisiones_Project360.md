@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-09-30 — Leads trae su propia calificación: score/banda/ruta del formulario real de Alejo, migración 050 corrida en producción
+
+La founder compartió el Sheet real que alimenta el formulario de Alejo (RPM Method): no es un formulario simple de contacto, es un embudo de calificación con ramas A/B, 5 preguntas por rama, un **score numérico**, una **banda** (parcial/rojo/rojo-aviso/amarillo/verde) y una **ruta** sugerida (sprint/sprint+/academy/method), más todos los UTM de Meta Ads y un `lead_id` propio.
+
+**Decidido con la founder:** (1) score/banda/ruta SÍ se guardan en el Lead — no se quedan solo en el Sheet. (2) Los leads en banda roja/ELIMINADO SÍ entran al pipeline (en Nuevo, marcados), no se descartan — el filtro del formulario ya opinó, pero la decisión final la deja al equipo.
+
+**Construido:**
+- `Lead.score/banda/ruta` — texto/número **libre a propósito**, sin enum ni CHECK: cada cliente con su propio formulario de calificación trae su propia escala, y normalizarla a categorías nuestras sería inventar datos (migración 050, aditiva).
+- `csvLeads.ts` ampliado para reconocer las columnas reales de este Sheet: `lead_id` (identidad preferente sobre teléfono/email — misma clave que ya usa `/api/v1/leads`), `banda`, `score`, `ruta`, `enviado` (fecha real del lead, no la de importación), y `a5`/`b5` (la última pregunta de cada rama, que en este formulario es "quién decide" — se mapea a `perfilRol`). `utm_source` infiere la fuente cuando no hay columna `fuente` explícita, y a diferencia de un valor mal escrito a mano, uno no reconocido NO rechaza la fila — cae a "otro" en silencio, porque es dato de la plataforma de ads, no algo que alguien tecleó mal.
+- Kanban y drawer de Ventas muestran banda (punto de color, semáforo) y score; el drawer suma una sección "Calificación del formulario".
+- `/api/v1/leads` y `api_lead_crear` también aceptan score/banda/ruta, para que ManyChat pueda mandarlos igual que el CSV.
+
+**Trampa evitada (no cometida, detectada al escribir la migración):** `api_lead_crear` cambiaba de 8 a 11 parámetros. `create or replace function` en Postgres NO sustituye una función cuando cambia la lista de parámetros — crea una SOBRECARGA nueva y deja viva la vieja. Con las dos existiendo, una llamada con los 8 parámetros originales queda ambigua entre las dos firmas (los 3 nuevos tienen default). La migración 050 empieza con `drop function` de la firma vieja antes del `create or replace`. Verificado en producción: solo queda una función, con 11 argumentos.
+
+**Migración 050 corrida y verificada en producción.**
+
+**Pendiente:** la founder tiene que descargar el Sheet como CSV (Archivo → Descargar → CSV) y usar el botón "Importar" en Ventas de Alejo para traer los ~40 leads reales — no se transcribieron a mano desde la vista previa del Sheet para no arriesgar un dato mal copiado.
+
+---
+
 ## 2026-09-29 (noche) — De dónde salen los Leads: import CSV + endpoint de ingesta para ManyChat/WhatsApp, migración 049 corrida en producción
 
 Sobre el pendiente #1 de la sesión anterior: la founder tiene 4 fuentes hoy (Meta Lead Ads, ManyChat, WhatsApp, formulario de landing). La landing no manda webhook — alimenta un Excel/Sheet que ella ya trackea a mano para Alejo. Eso cambió el plan de "construir 4 webhooks" a dos piezas reales, ambas construidas esta sesión:

@@ -59,6 +59,17 @@ export interface Lead {
   closerId?: string;
   /** Quién es el comprador — texto libre, cada cliente define sus categorías (migración 048). */
   perfilRol?: string;
+  /**
+   * Calificación del lead — score/banda/ruta, texto/número libre a propósito
+   * (migración 050, 30-sep-2026): cada cliente con un formulario de
+   * calificación propio (ej. RPM Method de Alejo: score 0-100, banda
+   * rojo/amarillo/verde, ruta sprint/academy/method) trae su propia escala.
+   * No se normaliza a un enum fijo — es lo que ya viene calculado en su
+   * formulario externo, y forzarlo a categorías nuestras sería inventar datos.
+   */
+  score?: number;
+  banda?: string;
+  ruta?: string;
   /** Valor del programa contratado — editable, normalmente se llena al pasar a "ganado". */
   programValue?: number;
   /**

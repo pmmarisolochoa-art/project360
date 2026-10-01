@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Upload } from 'lucide-react';
+import { X, Plus, Upload, Search } from 'lucide-react';
 import { ImportarLeadsCSVModal } from './ImportarLeadsCSVModal';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
@@ -60,6 +60,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const closers = useMemo(() => members.filter((m) => m.rol === 'closer'), [members]);
 
   const [tab, setTab] = useState<'pipeline' | 'kpis'>('pipeline');
+  const [busqueda, setBusqueda] = useState('');
   const [period, setPeriod] = useState<Period>('30d');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
@@ -74,6 +75,16 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
 
   const selected = leads.find((l) => l.id === selectedId) ?? null;
   const accent = client.primaryColor;
+
+  // Búsqueda del Pipeline — filtra las tarjetas del Kanban sin tocar los
+  // KPIs/gráficas, que siguen sobre el universo completo del período.
+  const termino = busqueda.trim().toLowerCase();
+  const leadsKanban = useMemo(() => {
+    if (!termino) return leads;
+    return leads.filter((l) =>
+      [l.nombre, l.telefono, l.email, l.perfilRol].some((v) => v?.toLowerCase().includes(termino)),
+    );
+  }, [leads, termino]);
 
   // El Pipeline (Kanban) siempre muestra el estado VIVO — el filtro de período
   // solo acota qué leads entran a los KPIs y las gráficas, no esconde tarjetas.
@@ -148,8 +159,24 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
 
       {tab === 'pipeline' ? (
         <>
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-text-primary">Pipeline</h3>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-text-primary">Pipeline</h3>
+              <div className="relative">
+                <Search className="h-3.5 w-3.5 text-text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar lead por nombre, teléfono, email…"
+                  className="w-[240px] rounded-[8px] border border-border-default bg-bg-base pl-8 pr-2.5 py-1.5 text-[12px] focus-ring"
+                />
+              </div>
+              {termino && (
+                <span className="text-[11px] text-text-muted">
+                  {leadsKanban.length} de {leads.length}
+                </span>
+              )}
+            </div>
             {!readOnly && (
               <div className="flex items-center gap-2">
                 <button
@@ -172,7 +199,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
           <div className="overflow-x-auto pb-2">
             <div className="flex gap-2.5 min-w-max">
               {LEAD_STAGES.map((stage) => {
-                const stageLeads = leads.filter((l) => l.etapa === stage);
+                const stageLeads = leadsKanban.filter((l) => l.etapa === stage);
                 const isDropTarget = dragOverStage === stage;
                 return (
                   <div
@@ -234,7 +261,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                       ))}
                       {stageLeads.length === 0 && (
                         <div className="text-[10px] text-text-muted text-center py-6 italic">
-                          {isDropTarget ? 'Soltar aquí' : 'Vacío'}
+                          {isDropTarget ? 'Soltar aquí' : termino ? 'Sin resultados' : 'Vacío'}
                         </div>
                       )}
                     </div>

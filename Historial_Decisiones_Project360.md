@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-01 — ManyChat pendiente de conectar + bug real al abrir un lead + drawer editable
+
+**ManyChat — PENDIENTE, decisión de camino tomada.** La founder tiene una API key de ManyChat (para llamar la API de ManyChat desde afuera) pero eso es la dirección contraria a la que necesitamos: lo que hace falta es que **ManyChat llame a Project360** cuando captura un lead, no al revés. Se confirmó el camino: la acción "External Request" de ManyChat (dentro del Flow Builder, configurada por la founder) apuntando al mismo endpoint `/api/v1/leads` que ya usa el Apps Script — documentado en `integraciones/manychat-leads.md`. **No requiere código nuevo.** Queda pendiente que la founder genere una API key de Project360 (`write:leads`) y configure el Flow en ManyChat. Si el WhatsApp del cliente corre dentro de ManyChat, es el mismo flujo; si es otra herramienta (GHL/Twilio/Cloud API directa), es un conector distinto — sin confirmar todavía cuál usa cada cliente.
+
+**Confirmado: el import CSV/Excel sí existe en el CRM** — botón "Importar" junto a "Nuevo lead" en el Pipeline, construido el 29-sep.
+
+**Bug real encontrado al usar la app (no en pruebas automatizadas):** hacer clic en cualquier lead para abrir su drawer rompía la pantalla entera (`ErrorBoundary`, "Maximum update depth exceeded"). Causa: `LeadDrawer` seleccionaba `s.eventsForLead(lead.id)` directo de Zustand — esa función arma un array nuevo (`filter` + `sort`) en cada llamada, así que cada render producía una referencia distinta y React entraba en loop infinito. **Es el MISMO patrón de bug ya documentado el 27-sep** en el Kanban del pipeline (`.filter()` inline sin `useMemo`) — esta vez en el drawer, que se escribió la misma sesión y se saltó la regla ya aprendida. Regla reforzada: todo selector de Zustand que arme un array/objeto nuevo se envuelve en `useMemo`, sin excepción, ni siquiera en código "nuevo" de la misma sesión donde ya se aprendió la lección.
+
+**Drawer del lead ahora editable** como pidió la founder ("que se abra como las tareas con las opciones del CRM"): nombre (en el título), teléfono, email, fuente y perfil ya se editan ahí mismo, no solo Setter/Closer/valores de cierre como antes. Verificado en navegador contra datos reales de Alejo — drawer abre sin romperse, campos editables confirmados.
+
+---
+
 ## 2026-09-30/10-01 — Auto-sync del Sheet de Alejo PROBADO en vivo: 63 leads reales entraron, dos bugs propios encontrados en el camino
 
 Instalación en vivo del Apps Script (construido la sesión anterior) con la founder, acompañada paso a paso por capturas de pantalla. Costó ~3 horas de ida y vuelta — vale la pena dejar escrito lo que realmente falló, porque el patrón se va a repetir con el próximo cliente.

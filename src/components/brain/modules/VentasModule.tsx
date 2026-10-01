@@ -510,9 +510,22 @@ function LeadDrawer({
   onClose: () => void;
   onUpdate: (patch: Partial<Lead>) => void;
 }) {
-  const events = useLeadsStore((s) => s.eventsForLead(lead.id));
+  // `eventsForLead` arma un array nuevo (filter+sort) en cada llamada — si se
+  // selecciona así directo de Zustand, cada render produce una referencia
+  // distinta y dispara un loop infinito (mismo bug documentado el 27-sep en
+  // el pipeline). Se selecciona el array crudo `events` y se filtra/ordena
+  // en un useMemo propio, memoizado por lead.id y por la lista cruda.
+  const allEvents = useLeadsStore((s) => s.events);
+  const events = useMemo(
+    () => allEvents.filter((e) => e.leadId === lead.id).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [allEvents, lead.id],
+  );
   const [programValue, setProgramValue] = useState(lead.programValue?.toString() ?? '');
   const [cashCollected, setCashCollected] = useState(lead.cashCollected?.toString() ?? '0');
+  const [nombre, setNombre] = useState(lead.nombre);
+  const [telefono, setTelefono] = useState(lead.telefono ?? '');
+  const [email, setEmail] = useState(lead.email ?? '');
+  const [perfilRol, setPerfilRol] = useState(lead.perfilRol ?? '');
 
   return (
     <>
@@ -526,22 +539,64 @@ function LeadDrawer({
         transition={{ type: 'tween', duration: 0.25 }}
         className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md bg-bg-surface border-l border-border-default flex flex-col"
       >
-        <header className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
-          <div>
-            <h3 className="text-sm font-bold text-text-primary">{lead.nombre}</h3>
+        <header className="flex items-center justify-between px-5 py-4 border-b border-border-subtle gap-3">
+          <div className="min-w-0 flex-1">
+            {readOnly ? (
+              <h3 className="text-sm font-bold text-text-primary truncate">{lead.nombre}</h3>
+            ) : (
+              <input
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                onBlur={() => nombre.trim() && nombre !== lead.nombre && onUpdate({ nombre: nombre.trim() })}
+                className="text-sm font-bold text-text-primary bg-transparent border-none outline-none w-full focus:underline"
+              />
+            )}
             <p className="text-[11px] text-text-muted mt-0.5">{LEAD_STAGE_LABELS[lead.etapa]}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-bg-hover focus-ring">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-bg-hover focus-ring shrink-0">
             <X className="h-4 w-4 text-text-muted" />
           </button>
         </header>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          <div className="grid grid-cols-2 gap-3 text-[12px]">
-            <Field label="Teléfono" value={lead.telefono || '—'} />
-            <Field label="Fuente" value={LEAD_SOURCE_LABELS[lead.fuente]} />
-            {lead.email && <Field label="Email" value={lead.email} />}
-            {lead.perfilRol && <Field label="Perfil" value={lead.perfilRol} />}
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Teléfono</span>
+              <input
+                disabled={readOnly} value={telefono} placeholder="—"
+                onChange={(e) => setTelefono(e.target.value)}
+                onBlur={() => onUpdate({ telefono: telefono.trim() || undefined })}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Email</span>
+              <input
+                disabled={readOnly} value={email} placeholder="—"
+                onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => onUpdate({ email: email.trim() || undefined })}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Fuente</span>
+              <select
+                disabled={readOnly} value={lead.fuente}
+                onChange={(e) => onUpdate({ fuente: e.target.value as Lead['fuente'] })}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+              >
+                {LEAD_SOURCES.map((f) => <option key={f} value={f}>{LEAD_SOURCE_LABELS[f]}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Perfil (quién decide)</span>
+              <input
+                disabled={readOnly} value={perfilRol} placeholder="—"
+                onChange={(e) => setPerfilRol(e.target.value)}
+                onBlur={() => onUpdate({ perfilRol: perfilRol.trim() || undefined })}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+              />
+            </label>
           </div>
 
           {(lead.banda || lead.score !== undefined || lead.ruta) && (
@@ -659,15 +714,6 @@ function LeadDrawer({
         </div>
       </motion.aside>
     </>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-[10px] text-text-muted uppercase tracking-wide">{label}</div>
-      <div className="text-text-primary mt-0.5">{value}</div>
-    </div>
   );
 }
 

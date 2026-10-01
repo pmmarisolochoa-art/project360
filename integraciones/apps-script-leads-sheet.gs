@@ -39,8 +39,11 @@
  */
 
 const WEBHOOK_URL = 'https://project360-pearl.vercel.app/api/v1/leads';
-const API_KEY = 'PEGA_AQUI_TU_API_KEY'; // pk_live_... generada en Configuración → API
-const CLIENT_ID = 'PEGA_AQUI_EL_CLIENT_ID'; // uuid del cliente en Project360
+// .trim() en los dos — un espacio de más al copiar/pegar (pasó en vivo el
+// 30-sep-2026: el client_id llegó con un espacio al final y la API lo
+// rechazó) no debe tumbar la sincronización.
+const API_KEY = 'PEGA_AQUI_TU_API_KEY'.trim(); // pk_live_... generada en Configuración → API
+const CLIENT_ID = 'PEGA_AQUI_EL_CLIENT_ID'.trim(); // uuid del cliente en Project360
 
 const PROP_ULTIMA_FILA = 'ultima_fila_procesada';
 const NOMBRE_HOJA_LOG = 'sync_log'; // se crea sola si no existe

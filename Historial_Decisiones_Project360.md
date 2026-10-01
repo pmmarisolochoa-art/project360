@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-09-30/10-01 — Auto-sync del Sheet de Alejo PROBADO en vivo: 63 leads reales entraron, dos bugs propios encontrados en el camino
+
+Instalación en vivo del Apps Script (construido la sesión anterior) con la founder, acompañada paso a paso por capturas de pantalla. Costó ~3 horas de ida y vuelta — vale la pena dejar escrito lo que realmente falló, porque el patrón se va a repetir con el próximo cliente.
+
+**(1) Bug propio #1 — `write:leads` no existía en la pantalla de generar API key.** El scope se agregó al backend (migración 049, sesión anterior) pero nadie actualizó `ApiKeysSection.tsx` (`SCOPES`) ni `apiKeys.ts` (`SCOPE_LABELS`) — la founder generó DOS keys seguidas sin poder marcar el permiso que necesitaba, porque el checkbox ni aparecía. Mismo patrón de trampa que ya se documentó en el 043 para el CHECK de Postgres, pero esta vez en el frontend: un permiso nuevo tiene que tocar TRES sitios (`SCOPES_VALIDOS` en el backend, el CHECK en la base, y la lista del panel), y el tercero se nos olvidó. Corregido en caliente.
+
+**(2) El verdadero cuello de botella: la autorización de Google Apps Script, no el código.** `UrlFetchApp.fetch` (el permiso de "salir a internet") nunca se concedió de verdad, aunque el manifiesto (`appsscript.json`) decía tenerlo declarado. Pasó por varias vueltas falsas antes de encontrar la causa: revisando `myaccount.google.com/permissions` se vio que el proyecto solo tenía el permiso de Hojas de Cálculo — el de `script.external_request` **nunca se había concedido**, pese a que el manifiesto lo pedía. Guardar el manifiesto no basta: hace falta que Google vuelva a mostrar la pantalla de consentimiento, y **editar un script ya autorizado no siempre la dispara sola**. La solución que funcionó: quitarle el acceso del todo desde la cuenta de Google ("Borrar todo") y volver a correr la función a mano — eso sí forzó el consentimiento completo, con el permiso nuevo incluido.
+
+**(3) Bug propio #2 — un espacio de más tumbaba cada fila.** El `client_id` quedó con un espacio en blanco al final tras un copy-paste (`...150e '` en vez de `...150e'`), y el validador `uuid` de Zod lo rechazaba con 400 — invisible a simple vista en el editor. Encontrado leyendo `request_body` directamente del log de auditoría de la API (`api_requests`), no adivinando. El script ahora hace `.trim()` sobre `API_KEY` y `CLIENT_ID` para que un espacio de copy-paste no vuelva a tumbar nada.
+
+**(4) Metodología que funcionó:** en cada paso se verificó contra la base real (`supabase db query --linked` sobre `leads` y `api_requests`) en vez de confiar en "Se completó la ejecución" de Apps Script, que no dice si mandó algo de verdad. Fue así como se encontró que una corrida "sin errores" en realidad había procesado CERO filas (el contador de "última fila" ya estaba al final por intentos previos fallidos) — un caso más de "silencio no es éxito".
+
+**Resultado:** 63 leads reales de Alejo (antes 1) entraron a Ventas con nombre, banda, score y ruta — verificado fila por fila contra la base. El activador de tiempo (cada 10 min) quedó instalado; de aquí en adelante corre solo.
+
+**Pendiente:** varios leads entraron con `fuente='otro'` en vez de `meta_ads` porque su `utm_source` no calzaba con los alias reconocidos (`ig`/`fb`/`an`) — revisar qué trae esa columna en los casos reales y ampliar el mapeo si hace falta. No es un dato perdido: es corregible desde el drawer de cada lead.
+
+---
+
 ## 2026-09-30 (tarde) — Auto-sync del Sheet de Alejo + webhook genérico de Meta Lead Ads (migración 051 corrida en producción)
 
 Dos piezas más sobre "de dónde salen los Leads", esta vez sin intervención manual:

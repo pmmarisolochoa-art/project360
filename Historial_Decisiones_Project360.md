@@ -40,6 +40,26 @@ La founder notó que Alejo salía como "Espacio de Alejo Luengas" (botón aparte
 
 ---
 
+## 2026-10-02/03 — Personalización por cliente: arranca con Alejo, pausada por contexto
+
+La founder pidió personalizar el espacio de Alejo con su identidad de marca real — compartió la carpeta de Drive `IDENTIDAD DE MARCA` (160wPe2pvNatwOTuOLTcqcp9FchW5PT9P).
+
+**Lo que hay en la carpeta (revisado):**
+- Ficha de identidad de marca completa, con paleta exacta: **Rojo Racing #E11822**, Negro profundo #0B0B0B, Gris plomo #686868, Blanco hueso #F7F7F7; tipografía Montserrat (títulos) / Inter (cuerpo).
+- `Logo Alejo 2025-07-11.png` — el logo limpio (los otros 2 archivos son mockups de ChatGPT de la ficha completa, no el logo suelto).
+
+**Hallazgo importante: hoy la app NO tiene dónde mostrar un logo como imagen.** Cada cliente se representa con un círculo de iniciales (ej. "AL") coloreado con `client.primaryColor` — ni en el header del cerebro ni en la tarjeta de Clientes hay una zona de imagen. `onboardingData.identity.logoUrl` existe en el formulario de onboarding pero es solo un campo de texto (URL) que nunca se renderiza en ningún lado.
+
+**Decidido con la founder:** construir esto como función genérica (cualquier cliente, no solo Alejo) — mostrar el logo real cuando exista, con el círculo de iniciales como respaldo si no hay logo. Fondo de la app se mantiene CLARO siempre (pedido explícito) — lo que cambia por cliente es el logo y el color de acento, nunca el tema.
+
+**Pausado por límite de contexto de la sesión, sin tocar código todavía.** Lo que falta para la próxima sesión:
+1. Subir `Logo Alejo 2025-07-11.png` a un lugar con URL pública y estable — no hay bucket de Storage en Supabase todavía (`supabase storage ls` no mostró ninguno), hay que crear uno.
+2. Guardar esa URL en `client.onboardingData.identity.logoUrl` de Alejo.
+3. Construir el render del logo (con fallback al círculo de iniciales) en el header de `ClientBrainPage` y, si da el tiempo, en `ClientCard` de la rejilla de Clientes.
+4. Actualizar `client.primaryColor` de Alejo a `#E11822` (Rojo Racing) — este paso es inmediato y de bajo riesgo, ya soportado en toda la app (botones, badges, Kanban), puede hacerse primero sin esperar lo del logo.
+
+---
+
 ## 2026-10-02 (noche) — Causa raíz de los 31 leads duplicados encontrada y corregida; base limpiada
 
 La founder reportó "Andres neisa" repetido dos veces en el Kanban. Investigado contra producción: **31 de 64 leads de Alejo estaban duplicados** (mismo nombre + teléfono).

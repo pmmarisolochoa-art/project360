@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-10-02 (continuación) — Personalización por cliente: construida, falta correr migración 054
+
+Retomada la sesión pausada. Construido como función genérica (no solo Alejo):
+
+- **`ClientLogo`** (`src/components/brain/ClientLogo.tsx`): muestra `onboardingData.identity.logoUrl` si existe y carga bien; si no, cae al círculo de sigla de siempre. Reemplaza el badge fijo en `BrainHeader` y `ClientCard`.
+- **Editor de Marca en `ClientInfoEditor`** (módulo Perfil → ✏️ Editar información): color de acento (picker + hex) y URL del logo, editables por la founder sin tocar la base directamente — `updateClient` hace el UPDATE a Supabase como siempre.
+- **Migración `054_client_assets_bucket.sql`**: crea el bucket público `client-assets` (lectura pública, escritura solo autenticados) para alojar los logos. Probada en Postgres desechable con `storage.buckets`/`storage.objects` simulados (el dump real de producción no trae el esquema `storage`, así que se verificó la sintaxis de las policies, no contra el esquema real completo). **No corrida en producción todavía** — igual que toda migración de este proyecto, la corre la founder desde el SQL editor de Supabase.
+
+**Pendiente para cerrar el ciclo de Alejo:**
+1. Correr la migración 054 en producción.
+2. Subir `Logo Alejo 2025-07-11.png` al bucket `client-assets` (vía `supabase storage cp`, ya autenticado y enlazado al proyecto).
+3. Poner la URL resultante + `#E11822` en el espacio de Alejo desde el editor de Marca nuevo (ya no hace falta SQL manual para esto).
+
+---
+
 ## 2026-10-02 (tarde) — Pilares de comunicación reales de Alejo cargados en Arquitectura de Marca
 
 La founder trajo `Pilares_Comunicacion_Alejandro.pdf` (RPM Method, octubre 2026) — un documento de estrategia de contenido con frases textuales grabadas, fuentes citadas (Hormozi, Heras, Haynes) y líneas rojas, mucho más rico que lo que había en el cerebro de Alejo.

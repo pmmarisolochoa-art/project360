@@ -40,6 +40,22 @@ La founder notó que Alejo salía como "Espacio de Alejo Luengas" (botón aparte
 
 ---
 
+## 2026-10-02 (noche) — Causa raíz de los 31 leads duplicados encontrada y corregida; base limpiada
+
+La founder reportó "Andres neisa" repetido dos veces en el Kanban. Investigado contra producción: **31 de 64 leads de Alejo estaban duplicados** (mismo nombre + teléfono).
+
+**Causa real:** en `apps-script-leads-sheet.gs`, el alias de columna para identificar `lead_id` seguía escrito como `'lead_id'` (con guion bajo), pero se comparaba contra la cabecera YA NORMALIZADA (`normalizar()` quita guiones) — nunca calzaban. Por eso `external_id` salía siempre vacío en cada lead importado desde el Sheet, y como `/api/v1/leads` solo es idempotente por `external_id`, cada corrida del sync volvía a crear todo de cero. Mismo tipo de bug (alias sin normalizar) también afectaba `utm_source`.
+
+**Corregido:** alias normalizados (`leadid`, `externalid`, `utmsource`) en el script, pusheado. **Limpieza ejecutada directo en producción:** borrado el lead de prueba "Camila Restrepo" (confirmado por la founder) y los 31 pares duplicados — criterio: se quedó el más completo de cada par (más campos no vacíos: teléfono/email/banda/score/ruta/perfil), empate por el más antiguo. Verificado: 0 grupos duplicados después.
+
+**Riesgo residual, dicho sin adornos:** los leads que sobrevivieron siguen con `external_id` vacío (nunca se hizo backfill contra el Sheet real). Si se corre `reiniciarContador` otra vez sin querer, el sync volvería a duplicarlos — por ahora, **no correr `reiniciarContador`** salvo que de verdad haga falta revisar todo el Sheet desde cero.
+
+**Kanban:** cada columna ahora tiene scroll propio con ~10 tarjetas visibles antes de necesitar desplazarse.
+
+**Pendiente de definir con la founder:** agregar columnas "Calificado"/"No calificado" al final del Kanban — hoy ya existe una etapa "Calificado" a mitad del embudo (`LEAD_STAGES`, fijo a propósito desde el 27-sep para comparar el embudo entre clientes), así que antes de tocarlo hay que aclarar si es: (a) mover esa etapa al final, (b) agregar dos etapas nuevas distintas, o (c) otra cosa. No se tocó sin esa aclaración.
+
+---
+
 ## 2026-09-30/10-01 — Auto-sync del Sheet de Alejo PROBADO en vivo: 63 leads reales entraron, dos bugs propios encontrados en el camino
 
 Instalación en vivo del Apps Script (construido la sesión anterior) con la founder, acompañada paso a paso por capturas de pantalla. Costó ~3 horas de ida y vuelta — vale la pena dejar escrito lo que realmente falló, porque el patrón se va a repetir con el próximo cliente.

@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-10-02 (noche) — Integración con Fathom para traer reuniones de Alejo (y futuros clientes sin Paralelo)
+
+Al revisar cómo se traen reuniones/tareas por cliente, se encontró que **"Transcribir con IA" y "Subir archivo" (audio/video) en `MeetingDrawer` son botones decorativos** — solo muestran un toast "disponible próximamente", nunca se construyeron. El camino real hoy es: notas a mano, o subir un `.md`/`.docx` con "Subir resumen" (esto sí funciona), y de ahí "Extraer tareas"/"Generar ROPRE" leen ese texto.
+
+**Hallazgo que cambió el rumbo:** consultando la API de Fathom (MCP) se confirmó que **las reuniones de Alejo ya se graban ahí** (5 encontradas desde el 9-sep, con resumen y transcripción disponibles). Fathom tiene API REST pública real (`api.fathom.ai/external/v1`, header `X-Api-Key`, se genera en Configuración de Usuario → API Access).
+
+**Decidido con la founder:** construir una integración tipo Paralelo pero con Fathom, en vez de arreglar los botones muertos. **Diferencia clave:** Paralelo organiza por `project_id` → cliente (uno a uno); Fathom no tiene "proyectos", así que el cliente se decide **por palabra clave en el título** (lista blanca en `src/config/fathom.ts`, igual espíritu que Paralelo: lo que no calce, o calce con más de un cliente, no se importa).
+
+**Construido** (commit `8358d4e`):
+- `src/config/fathom.ts` — clientes habilitados + sus palabras clave. Alejo Luengas es el primero.
+- `api/fathom/reuniones.ts` — Vercel edge function, trae de Fathom server-side (la llave nunca llega al navegador, mismo motivo que Paralelo), filtra por cliente y fecha, resuelve assignees contra el equipo real.
+- `src/services/fathom.ts` + `FathomImportButton`/`FathomImportModal` — mismo patrón que Paralelo: bandeja de REVISIÓN (nada entra sin marcarse), el navegador escribe con la sesión del usuario (pasa por RLS).
+- Migración `055`: amplía el CHECK de `meetings.origen` para aceptar `'fathom'` — la trampa de CHECK-vs-union-TS ya documentada, evitada a propósito esta vez.
+- Botón visible en el módulo Agenda del cerebro de cada cliente habilitado.
+
+**No se tocó** el flujo manual de notas/resumen — sigue funcionando igual para clientes sin Fathom.
+
+**Pendiente para que funcione en producción:**
+1. Correr la migración 055 (SQL editor de Supabase).
+2. Generar una API key de Fathom (cuenta de la founder, Configuración → API Access) y ponerla en Vercel como `FATHOM_API_KEY`.
+3. Probar con UNA reunión de Alejo antes de soltar el histórico.
+4. Si funciona bien, extender a Tareas global y Agenda global (hoy solo está en la Agenda del cliente, a propósito, para probar acotado primero).
+
+---
+
 ## 2026-10-02 (continuación) — Personalización por cliente: construida, falta correr migración 054
 
 Retomada la sesión pausada. Construido como función genérica (no solo Alejo):

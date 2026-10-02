@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-02 (tarde) — Pilares de comunicación reales de Alejo cargados en Arquitectura de Marca
+
+La founder trajo `Pilares_Comunicacion_Alejandro.pdf` (RPM Method, octubre 2026) — un documento de estrategia de contenido con frases textuales grabadas, fuentes citadas (Hormozi, Heras, Haynes) y líneas rojas, mucho más rico que lo que había en el cerebro de Alejo.
+
+**Lo que había:** `aiBrainData.brandArchitecture` de Alejo traía 4 pilares genéricos generados por IA ("Metodología de élite", "Resultados en pista"…) enfocados en "coaching de alto rendimiento" — **desalineados con el negocio real**, que es ayudar a familias a volver patrocinable a su piloto, no coaching de manejo.
+
+**Reemplazado** (campo `AIBrainData.brandArchitecture`, que ya existía con el comentario "3-5 pilares de comunicación" — encaja exacto): los 5 pilares reales con su peso editorial (Lo viví 20%, No es caridad es un negocio 30%, El que paga 25%, El paddock por dentro 15%, El camino 10%), cada uno con su mensaje núcleo, el reencuadre de→a, y su cuidado. También `voiceTone` (la tabla "voz de Alejandro": tutea, frases cortas, lenguaje de paddock) y `dos`/`donts` (qué se dice / qué no se dice + líneas rojas). La `mission` se actualizó a la promesa de marca aprobada el 14-sep: "Que la carrera de tu hijo deje de ser un gasto y empiece a ser un negocio."
+
+**A propósito NO se tocaron** `vision` ni `values` — el documento no los define, y escribirlos habría sido inventar dato sin fuente. Quedan desalineados con el nuevo enfoque (hablan de "coaching de alto rendimiento" en vez de patrocinio) — la founder lo sabe y decide si los ajusta después.
+
+Verificado en navegador: Planeación → sub-tab "Arquitectura de Marca" (1F) muestra los 5 pilares con su texto completo.
+
+---
+
 ## 2026-10-02 — Alejo Luengas marcado por error como `is_agency` — mismo patrón del 15-sep con Ikigai, corregido
 
 La founder notó que Alejo salía como "Espacio de Alejo Luengas" (botón aparte en la barra superior) en vez de tarjeta normal en Clientes. Causa: `clients.is_agency = true` en su fila — el mismo flag que causó el incidente de Ikigai el 15-sep, con el mismo efecto (no aparece en la rejilla, es candidato a colgar tareas "internas"). No se sabe cómo quedó marcado así — probablemente al darlo de alta.

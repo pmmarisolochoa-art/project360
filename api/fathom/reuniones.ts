@@ -194,7 +194,93 @@ export default async function handler(req: Request): Promise<Response> {
 
   diag.finalParaCliente = reuniones.length;
 
+  /**
+   * Traducir al español — SOLO lo que de verdad se va a mostrar/guardar (las
+   * reuniones ya filtradas para este cliente, no todo lo que trajo Fathom).
+   *
+   * Se hace AQUÍ, antes de devolver, no después de importar: lo que la bandeja
+   * de revisión muestra tiene que ser lo mismo que se guarda — el fallo de
+   * "los dos traductores" del 11-ago, otra vez, si se tradujera en otro sitio.
+   * Si falla, se sigue con el texto original (inglés) — no es motivo para que
+   * la importación entera se caiga.
+   */
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  if (anthropicKey && reuniones.length > 0) {
+    try {
+      await traducirAlEspanol(anthropicKey, reuniones);
+      diag.traducido = true;
+    } catch (e) {
+      diag.traducido = `falló: ${(e as Error).message}`;
+    }
+  }
+
   return json({ cliente: declarado.cliente, total: reuniones.length, reuniones, diagnostico: diag });
+}
+
+interface ReunionTraducible {
+  titulo: string;
+  resumen?: string;
+  tareas: Array<{ titulo: string }>;
+}
+
+/**
+ * Traduce título, resumen y títulos de tareas al español, EN SITIO (muta los
+ * objetos). Un solo llamado a Anthropic con todos los textos de todas las
+ * reuniones, en vez de uno por campo: más rápido y no se queda sin tiempo el
+ * edge function con varias reuniones.
+ */
+async function traducirAlEspanol(apiKey: string, reuniones: ReunionTraducible[]): Promise<void> {
+  // Aplana todos los textos a traducir en un solo array, con su ruta de vuelta.
+  const textos: string[] = [];
+  const rutas: Array<(nuevo: string) => void> = [];
+
+  for (const r of reuniones) {
+    textos.push(r.titulo);
+    rutas.push((n) => { r.titulo = n; });
+    if (r.resumen) {
+      textos.push(r.resumen);
+      rutas.push((n) => { r.resumen = n; });
+    }
+    for (const t of r.tareas) {
+      textos.push(t.titulo);
+      rutas.push((n) => { t.titulo = n; });
+    }
+  }
+  if (textos.length === 0) return;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 4000,
+      system: 'Traduces textos cortos de reuniones de trabajo (títulos de tareas, resúmenes) '
+        + 'del idioma que vengan al ESPAÑOL. Si un texto ya está en español, lo devuelves tal '
+        + 'cual. Devuelve SOLO un array JSON de strings, en el MISMO ORDEN y con la MISMA '
+        + 'CANTIDAD de elementos que recibiste. Sin texto antes ni después del JSON.',
+      messages: [{ role: 'user', content: JSON.stringify(textos) }],
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Anthropic ${res.status}`);
+  const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  const bloque = data.content?.find((b) => b.type === 'text')?.text;
+  if (!bloque) throw new Error('Respuesta sin texto');
+
+  const match = bloque.match(/\[[\s\S]*\]/);
+  const traducidos = JSON.parse(match ? match[0] : bloque) as unknown[];
+  if (!Array.isArray(traducidos) || traducidos.length !== textos.length) {
+    throw new Error(`Longitud no coincide (${Array.isArray(traducidos) ? traducidos.length : 'no es array'} de ${textos.length})`);
+  }
+
+  traducidos.forEach((t, i) => {
+    const s = String(t ?? '').trim();
+    if (s) rutas[i](s);
+  });
 }
 
 function minutosEntre(a: string | null | undefined, b: string | null | undefined): number {

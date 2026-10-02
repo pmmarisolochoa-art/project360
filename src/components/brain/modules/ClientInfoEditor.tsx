@@ -44,6 +44,7 @@ export function ClientInfoEditor({ client, onClose }: { client: Client; onClose:
           Edita cualquier sección y guarda. Los cambios se reflejan en el cerebro,
           los informes y las fechas del proyecto.
         </p>
+        <BrandBlock client={client} />
         {SECTIONS.map((s) => (
           <SectionBlock
             key={s.key}
@@ -56,6 +57,70 @@ export function ClientInfoEditor({ client, onClose }: { client: Client; onClose:
         ))}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Color de acento + logo — son campos de Client/identity, no una sección más
+ * del onboarding, así que viven aparte arriba. El fondo de la app se mantiene
+ * siempre claro (decidido 2026-10-02/03); esto solo cambia logo y acento.
+ */
+function BrandBlock({ client }: { client: Client }) {
+  const updateClient = useClientStore((s) => s.updateClient);
+  const [color, setColor] = useState(client.primaryColor);
+  const [logoUrl, setLogoUrl] = useState(client.onboardingData.identity?.logoUrl ?? '');
+
+  const save = () => {
+    updateClient(client.id, {
+      primaryColor: color,
+      onboardingData: {
+        ...client.onboardingData,
+        identity: { ...client.onboardingData.identity, logoUrl } as OnboardingData['identity'],
+      },
+    });
+    toast.success('Marca actualizada ✓');
+  };
+
+  const dirty = color !== client.primaryColor || logoUrl !== (client.onboardingData.identity?.logoUrl ?? '');
+
+  return (
+    <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-2.5">
+      <div className="text-sm font-semibold text-text-primary">🎨 Marca — color y logo</div>
+      <label className="grid grid-cols-[1fr_1.4fr] gap-2 items-center">
+        <span className="text-[11px] text-text-secondary">Color de acento</span>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="h-7 w-10 rounded border border-border-subtle bg-transparent cursor-pointer"
+          />
+          <input
+            type="text"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="flex-1 bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none"
+          />
+        </div>
+      </label>
+      <label className="grid grid-cols-[1fr_1.4fr] gap-2 items-center">
+        <span className="text-[11px] text-text-secondary">URL del logo</span>
+        <input
+          type="text"
+          value={logoUrl}
+          onChange={(e) => setLogoUrl(e.target.value)}
+          placeholder="https://… (vacío = usa la sigla)"
+          className="bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none"
+        />
+      </label>
+      {dirty && (
+        <div className="flex justify-end pt-1">
+          <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
+            Guardar marca
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 

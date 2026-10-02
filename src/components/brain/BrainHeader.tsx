@@ -8,7 +8,7 @@ import { formatRelative } from '@/utils/dateHelpers';
 import { ReportsMenu } from '@/components/brain/ReportsMenu';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
-import { clientSigla } from '@/utils/sigla';
+import { ClientLogo } from '@/components/brain/ClientLogo';
 
 const statusTone: Record<ClientStatus, 'success' | 'warning' | 'info' | 'neutral' | 'danger' | 'accent'> = {
   active: 'success',
@@ -71,13 +71,12 @@ export function BrainHeader({ client }: { client: Client }) {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-2">
-              <span
-                className="inline-flex items-center justify-center h-6 min-w-[26px] px-1.5 rounded-md text-[11px] font-bold text-white"
-                style={{ background: accent }}
-                title={`Sigla de ${client.name}`}
-              >
-                {clientSigla(client)}
-              </span>
+              <ClientLogo
+                client={client}
+                accent={accent}
+                className="h-6 min-w-[26px] px-1.5"
+                textClassName="text-[11px]"
+              />
               {client.isAgency
                 ? <Badge tone="accent">🏛️ Espacio de Agencia</Badge>
                 : <>

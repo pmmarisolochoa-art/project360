@@ -11,11 +11,13 @@ export type LeadStage =
   | 'cita_realizada'
   | 'propuesta'
   | 'ganado'
-  | 'perdido';
+  | 'perdido'
+  /** Agregada al final a propósito (founder, 02-oct-2026) — migración 053. */
+  | 'no_calificado';
 
 export const LEAD_STAGES: LeadStage[] = [
   'nuevo', 'contactado', 'calificado', 'cita_agendada',
-  'cita_realizada', 'propuesta', 'ganado', 'perdido',
+  'cita_realizada', 'propuesta', 'ganado', 'perdido', 'no_calificado',
 ];
 
 export const LEAD_STAGE_LABELS: Record<LeadStage, string> = {
@@ -27,6 +29,7 @@ export const LEAD_STAGE_LABELS: Record<LeadStage, string> = {
   propuesta: 'Propuesta enviada',
   ganado: 'Ganado',
   perdido: 'Perdido',
+  no_calificado: 'No calificado',
 };
 
 /**

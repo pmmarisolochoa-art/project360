@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-02 — Alejo Luengas marcado por error como `is_agency` — mismo patrón del 15-sep con Ikigai, corregido
+
+La founder notó que Alejo salía como "Espacio de Alejo Luengas" (botón aparte en la barra superior) en vez de tarjeta normal en Clientes. Causa: `clients.is_agency = true` en su fila — el mismo flag que causó el incidente de Ikigai el 15-sep, con el mismo efecto (no aparece en la rejilla, es candidato a colgar tareas "internas"). No se sabe cómo quedó marcado así — probablemente al darlo de alta.
+
+**Corregido:** `update clients set is_agency = false where id = '<alejo>'`. Un solo booleano — sus leads, tareas y reuniones no se movieron. Verificado: la fila quedó en `false`, Project360 sigue siendo el único `is_agency = true` real.
+
+**Pendiente de observar:** si vuelve a aparecer este patrón con un cliente nuevo, vale la pena revisar el flujo de alta de clientes (`OnboardingWizard`/`construirClienteDesdeFila`) para confirmar que nunca copia `is_agency` de otra fila por accidente — no se investigó la causa raíz esta vez, solo se corrigió el síntoma.
+
+---
+
 ## 2026-10-01 — ManyChat pendiente de conectar + bug real al abrir un lead + drawer editable
 
 **ManyChat — PENDIENTE, decisión de camino tomada.** La founder tiene una API key de ManyChat (para llamar la API de ManyChat desde afuera) pero eso es la dirección contraria a la que necesitamos: lo que hace falta es que **ManyChat llame a Project360** cuando captura un lead, no al revés. Se confirmó el camino: la acción "External Request" de ManyChat (dentro del Flow Builder, configurada por la founder) apuntando al mismo endpoint `/api/v1/leads` que ya usa el Apps Script — documentado en `integraciones/manychat-leads.md`. **No requiere código nuevo.** Queda pendiente que la founder genere una API key de Project360 (`write:leads`) y configure el Flow en ManyChat. Si el WhatsApp del cliente corre dentro de ManyChat, es el mismo flujo; si es otra herramienta (GHL/Twilio/Cloud API directa), es un conector distinto — sin confirmar todavía cuál usa cada cliente.

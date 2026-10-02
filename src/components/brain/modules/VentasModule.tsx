@@ -654,12 +654,22 @@ function LeadDrawer({
     const totalConRecargo = Math.round(precio * 1.05);
     const base = Math.floor(totalConRecargo / n);
     const montos = Array.from({ length: n }, (_, i) => (i === n - 1 ? totalConRecargo - base * (n - 1) : base));
-    const patch: Partial<Lead> = {};
-    if (montos[0] !== undefined) { setCashCollected(String(montos[0])); patch.cashCollected = montos[0]; }
-    if (montos[1] !== undefined) { setPago2Monto(String(montos[1])); patch.pago2Monto = montos[1]; }
-    if (montos[2] !== undefined) { setPago3Monto(String(montos[2])); patch.pago3Monto = montos[2]; }
-    if (montos[3] !== undefined) { setPago4Monto(String(montos[3])); patch.pago4Monto = montos[3]; }
-    onUpdate(patch);
+    // Al recalcular con MENOS cuotas que la vez anterior, las que sobran
+    // (3/4 si antes había más) se limpian — si no, quedan montos viejos
+    // pegados que ya no corresponden a ningún pago real. `null` explícito y
+    // no `undefined`: un patch parcial ignora los campos `undefined` a
+    // propósito (para no pisar algo que no se tocó), así que para BORRAR de
+    // verdad hay que mandar `null`.
+    const patch: Record<string, number | null> = {};
+    patch.cashCollected = montos[0] ?? 0;
+    setCashCollected(String(montos[0] ?? ''));
+    patch.pago2Monto = montos[1] ?? null;
+    setPago2Monto(montos[1] !== undefined ? String(montos[1]) : '');
+    patch.pago3Monto = montos[2] ?? null;
+    setPago3Monto(montos[2] !== undefined ? String(montos[2]) : '');
+    patch.pago4Monto = montos[3] ?? null;
+    setPago4Monto(montos[3] !== undefined ? String(montos[3]) : '');
+    onUpdate(patch as Partial<Lead>);
     toast.success(`${n} cuota${n === 1 ? '' : 's'} de ~$${base.toLocaleString('es-CO')} (precio +5%). Puedes ajustar cada monto a mano.`);
   };
 

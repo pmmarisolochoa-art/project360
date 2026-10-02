@@ -62,4 +62,4 @@ export interface ReporteReunion {
 }
 
 /** De dónde vino una reunión. Debe coincidir con el CHECK de `meetings.origen`. */
-export type MeetingOrigen = 'manual' | 'api' | 'paralelo';
+export type MeetingOrigen = 'manual' | 'api' | 'paralelo' | 'fathom';

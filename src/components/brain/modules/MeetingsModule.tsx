@@ -25,6 +25,7 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { toast } from '@/store/useToastStore';
 import { genId } from '@/utils/id';
 import { ParaleloImportButton } from './ParaleloImportButton';
+import { FathomImportButton } from './FathomImportButton';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff',
@@ -202,6 +203,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
           {!readOnly && (
             <div className="flex gap-2 shrink-0">
               <ParaleloImportButton clientId={client.id} />
+              <FathomImportButton clientId={client.id} clienteNombre={client.name} />
               <Button onClick={() => setCreating(true)}>
                 <Plus className="h-4 w-4" /> Nueva reunión
               </Button>

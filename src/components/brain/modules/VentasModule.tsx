@@ -641,6 +641,28 @@ function LeadDrawer({
   const [ultimoSeguimiento, setUltimoSeguimiento] = useState(dateInputValue(lead.ultimoSeguimiento));
   const [notas, setNotas] = useState(lead.notas ?? '');
 
+  // Número de cuotas — solo ayuda a calcular, NO se guarda (founder,
+  // 02-oct-2026): es un insumo de un cálculo puntual, no un dato del lead.
+  // Después de calcular, cada monto queda editable a mano sin que nada lo
+  // vuelva a sobreescribir — no hay recálculo reactivo.
+  const [numCuotas, setNumCuotas] = useState('2');
+
+  const calcularCuotas = () => {
+    const precio = Number(programValue) || 0;
+    const n = Math.max(1, Math.min(4, Number(numCuotas) || 1));
+    if (!precio) { toast.error('Pon el precio pactado primero.'); return; }
+    const totalConRecargo = Math.round(precio * 1.05);
+    const base = Math.floor(totalConRecargo / n);
+    const montos = Array.from({ length: n }, (_, i) => (i === n - 1 ? totalConRecargo - base * (n - 1) : base));
+    const patch: Partial<Lead> = {};
+    if (montos[0] !== undefined) { setCashCollected(String(montos[0])); patch.cashCollected = montos[0]; }
+    if (montos[1] !== undefined) { setPago2Monto(String(montos[1])); patch.pago2Monto = montos[1]; }
+    if (montos[2] !== undefined) { setPago3Monto(String(montos[2])); patch.pago3Monto = montos[2]; }
+    if (montos[3] !== undefined) { setPago4Monto(String(montos[3])); patch.pago4Monto = montos[3]; }
+    onUpdate(patch);
+    toast.success(`${n} cuota${n === 1 ? '' : 's'} de ~$${base.toLocaleString('es-CO')} (precio +5%). Puedes ajustar cada monto a mano.`);
+  };
+
   // Calculado, no editable — guardarlo sería mantener dos fuentes de verdad
   // que se pueden desincronizar (founder, 02-oct-2026).
   const totalCobrado = (lead.cashCollected ?? 0)
@@ -906,7 +928,29 @@ function LeadDrawer({
               </div>
 
               <div className="space-y-2 pt-1 border-t border-border-subtle">
-                <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide pt-2">Plan de pagos</div>
+                <div className="flex items-center justify-between gap-2 pt-2 flex-wrap">
+                  <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide">Plan de pagos</div>
+                  {!readOnly && (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={numCuotas} onChange={(e) => setNumCuotas(e.target.value)}
+                        className="rounded-lg border border-border-default bg-bg-base px-1.5 py-1 text-[11px]"
+                      >
+                        {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} cuota{n === 1 ? '' : 's'}</option>)}
+                      </select>
+                      <button
+                        onClick={calcularCuotas}
+                        className="text-[11px] font-semibold rounded-lg px-2 py-1"
+                        style={{ background: withAlpha(client.primaryColor, 0.16), color: client.primaryColor }}
+                      >
+                        Calcular (+5%)
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-text-muted -mt-1">
+                  Reparte el precio pactado +5% en las cuotas elegidas — cada monto queda editable a mano después.
+                </p>
 
                 <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
                   <label className="block">

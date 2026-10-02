@@ -82,6 +82,40 @@ export interface Lead {
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
+
+  /**
+   * Agenda y resultado de la llamada de ventas (migración 052, 02-oct-2026).
+   * `asistio` es texto libre (sí/no/reprogramó…) a propósito: un enum cerrado
+   * bloquearía un caso que no se previó, igual que `banda`/`score`/`ruta`.
+   */
+  fechaAgenda?: string;
+  fechaLlamada?: string;
+  asistio?: string;
+  resultado?: string;
+
+  /** Lo que se cerró y cómo se paga. `programValue` ES el precio pactado. */
+  producto?: string;
+  formaPago?: string;
+
+  /**
+   * Plan de pagos — hasta 4 cuotas. El "Pago 1" es `cashCollected` (ya
+   * existe, siempre cobrado al cierre): aquí solo falta su fecha. Los pagos
+   * 2-4 sí llevan su propio `pagado`, porque a diferencia del 1 no están
+   * cobrados por definición.
+   */
+  pago1Fecha?: string;
+  pago2Monto?: number;
+  pago2Fecha?: string;
+  pago2Pagado?: boolean;
+  pago3Monto?: number;
+  pago3Fecha?: string;
+  pago3Pagado?: boolean;
+  pago4Monto?: number;
+  pago4Fecha?: string;
+  pago4Pagado?: boolean;
+
+  ultimoSeguimiento?: string;
+  notas?: string;
 }
 
 /**

@@ -499,6 +499,57 @@ function KpiTile({ label, value, tone }: { label: string; value: string; tone?: 
 
 interface TeamOption { id: string; nombre: string }
 
+/** 'YYYY-MM-DD' para <input type="date"> — vacío si no hay fecha. */
+function dateInputValue(iso?: string): string {
+  return iso ? iso.slice(0, 10) : '';
+}
+
+function PagoCuotaRow({
+  numero, readOnly, monto, setMonto, fecha, setFecha, pagado, onBlurMonto, onBlurFecha, onTogglePagado,
+}: {
+  numero: number;
+  readOnly: boolean;
+  monto: string;
+  setMonto: (v: string) => void;
+  fecha: string;
+  setFecha: (v: string) => void;
+  pagado: boolean;
+  onBlurMonto: () => void;
+  onBlurFecha: () => void;
+  onTogglePagado: (v: boolean) => void;
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+      <label className="block">
+        <span className="text-[10px] text-text-muted">Pago {numero} · monto</span>
+        <input
+          type="number" disabled={readOnly} value={monto}
+          onChange={(e) => setMonto(e.target.value)}
+          onBlur={onBlurMonto}
+          className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px] font-mono"
+        />
+      </label>
+      <label className="block">
+        <span className="text-[10px] text-text-muted">Fecha</span>
+        <input
+          type="date" disabled={readOnly} value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          onBlur={onBlurFecha}
+          className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+        />
+      </label>
+      <label className="flex items-center gap-1.5 pb-2 cursor-pointer">
+        <input
+          type="checkbox" disabled={readOnly} checked={pagado}
+          onChange={(e) => onTogglePagado(e.target.checked)}
+          className="accent-[var(--accent)]"
+        />
+        <span className="text-[9.5px] text-text-muted">Pagado</span>
+      </label>
+    </div>
+  );
+}
+
 function LeadDrawer({
   lead, client, setters, closers, readOnly, onClose, onUpdate,
 }: {
@@ -526,6 +577,38 @@ function LeadDrawer({
   const [telefono, setTelefono] = useState(lead.telefono ?? '');
   const [email, setEmail] = useState(lead.email ?? '');
   const [perfilRol, setPerfilRol] = useState(lead.perfilRol ?? '');
+
+  const [fechaAgenda, setFechaAgenda] = useState(dateInputValue(lead.fechaAgenda));
+  const [fechaLlamada, setFechaLlamada] = useState(dateInputValue(lead.fechaLlamada));
+  const [asistio, setAsistio] = useState(lead.asistio ?? '');
+  const [resultado, setResultado] = useState(lead.resultado ?? '');
+  const [producto, setProducto] = useState(lead.producto ?? '');
+  const [formaPago, setFormaPago] = useState(lead.formaPago ?? '');
+  const [pago1Fecha, setPago1Fecha] = useState(dateInputValue(lead.pago1Fecha));
+  const [pago2Monto, setPago2Monto] = useState(lead.pago2Monto?.toString() ?? '');
+  const [pago2Fecha, setPago2Fecha] = useState(dateInputValue(lead.pago2Fecha));
+  const [pago3Monto, setPago3Monto] = useState(lead.pago3Monto?.toString() ?? '');
+  const [pago3Fecha, setPago3Fecha] = useState(dateInputValue(lead.pago3Fecha));
+  const [pago4Monto, setPago4Monto] = useState(lead.pago4Monto?.toString() ?? '');
+  const [pago4Fecha, setPago4Fecha] = useState(dateInputValue(lead.pago4Fecha));
+  const [ultimoSeguimiento, setUltimoSeguimiento] = useState(dateInputValue(lead.ultimoSeguimiento));
+  const [notas, setNotas] = useState(lead.notas ?? '');
+
+  // Calculado, no editable — guardarlo sería mantener dos fuentes de verdad
+  // que se pueden desincronizar (founder, 02-oct-2026).
+  const totalCobrado = (lead.cashCollected ?? 0)
+    + (lead.pago2Pagado ? (lead.pago2Monto ?? 0) : 0)
+    + (lead.pago3Pagado ? (lead.pago3Monto ?? 0) : 0)
+    + (lead.pago4Pagado ? (lead.pago4Monto ?? 0) : 0);
+  const saldoPendiente = Math.max(0, (lead.programValue ?? 0) - totalCobrado);
+  const proximoPago = [
+    { monto: lead.pago2Monto, fecha: lead.pago2Fecha, pagado: lead.pago2Pagado },
+    { monto: lead.pago3Monto, fecha: lead.pago3Fecha, pagado: lead.pago3Pagado },
+    { monto: lead.pago4Monto, fecha: lead.pago4Fecha, pagado: lead.pago4Pagado },
+  ].filter((p) => !p.pagado && p.fecha).sort((a, b) => (a.fecha ?? '').localeCompare(b.fecha ?? ''))[0];
+  const estadoCobro = saldoPendiente <= 0
+    ? 'Completo'
+    : proximoPago && new Date(proximoPago.fecha!) < new Date() ? 'Atrasado' : 'Al día';
 
   return (
     <>
@@ -628,6 +711,48 @@ function LeadDrawer({
             </div>
           )}
 
+          <div className="rounded-[10px] border border-border-default p-3 space-y-2.5">
+            <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">Agenda y llamada</div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">Fecha de agenda</span>
+                <input
+                  type="date" disabled={readOnly} value={fechaAgenda}
+                  onChange={(e) => setFechaAgenda(e.target.value)}
+                  onBlur={() => onUpdate({ fechaAgenda: fechaAgenda || undefined })}
+                  className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">Fecha de la llamada</span>
+                <input
+                  type="date" disabled={readOnly} value={fechaLlamada}
+                  onChange={(e) => setFechaLlamada(e.target.value)}
+                  onBlur={() => onUpdate({ fechaLlamada: fechaLlamada || undefined })}
+                  className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">¿Asistió?</span>
+                <input
+                  disabled={readOnly} value={asistio} placeholder="Sí / No / Reprogramó"
+                  onChange={(e) => setAsistio(e.target.value)}
+                  onBlur={() => onUpdate({ asistio: asistio.trim() || undefined })}
+                  className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] text-text-muted uppercase tracking-wide">Resultado</span>
+                <input
+                  disabled={readOnly} value={resultado} placeholder="—"
+                  onChange={(e) => setResultado(e.target.value)}
+                  onBlur={() => onUpdate({ resultado: resultado.trim() || undefined })}
+                  className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+                />
+              </label>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="text-[10px] text-text-muted uppercase tracking-wide">Setter</span>
@@ -661,31 +786,140 @@ function LeadDrawer({
           )}
 
           {lead.etapa === 'ganado' && (
-            <div className="rounded-[10px] border border-border-default p-3 space-y-2.5">
+            <div className="rounded-[10px] border border-border-default p-3 space-y-3">
               <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">Después del cierre</div>
-              <label className="block">
-                <span className="text-[10.5px] text-text-muted">Valor del programa</span>
-                <input
-                  type="number" disabled={readOnly} value={programValue}
-                  onChange={(e) => setProgramValue(e.target.value)}
-                  onBlur={() => onUpdate({ programValue: programValue ? Number(programValue) : undefined })}
-                  className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-[12px] font-mono"
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-[10.5px] text-text-muted">Producto</span>
+                  <input
+                    disabled={readOnly} value={producto} placeholder="—"
+                    onChange={(e) => setProducto(e.target.value)}
+                    onBlur={() => onUpdate({ producto: producto.trim() || undefined })}
+                    className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-[12px]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[10.5px] text-text-muted">Precio pactado</span>
+                  <input
+                    type="number" disabled={readOnly} value={programValue}
+                    onChange={(e) => setProgramValue(e.target.value)}
+                    onBlur={() => onUpdate({ programValue: programValue ? Number(programValue) : undefined })}
+                    className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-[12px] font-mono"
+                  />
+                </label>
+                <label className="block col-span-2">
+                  <span className="text-[10.5px] text-text-muted">Forma de pago</span>
+                  <input
+                    disabled={readOnly} value={formaPago} placeholder="Contado, 3 cuotas…"
+                    onChange={(e) => setFormaPago(e.target.value)}
+                    onBlur={() => onUpdate({ formaPago: formaPago.trim() || undefined })}
+                    className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-[12px]"
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-2 pt-1 border-t border-border-subtle">
+                <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide pt-2">Plan de pagos</div>
+
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                  <label className="block">
+                    <span className="text-[10px] text-text-muted">Pago 1 · monto</span>
+                    <input
+                      type="number" disabled={readOnly} value={cashCollected}
+                      onChange={(e) => setCashCollected(e.target.value)}
+                      onBlur={() => onUpdate({ cashCollected: Number(cashCollected) || 0 })}
+                      className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px] font-mono"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] text-text-muted">Fecha</span>
+                    <input
+                      type="date" disabled={readOnly} value={pago1Fecha}
+                      onChange={(e) => setPago1Fecha(e.target.value)}
+                      onBlur={() => onUpdate({ pago1Fecha: pago1Fecha || undefined })}
+                      className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+                    />
+                  </label>
+                  <span className="text-[9.5px] text-text-muted pb-2 text-center">Cobrado</span>
+                </div>
+
+                <PagoCuotaRow
+                  numero={2} readOnly={readOnly}
+                  monto={pago2Monto} setMonto={setPago2Monto}
+                  fecha={pago2Fecha} setFecha={setPago2Fecha}
+                  pagado={lead.pago2Pagado ?? false}
+                  onBlurMonto={() => onUpdate({ pago2Monto: pago2Monto ? Number(pago2Monto) : undefined })}
+                  onBlurFecha={() => onUpdate({ pago2Fecha: pago2Fecha || undefined })}
+                  onTogglePagado={(v) => onUpdate({ pago2Pagado: v })}
                 />
-              </label>
-              <label className="block">
-                <span className="text-[10.5px] text-text-muted">Cash collected (manual)</span>
-                <input
-                  type="number" disabled={readOnly} value={cashCollected}
-                  onChange={(e) => setCashCollected(e.target.value)}
-                  onBlur={() => onUpdate({ cashCollected: Number(cashCollected) || 0 })}
-                  className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-[12px] font-mono"
+                <PagoCuotaRow
+                  numero={3} readOnly={readOnly}
+                  monto={pago3Monto} setMonto={setPago3Monto}
+                  fecha={pago3Fecha} setFecha={setPago3Fecha}
+                  pagado={lead.pago3Pagado ?? false}
+                  onBlurMonto={() => onUpdate({ pago3Monto: pago3Monto ? Number(pago3Monto) : undefined })}
+                  onBlurFecha={() => onUpdate({ pago3Fecha: pago3Fecha || undefined })}
+                  onTogglePagado={(v) => onUpdate({ pago3Pagado: v })}
                 />
-              </label>
-              <p className="text-[10px] text-text-muted leading-relaxed">
-                Campo manual — lo actualiza quien confirma el pago, no se calcula solo.
-              </p>
+                <PagoCuotaRow
+                  numero={4} readOnly={readOnly}
+                  monto={pago4Monto} setMonto={setPago4Monto}
+                  fecha={pago4Fecha} setFecha={setPago4Fecha}
+                  pagado={lead.pago4Pagado ?? false}
+                  onBlurMonto={() => onUpdate({ pago4Monto: pago4Monto ? Number(pago4Monto) : undefined })}
+                  onBlurFecha={() => onUpdate({ pago4Fecha: pago4Fecha || undefined })}
+                  onTogglePagado={(v) => onUpdate({ pago4Pagado: v })}
+                />
+                <p className="text-[10px] text-text-muted leading-relaxed">
+                  El monto del Pago 1 se considera siempre cobrado — lo actualiza quien confirma el pago. Los pagos 2-4 se marcan "pagado" cuando llegan de verdad.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border-subtle">
+                <div>
+                  <div className="text-[10px] text-text-muted">Total cobrado</div>
+                  <div className="font-mono font-semibold text-[13px]" style={{ color: '#0CA30C' }}>${totalCobrado.toLocaleString('es-CO')}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-text-muted">Saldo pendiente</div>
+                  <div className="font-mono font-semibold text-[13px]" style={{ color: saldoPendiente > 0 ? '#D08A00' : undefined }}>${saldoPendiente.toLocaleString('es-CO')}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-text-muted">Próximo pago</div>
+                  <div className="font-medium text-[12px] mt-0.5">
+                    {proximoPago ? new Date(proximoPago.fecha!).toLocaleDateString('es-CO', { dateStyle: 'medium' }) : '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-text-muted">Estado del cobro</div>
+                  <Badge tone={estadoCobro === 'Completo' ? 'success' : estadoCobro === 'Atrasado' ? 'danger' : 'neutral'} className="mt-0.5">{estadoCobro}</Badge>
+                </div>
+              </div>
             </div>
           )}
+
+          <div className="rounded-[10px] border border-border-default p-3 space-y-2.5">
+            <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">Seguimiento</div>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Último seguimiento</span>
+              <input
+                type="date" disabled={readOnly} value={ultimoSeguimiento}
+                onChange={(e) => setUltimoSeguimiento(e.target.value)}
+                onBlur={() => onUpdate({ ultimoSeguimiento: ultimoSeguimiento || undefined })}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Notas</span>
+              <textarea
+                disabled={readOnly} value={notas} rows={3} placeholder="—"
+                onChange={(e) => setNotas(e.target.value)}
+                onBlur={() => onUpdate({ notas: notas.trim() || undefined })}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px] resize-none"
+              />
+            </label>
+          </div>
 
           <div>
             <h4 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide mb-2.5">Viaje del lead</h4>

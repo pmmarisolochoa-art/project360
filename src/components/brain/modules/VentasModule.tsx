@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Upload, Search } from 'lucide-react';
+import { X, Plus, Upload, Search, Trash2 } from 'lucide-react';
 import { ImportarLeadsCSVModal } from './ImportarLeadsCSVModal';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCES, LEAD_SOURCE_LABELS } from '@/types/lead';
 import { useLeadsStore } from '@/store/useLeadsStore';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
-import { useAuthStore } from '@/store/useAuthStore';
+import { useAuthStore, veGlobal } from '@/store/useAuthStore';
 import { useClientMode } from '@/hooks/useClientMode';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from '@/store/useToastStore';
@@ -17,6 +17,20 @@ import { withAlpha } from '@/utils/colorGenerator';
 const SOURCE_TONE: Record<LeadSource, 'info' | 'success' | 'warning' | 'neutral'> = {
   meta_ads: 'info', reel: 'success', story: 'success', carrusel: 'success', perfil: 'warning', referido: 'warning', otro: 'neutral',
 };
+
+const ASISTIO_OPTIONS = ['', 'Sí', 'No', 'Reprogramó'];
+const RESULTADO_OPTIONS = ['', 'Cerró', 'Objeción de precio', 'Pidió tiempo para decidir', 'No calificó', 'No asistió', 'Reagendó', 'Otro'];
+
+/**
+ * Catálogo de productos — sugerencias de autocompletar (datalist), no un
+ * enum cerrado: cualquier cliente puede escribir lo que venda, esto solo
+ * ahorra tecleo para los programas más comunes. Al elegir uno exacto, rellena
+ * el precio pactado solo.
+ */
+const PRODUCTOS_SUGERIDOS: Array<{ nombre: string; precio: number }> = [
+  { nombre: 'Sprint 1:1', precio: 4997 },
+  { nombre: 'RPM Method', precio: 3997 },
+];
 
 /**
  * Color del punto de "banda" en la tarjeta — banda es texto libre por cliente
@@ -49,9 +63,11 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const leads = useMemo(() => allLeads.filter((l) => l.clientId === client.id), [allLeads, client.id]);
   const addLead = useLeadsStore((s) => s.add);
   const updateLead = useLeadsStore((s) => s.update);
+  const removeLead = useLeadsStore((s) => s.remove);
   const moveStage = useLeadsStore((s) => s.moveStage);
   const { isMember } = useClientMode(client.id);
   const authUser = useAuthStore((s) => s.user);
+  const userRole = useAuthStore((s) => s.role);
   const clientAccess = useAuthStore((s) => s.clientAccess);
   const actor = { nombre: (isMember ? clientAccess?.nombre : undefined) ?? authUser?.email ?? 'Equipo' };
   const allMembers = useTeamMembersStore((s) => s.members);
@@ -324,8 +340,10 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
             setters={setters}
             closers={closers}
             readOnly={readOnly}
+            puedeBorrar={veGlobal(userRole)}
             onClose={() => setSelectedId(null)}
             onUpdate={(patch) => updateLead(selected.id, patch)}
+            onDelete={() => { removeLead(selected.id); setSelectedId(null); toast.success('Lead eliminado'); }}
           />
         )}
       </AnimatePresence>
@@ -504,6 +522,31 @@ function dateInputValue(iso?: string): string {
   return iso ? iso.slice(0, 10) : '';
 }
 
+/**
+ * Input de dinero con puntos de miles mientras se escribe (es-CO: 4.997).
+ * `value`/`onChange` trabajan con el número crudo como string ("4997"); el
+ * punto es solo de presentación, nunca se guarda.
+ */
+function MoneyInput({
+  value, onChangeRaw, onBlur, disabled, className,
+}: {
+  value: string;
+  onChangeRaw: (raw: string) => void;
+  onBlur: () => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const formateado = value ? Number(value.replace(/\D/g, '')).toLocaleString('es-CO') : '';
+  return (
+    <input
+      type="text" inputMode="numeric" disabled={disabled} value={formateado}
+      onChange={(e) => onChangeRaw(e.target.value.replace(/\D/g, ''))}
+      onBlur={onBlur}
+      className={className}
+    />
+  );
+}
+
 function PagoCuotaRow({
   numero, readOnly, monto, setMonto, fecha, setFecha, pagado, onBlurMonto, onBlurFecha, onTogglePagado,
 }: {
@@ -522,9 +565,9 @@ function PagoCuotaRow({
     <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
       <label className="block">
         <span className="text-[10px] text-text-muted">Pago {numero} · monto</span>
-        <input
-          type="number" disabled={readOnly} value={monto}
-          onChange={(e) => setMonto(e.target.value)}
+        <MoneyInput
+          disabled={readOnly} value={monto}
+          onChangeRaw={setMonto}
           onBlur={onBlurMonto}
           className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px] font-mono"
         />
@@ -551,16 +594,20 @@ function PagoCuotaRow({
 }
 
 function LeadDrawer({
-  lead, client, setters, closers, readOnly, onClose, onUpdate,
+  lead, client, setters, closers, readOnly, puedeBorrar, onClose, onUpdate, onDelete,
 }: {
   lead: Lead;
   client: Client;
   setters: TeamOption[];
   closers: TeamOption[];
   readOnly: boolean;
+  /** Solo dueña o dirección pueden borrar — limpiar errores de importación/carga. */
+  puedeBorrar: boolean;
   onClose: () => void;
   onUpdate: (patch: Partial<Lead>) => void;
+  onDelete: () => void;
 }) {
+  const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   // `eventsForLead` arma un array nuevo (filter+sort) en cada llamada — si se
   // selecciona así directo de Zustand, cada render produce una referencia
   // distinta y dispara un loop infinito (mismo bug documentado el 27-sep en
@@ -636,6 +683,25 @@ function LeadDrawer({
             )}
             <p className="text-[11px] text-text-muted mt-0.5">{LEAD_STAGE_LABELS[lead.etapa]}</p>
           </div>
+          {puedeBorrar && !confirmarBorrar && (
+            <button
+              onClick={() => setConfirmarBorrar(true)}
+              title="Borrar lead (solo dueña/dirección)"
+              className="p-1.5 rounded-lg hover:bg-red-500/10 text-text-muted hover:text-red-500 focus-ring shrink-0"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {confirmarBorrar && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={onDelete} className="text-[11px] font-semibold text-white bg-red-600 rounded-lg px-2.5 py-1.5 focus-ring">
+                Borrar
+              </button>
+              <button onClick={() => setConfirmarBorrar(false)} className="text-[11px] text-text-secondary px-2 py-1.5 rounded-lg hover:bg-bg-hover focus-ring">
+                Cancelar
+              </button>
+            </div>
+          )}
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-bg-hover focus-ring shrink-0">
             <X className="h-4 w-4 text-text-muted" />
           </button>
@@ -734,21 +800,31 @@ function LeadDrawer({
               </label>
               <label className="block">
                 <span className="text-[10px] text-text-muted uppercase tracking-wide">¿Asistió?</span>
-                <input
-                  disabled={readOnly} value={asistio} placeholder="Sí / No / Reprogramó"
-                  onChange={(e) => setAsistio(e.target.value)}
-                  onBlur={() => onUpdate({ asistio: asistio.trim() || undefined })}
+                <select
+                  disabled={readOnly} value={asistio}
+                  onChange={(e) => { setAsistio(e.target.value); onUpdate({ asistio: e.target.value || undefined }); }}
                   className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
-                />
+                >
+                  {ASISTIO_OPTIONS.map((o) => <option key={o} value={o}>{o || '—'}</option>)}
+                </select>
               </label>
               <label className="block">
                 <span className="text-[10px] text-text-muted uppercase tracking-wide">Resultado</span>
-                <input
-                  disabled={readOnly} value={resultado} placeholder="—"
-                  onChange={(e) => setResultado(e.target.value)}
-                  onBlur={() => onUpdate({ resultado: resultado.trim() || undefined })}
+                <select
+                  disabled={readOnly} value={RESULTADO_OPTIONS.includes(resultado) ? resultado : 'Otro'}
+                  onChange={(e) => { setResultado(e.target.value); onUpdate({ resultado: e.target.value || undefined }); }}
                   className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
-                />
+                >
+                  {RESULTADO_OPTIONS.map((o) => <option key={o} value={o}>{o || '—'}</option>)}
+                </select>
+                {resultado === 'Otro' && (
+                  <input
+                    disabled={readOnly} placeholder="¿Cuál?" autoFocus
+                    onChange={(e) => setResultado(e.target.value)}
+                    onBlur={() => onUpdate({ resultado: resultado.trim() || undefined })}
+                    className="w-full mt-1.5 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+                  />
+                )}
               </label>
             </div>
           </div>
@@ -793,17 +869,27 @@ function LeadDrawer({
                 <label className="block">
                   <span className="text-[10.5px] text-text-muted">Producto</span>
                   <input
-                    disabled={readOnly} value={producto} placeholder="—"
+                    disabled={readOnly} value={producto} placeholder="—" list="productos-sugeridos"
                     onChange={(e) => setProducto(e.target.value)}
-                    onBlur={() => onUpdate({ producto: producto.trim() || undefined })}
+                    onBlur={() => {
+                      onUpdate({ producto: producto.trim() || undefined });
+                      const match = PRODUCTOS_SUGERIDOS.find((p) => p.nombre === producto.trim());
+                      if (match && !programValue) {
+                        setProgramValue(String(match.precio));
+                        onUpdate({ programValue: match.precio });
+                      }
+                    }}
                     className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-[12px]"
                   />
+                  <datalist id="productos-sugeridos">
+                    {PRODUCTOS_SUGERIDOS.map((p) => <option key={p.nombre} value={p.nombre} />)}
+                  </datalist>
                 </label>
                 <label className="block">
                   <span className="text-[10.5px] text-text-muted">Precio pactado</span>
-                  <input
-                    type="number" disabled={readOnly} value={programValue}
-                    onChange={(e) => setProgramValue(e.target.value)}
+                  <MoneyInput
+                    disabled={readOnly} value={programValue}
+                    onChangeRaw={setProgramValue}
                     onBlur={() => onUpdate({ programValue: programValue ? Number(programValue) : undefined })}
                     className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-[12px] font-mono"
                   />
@@ -825,9 +911,9 @@ function LeadDrawer({
                 <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
                   <label className="block">
                     <span className="text-[10px] text-text-muted">Pago 1 · monto</span>
-                    <input
-                      type="number" disabled={readOnly} value={cashCollected}
-                      onChange={(e) => setCashCollected(e.target.value)}
+                    <MoneyInput
+                      disabled={readOnly} value={cashCollected}
+                      onChangeRaw={setCashCollected}
                       onBlur={() => onUpdate({ cashCollected: Number(cashCollected) || 0 })}
                       className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px] font-mono"
                     />

@@ -154,8 +154,8 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
               <ClientLogo
                 client={client}
                 accent={accent}
-                className="h-5 min-w-[24px] px-1.5"
-                textClassName="text-[10px]"
+                className="h-8 w-8 p-1 shrink-0"
+                textClassName="text-xs"
               />
               <span className="truncate">{client.name}</span>
             </h3>

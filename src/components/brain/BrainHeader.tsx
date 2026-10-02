@@ -69,29 +69,31 @@ export function BrainHeader({ client }: { client: Client }) {
         </Link>
 
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <ClientLogo
-                client={client}
-                accent={accent}
-                className="h-6 min-w-[26px] px-1.5"
-                textClassName="text-[11px]"
-              />
-              {client.isAgency
-                ? <Badge tone="accent">🏛️ Espacio de Agencia</Badge>
-                : <>
-                    <Badge tone={statusTone[client.status]}>{statusText[client.status]}</Badge>
-                    <Badge tone="neutral">{client.businessType}</Badge>
-                    <Badge tone="info">{client.industry}</Badge>
-                  </>}
+          <div className="min-w-0 flex-1 flex items-start gap-4">
+            <ClientLogo
+              client={client}
+              accent={accent}
+              className="h-14 w-14 p-2 shadow-sm"
+              textClassName="text-lg"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {client.isAgency
+                  ? <Badge tone="accent">🏛️ Espacio de Agencia</Badge>
+                  : <>
+                      <Badge tone={statusTone[client.status]}>{statusText[client.status]}</Badge>
+                      <Badge tone="neutral">{client.businessType}</Badge>
+                      <Badge tone="info">{client.industry}</Badge>
+                    </>}
+              </div>
+              <h1 className="heading text-3xl lg:text-4xl font-bold leading-tight" style={{ color: accent }}>
+                {client.name}
+              </h1>
+              <p className="text-sm text-text-secondary mt-1">
+                {client.onboardingData.identity?.founderName} · {client.onboardingData.identity?.city},{' '}
+                {client.onboardingData.identity?.country}
+              </p>
             </div>
-            <h1 className="heading text-3xl lg:text-4xl font-bold leading-tight" style={{ color: accent }}>
-              {client.name}
-            </h1>
-            <p className="text-sm text-text-secondary mt-1">
-              {client.onboardingData.identity?.founderName} · {client.onboardingData.identity?.city},{' '}
-              {client.onboardingData.identity?.country}
-            </p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">

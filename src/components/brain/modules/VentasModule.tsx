@@ -242,7 +242,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                       <span className="text-[11px] font-semibold text-text-secondary">{LEAD_STAGE_LABELS[stage]}</span>
                       <span className="text-[10px] font-mono text-text-muted">{stageLeads.length}</span>
                     </header>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 max-h-[620px] overflow-y-auto pr-0.5">
                       {stageLeads.map((lead) => (
                         <div
                           key={lead.id}

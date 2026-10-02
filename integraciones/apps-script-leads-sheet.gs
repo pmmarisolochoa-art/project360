@@ -49,7 +49,11 @@ const PROP_ULTIMA_FILA = 'ultima_fila_procesada';
 const NOMBRE_HOJA_LOG = 'sync_log'; // se crea sola si no existe
 
 const ALIAS_COLUMNAS = {
-  leadId: ['lead_id', 'id', 'external_id'],
+  // Comparados contra la cabecera YA normalizada (sin guiones bajos) — un
+  // alias con "_" nunca calza y la columna queda sin encontrar en silencio.
+  // Bug real (02-oct-2026): "lead_id" nunca calzaba con "leadid", external_id
+  // salía siempre vacío y cada corrida del sync duplicaba los 64 leads.
+  leadId: ['leadid', 'id', 'externalid'],
   nombre: ['nombre', 'name'],
   correo: ['correo', 'email'],
   whatsapp: ['whatsapp', 'telefono', 'phone'],
@@ -58,7 +62,7 @@ const ALIAS_COLUMNAS = {
   ruta: ['ruta'],
   a5: ['a5'],
   b5: ['b5'],
-  utmSource: ['utm_source'],
+  utmSource: ['utmsource'],
 };
 
 const UTM_A_FUENTE = { ig: 'meta_ads', fb: 'meta_ads', an: 'meta_ads', instagram: 'meta_ads', facebook: 'meta_ads' };

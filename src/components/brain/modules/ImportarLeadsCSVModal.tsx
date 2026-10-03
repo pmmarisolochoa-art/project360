@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useLeadsStore } from '@/store/useLeadsStore';
+import { useTeamMembersStore } from '@/store/useTeamMembersStore';
 import { toast } from '@/store/useToastStore';
 import { LeadsRepo, LeadEventsRepo } from '@/services/repositories';
 import { descargarArchivo } from '@/utils/descargarArchivo';
@@ -50,7 +51,8 @@ export function ImportarLeadsCSVModal({ open, clientId, onClose }: Props) {
     if (!file) return;
     setNombreArchivo(file.name);
     const texto = await file.text();
-    const res = leerLeadsCSV(texto, clientId, useLeadsStore.getState().leads);
+    const equipo = useTeamMembersStore.getState().members.filter((m) => m.clientId === clientId);
+    const res = leerLeadsCSV(texto, clientId, useLeadsStore.getState().leads, equipo);
     setLectura(res);
     setMarcadas(new Set(res.filas.filter((f) => f.estado === 'nueva').map((f) => f.linea)));
   };

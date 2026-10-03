@@ -26,8 +26,12 @@ export function LeadsDuplicadosModal({
   const removeLead = useLeadsStore((s) => s.remove);
   const grupos = useMemo(() => detectarLeadsDuplicados(allLeads, clientId), [allLeads, clientId]);
 
+  // Los de confianza 'fuerte' (nombre+teléfono) se premarcan — es lo que se
+  // quiere el 99% de las veces. Los de confianza 'nombre' (sin teléfono en
+  // ninguno) NO se premarcan: hay más riesgo de ser dos personas distintas
+  // con el mismo nombre, así que toca confirmar cada uno a mano.
   const [marcados, setMarcados] = useState<Set<string>>(
-    () => new Set(grupos.flatMap((g) => g.eliminar.map((l) => l.id))),
+    () => new Set(grupos.filter((g) => g.confianza === 'fuerte').flatMap((g) => g.eliminar.map((l) => l.id))),
   );
   const [eliminando, setEliminando] = useState(false);
 
@@ -86,6 +90,11 @@ export function LeadsDuplicadosModal({
 
         {grupos.map((g) => (
           <div key={g.clave} className="rounded-[10px] border border-border-subtle p-3 space-y-2">
+            {g.confianza === 'nombre' && (
+              <div className="text-[10px] text-status-warning flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Mismo nombre exacto, sin teléfono en ninguno — confirma antes de eliminar.
+              </div>
+            )}
             <LeadRow lead={g.conservar} conservar marcado={false} onToggle={() => {}} />
             {g.eliminar.map((l) => (
               <LeadRow

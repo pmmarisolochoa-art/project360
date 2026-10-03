@@ -17,11 +17,19 @@ const normalizar = (s: string): string =>
 
 const normalizarTelefono = (s: string): string => s.replace(/\D/g, '');
 
-/** Clave de identidad: nombre normalizado + teléfono (solo si hay teléfono). */
-function claveLead(l: Lead): string | null {
+/**
+ * Clave de identidad fuerte: nombre + teléfono. Cuando NINGUNO de los dos
+ * trae teléfono (ej. leads de un CSV cuyo "Contacto" es un usuario de
+ * Instagram, no un número — caso real de Alejo, 03-oct-2026), se cae a
+ * nombre EXACTO normalizado solo, marcado como confianza `'nombre'` para que
+ * la bandeja lo distinga de un match por teléfono (más fuerte).
+ */
+function claveLead(l: Lead): { clave: string; confianza: 'fuerte' | 'nombre' } | null {
   const tel = l.telefono ? normalizarTelefono(l.telefono) : '';
-  if (!tel) return null; // sin teléfono no se arriesga un falso positivo
-  return `${normalizar(l.nombre)}::${tel}`;
+  if (tel) return { clave: `${normalizar(l.nombre)}::${tel}`, confianza: 'fuerte' };
+  const nombre = normalizar(l.nombre);
+  if (!nombre) return null;
+  return { clave: `nombre::${nombre}`, confianza: 'nombre' };
 }
 
 /**
@@ -46,6 +54,8 @@ function puntaje(l: Lead): number {
 
 export interface GrupoLeadsDuplicados {
   clave: string;
+  /** 'fuerte' = mismo nombre+teléfono. 'nombre' = mismo nombre exacto, sin teléfono en ninguno — revisar con más cuidado. */
+  confianza: 'fuerte' | 'nombre';
   /** El más completo del grupo — preseleccionado para CONSERVAR. */
   conservar: Lead;
   /** El resto del grupo — preseleccionados para ELIMINAR. */
@@ -53,21 +63,24 @@ export interface GrupoLeadsDuplicados {
 }
 
 export function detectarLeadsDuplicados(leads: Lead[], clientId: string): GrupoLeadsDuplicados[] {
-  const porClave = new Map<string, Lead[]>();
+  const porClave = new Map<string, { confianza: 'fuerte' | 'nombre'; grupo: Lead[] }>();
   for (const l of leads) {
     if (l.clientId !== clientId) continue;
     const k = claveLead(l);
     if (!k) continue;
-    const arr = porClave.get(k) ?? [];
-    arr.push(l);
-    porClave.set(k, arr);
+    const entry = porClave.get(k.clave) ?? { confianza: k.confianza, grupo: [] };
+    entry.grupo.push(l);
+    porClave.set(k.clave, entry);
   }
 
   const grupos: GrupoLeadsDuplicados[] = [];
-  for (const [clave, grupo] of porClave) {
+  for (const [clave, { confianza, grupo }] of porClave) {
     if (grupo.length < 2) continue;
     const ordenado = [...grupo].sort((a, b) => puntaje(b) - puntaje(a));
-    grupos.push({ clave, conservar: ordenado[0], eliminar: ordenado.slice(1) });
+    grupos.push({ clave, confianza, conservar: ordenado[0], eliminar: ordenado.slice(1) });
   }
-  return grupos.sort((a, b) => b.eliminar.length - a.eliminar.length);
+  // Fuerte primero (más confiable), y dentro de cada confianza, grupos más grandes primero.
+  return grupos.sort((a, b) =>
+    a.confianza === b.confianza ? b.eliminar.length - a.eliminar.length : a.confianza === 'fuerte' ? -1 : 1,
+  );
 }

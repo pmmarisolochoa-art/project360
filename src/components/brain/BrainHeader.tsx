@@ -7,7 +7,9 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { formatRelative } from '@/utils/dateHelpers';
 import { ReportsMenu } from '@/components/brain/ReportsMenu';
 import { useClientStore } from '@/store/useClientStore';
+import { useLeadsStore } from '@/store/useLeadsStore';
 import { avanceForClient } from '@/utils/avance';
+import { ventasForClient } from '@/utils/ventas';
 import { ClientLogo } from '@/components/brain/ClientLogo';
 
 const statusTone: Record<ClientStatus, 'success' | 'warning' | 'info' | 'neutral' | 'danger' | 'accent'> = {
@@ -31,6 +33,16 @@ export function BrainHeader({ client }: { client: Client }) {
   // Avance = % de tareas completadas del cliente (en vivo, no un valor fijo).
   const allTasks = useClientStore((s) => s.tasks);
   const avance = avanceForClient(allTasks, client.id);
+  /**
+   * ROAS real = cash collected (CRM) ÷ invertido (el último que se trajo con
+   * el botón "Actualizar" de la tarjeta de Clientes — el header no hace su
+   * propia llamada a Meta para no triplicar el mismo fetch que ya hacen
+   * ClientCard y MetricsModule). Mismo criterio que esos dos, 2026-10-02.
+   */
+  const allLeads = useLeadsStore((s) => s.leads);
+  const ventas = ventasForClient(allLeads, client.id);
+  const invertido = client.metrics.invertedThisMonth;
+  const roas = invertido && invertido > 0 && ventas.cashCollected > 0 ? ventas.cashCollected / invertido : null;
   return (
     <motion.header
       initial={{ opacity: 0, y: -8 }}
@@ -100,7 +112,7 @@ export function BrainHeader({ client }: { client: Client }) {
             <Kpi
               icon={<TrendingUp className="h-3.5 w-3.5" />}
               label="ROAS"
-              value={client.metrics.roas != null ? `${client.metrics.roas.toFixed(1)}x` : '—'}
+              value={roas != null ? `${roas.toFixed(1)}x` : '—'}
               accent={accent}
             />
             <Kpi

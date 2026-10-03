@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Upload, Search, Trash2 } from 'lucide-react';
+import { X, Plus, Upload, Search, Trash2, Copy } from 'lucide-react';
 import { ImportarLeadsCSVModal } from './ImportarLeadsCSVModal';
+import { LeadsDuplicadosModal } from './LeadsDuplicadosModal';
+import { detectarLeadsDuplicados } from '@/utils/leadDedup';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCES, LEAD_SOURCE_LABELS } from '@/types/lead';
@@ -84,6 +86,11 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [duplicadosOpen, setDuplicadosOpen] = useState(false);
+  // Alerta automática: se recalcula cada vez que cambian los leads del
+  // cliente, no solo al hacer click — así no hace falta acordarse de abrirla.
+  const gruposDuplicados = useMemo(() => detectarLeadsDuplicados(allLeads, client.id), [allLeads, client.id]);
+  const totalDuplicados = gruposDuplicados.reduce((n, g) => n + g.eliminar.length, 0);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<LeadStage | null>(null);
   /** Lead a punto de marcarse "Perdido" — pide el motivo antes de confirmar el movimiento. */
@@ -195,6 +202,15 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
             </div>
             {!readOnly && (
               <div className="flex items-center gap-2">
+                {totalDuplicados > 0 && (
+                  <button
+                    onClick={() => setDuplicadosOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-[8px] px-3 py-1.5 focus-ring text-status-warning border border-status-warning/40 bg-status-warning/5 hover:bg-status-warning/10"
+                    title="Leads que parecen repetidos (mismo nombre + teléfono)"
+                  >
+                    <Copy className="h-3.5 w-3.5" /> {totalDuplicados} duplicado{totalDuplicados === 1 ? '' : 's'}
+                  </button>
+                )}
                 <button
                   onClick={() => setImportOpen(true)}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-[8px] px-3 py-1.5 focus-ring text-text-secondary hover:bg-bg-hover border border-border-default"
@@ -394,6 +410,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
       </AnimatePresence>
 
       <ImportarLeadsCSVModal open={importOpen} clientId={client.id} onClose={() => setImportOpen(false)} />
+      <LeadsDuplicadosModal open={duplicadosOpen} clientId={client.id} onClose={() => setDuplicadosOpen(false)} />
     </div>
   );
 }

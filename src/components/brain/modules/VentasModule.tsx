@@ -83,6 +83,14 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
 
+  // Filtros del Pipeline (Kanban) — a propósito SEPARADOS del período de
+  // arriba: ese acota KPIs/gráficas, estos acotan qué tarjetas se ven, y son
+  // dos preguntas distintas ("¿cómo va el mes?" vs "¿qué tiene fulano hoy?").
+  const [filtroSetter, setFiltroSetter] = useState('');
+  const [filtroCloser, setFiltroCloser] = useState('');
+  const [filtroDesde, setFiltroDesde] = useState('');
+  const [filtroHasta, setFiltroHasta] = useState('');
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -102,12 +110,26 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   // Búsqueda del Pipeline — filtra las tarjetas del Kanban sin tocar los
   // KPIs/gráficas, que siguen sobre el universo completo del período.
   const termino = busqueda.trim().toLowerCase();
+  const hayFiltrosPipeline = !!(filtroSetter || filtroCloser || filtroDesde || filtroHasta);
   const leadsKanban = useMemo(() => {
-    if (!termino) return leads;
-    return leads.filter((l) =>
-      [l.nombre, l.telefono, l.email, l.perfilRol].some((v) => v?.toLowerCase().includes(termino)),
-    );
-  }, [leads, termino]);
+    let out = leads;
+    if (termino) {
+      out = out.filter((l) =>
+        [l.nombre, l.telefono, l.email, l.perfilRol].some((v) => v?.toLowerCase().includes(termino)),
+      );
+    }
+    if (filtroSetter) out = out.filter((l) => l.setterId === filtroSetter);
+    if (filtroCloser) out = out.filter((l) => l.closerId === filtroCloser);
+    if (filtroDesde) {
+      const d = new Date(filtroDesde);
+      out = out.filter((l) => new Date(l.createdAt) >= d);
+    }
+    if (filtroHasta) {
+      const h = new Date(filtroHasta + 'T23:59:59');
+      out = out.filter((l) => new Date(l.createdAt) <= h);
+    }
+    return out;
+  }, [leads, termino, filtroSetter, filtroCloser, filtroDesde, filtroHasta]);
 
   // El Pipeline (Kanban) siempre muestra el estado VIVO — el filtro de período
   // solo acota qué leads entran a los KPIs y las gráficas, no esconde tarjetas.
@@ -225,6 +247,52 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                   <Plus className="h-3.5 w-3.5" /> Nuevo lead
                 </button>
               </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap text-[12px]">
+            <select
+              value={filtroSetter}
+              onChange={(e) => setFiltroSetter(e.target.value)}
+              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+            >
+              <option value="">Todos los setters</option>
+              {setters.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+            <select
+              value={filtroCloser}
+              onChange={(e) => setFiltroCloser(e.target.value)}
+              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+            >
+              <option value="">Todos los closers</option>
+              {closers.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+            <span className="text-text-muted">Creado:</span>
+            <input
+              type="date"
+              value={filtroDesde}
+              onChange={(e) => setFiltroDesde(e.target.value)}
+              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+              aria-label="Desde"
+            />
+            <span className="text-text-muted">→</span>
+            <input
+              type="date"
+              value={filtroHasta}
+              onChange={(e) => setFiltroHasta(e.target.value)}
+              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+              aria-label="Hasta"
+            />
+            {hayFiltrosPipeline && (
+              <button
+                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); setFiltroDesde(''); setFiltroHasta(''); }}
+                className="text-text-secondary hover:text-text-primary underline"
+              >
+                Quitar filtros
+              </button>
+            )}
+            {hayFiltrosPipeline && (
+              <span className="text-text-muted">{leadsKanban.length} de {leads.length} leads</span>
             )}
           </div>
 

@@ -21,6 +21,8 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { formatRelative } from '@/utils/dateHelpers';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
+import { ventasForClient } from '@/utils/ventas';
+import { useLeadsStore } from '@/store/useLeadsStore';
 import { ClientLogo } from '@/components/brain/ClientLogo';
 import { fetchPlatformDailyMetrics, fetchMetaMetricasReales } from '@/services/adsIntegrations';
 import { toast } from '@/store/useToastStore';
@@ -49,6 +51,8 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
   const deleteClient = useClientStore((s) => s.deleteClient);
   const allTasks = useClientStore((s) => s.tasks);
   const avance = avanceForClient(allTasks, client.id);
+  const allLeads = useLeadsStore((s) => s.leads);
+  const ventas = ventasForClient(allLeads, client.id);
   const status = statusLabel[client.status];
   const accent = client.primaryColor;
   const [hover, setHover] = useState(false);
@@ -63,8 +67,8 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
 
   const m = client.metrics;
   const invertedValue = m.invertedThisMonth ?? client.monthlyAdsBudget;
-  const salesCount = m.salesCount ?? 0;
-  const revenue = m.revenueAccumulated ?? 0;
+  const salesCount = ventas.salesCount;
+  const revenue = ventas.revenueAccumulated;
   const target = m.monthlyRevenueTarget;
   const salesColor: 'success' | 'warning' | 'danger' | undefined = (() => {
     if (target == null || target === 0) return undefined;

@@ -22,7 +22,7 @@ import { formatRelative } from '@/utils/dateHelpers';
 import { useClientStore } from '@/store/useClientStore';
 import { avanceForClient } from '@/utils/avance';
 import { ClientLogo } from '@/components/brain/ClientLogo';
-import { fetchPlatformDailyMetrics } from '@/services/adsIntegrations';
+import { fetchPlatformDailyMetrics, fetchMetaMetricasReales } from '@/services/adsIntegrations';
 import { toast } from '@/store/useToastStore';
 import { ClientTasksHoverPanel } from './ClientTasksHoverPanel';
 import { cn } from '@/utils/cn';
@@ -91,6 +91,13 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
       }
       let total = 0;
       for (const platform of connectedPlatforms) {
+        // Meta con cuenta real conectada: dato real, no simulado. El resto de
+        // plataformas sigue simulado hasta que tengan su propia integración.
+        if (platform === 'meta' && client.metaAdAccountId) {
+          const reales = await fetchMetaMetricasReales(client.id, '30d');
+          total += reales.spend;
+          continue;
+        }
         const series = fetchPlatformDailyMetrics(client.id, platform, daysElapsed);
         total += series.reduce((s, d) => s + d.metrics.spend, 0);
       }

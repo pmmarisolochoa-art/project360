@@ -45,6 +45,7 @@ export function ClientInfoEditor({ client, onClose }: { client: Client; onClose:
           los informes y las fechas del proyecto.
         </p>
         <BrandBlock client={client} />
+        <IntegracionesBlock client={client} />
         {SECTIONS.map((s) => (
           <SectionBlock
             key={s.key}
@@ -117,6 +118,49 @@ function BrandBlock({ client }: { client: Client }) {
         <div className="flex justify-end pt-1">
           <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
             Guardar marca
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Cuenta publicitaria real de Meta — con esto conectado, "Invertido" en la
+ * tarjeta del cliente deja de ser simulado (ver `fetchMetaMetricasReales`).
+ */
+function IntegracionesBlock({ client }: { client: Client }) {
+  const updateClient = useClientStore((s) => s.updateClient);
+  const [metaAdAccountId, setMetaAdAccountId] = useState(client.metaAdAccountId ?? '');
+
+  const dirty = metaAdAccountId !== (client.metaAdAccountId ?? '');
+
+  const save = () => {
+    updateClient(client.id, { metaAdAccountId: metaAdAccountId || undefined });
+    toast.success('Integraciones actualizadas ✓');
+  };
+
+  return (
+    <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3 space-y-2.5">
+      <div className="text-sm font-semibold text-text-primary">🔌 Integraciones</div>
+      <label className="grid grid-cols-[1fr_1.4fr] gap-2 items-center">
+        <span className="text-[11px] text-text-secondary">Meta Ad Account ID</span>
+        <input
+          type="text"
+          value={metaAdAccountId}
+          onChange={(e) => setMetaAdAccountId(e.target.value.trim())}
+          placeholder="act_XXXXXXXXX"
+          className="bg-bg-elevated/60 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none font-mono"
+        />
+      </label>
+      <p className="text-[10px] text-text-muted">
+        En Administrador de anuncios de Meta, arriba de la tabla de campañas. Con esto puesto,
+        "Invertido" en la tarjeta del cliente trae el gasto real en vez de simulado.
+      </p>
+      {dirty && (
+        <div className="flex justify-end pt-1">
+          <Button size="sm" leftIcon={<Save className="h-3.5 w-3.5" />} onClick={save}>
+            Guardar integraciones
           </Button>
         </div>
       )}

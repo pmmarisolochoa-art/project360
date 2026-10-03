@@ -1,11 +1,42 @@
 import type { AdMetrics, AdPlatform } from '@/types/metrics';
+import { supabase } from './supabase';
 
 /**
  * Stub de integraciones de ADS.
- * Cuando el backend reciba las credenciales OAuth (Meta Graph API v18+,
- * Google Ads API v15, TikTok Marketing API), reemplazar `fetchPlatformDailyMetrics`
- * por la llamada real. La forma de salida ya es la final.
+ * Google Ads y TikTok Marketing API siguen simulados. Meta ya tiene datos
+ * reales — ver `fetchMetaMetricasReales` — para el cliente que tenga
+ * `metaAdAccountId` configurado.
  */
+
+export interface MetaMetricasReales {
+  cliente: string;
+  sinDatos: boolean;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  leads: number;
+}
+
+/**
+ * Trae métricas REALES de Meta Ads para un cliente, vía `api/meta/metricas.ts`
+ * (el token del Usuario del Sistema vive solo ahí, nunca en el navegador).
+ * Lanza si el cliente no tiene `metaAdAccountId` o si Meta rechaza la llamada.
+ */
+export async function fetchMetaMetricasReales(clientId: string, rango: '7d' | '30d' = '30d'): Promise<MetaMetricasReales> {
+  if (!supabase) throw new Error('Sin conexión a Supabase.');
+  const { data: sessionData } = await supabase.auth.getSession();
+  const tokenSesion = sessionData.session?.access_token;
+  if (!tokenSesion) throw new Error('Tu sesión expiró. Vuelve a entrar e inténtalo de nuevo.');
+
+  const res = await fetch(`/api/meta/metricas?clientId=${encodeURIComponent(clientId)}&rango=${rango}`, {
+    headers: { Authorization: `Bearer ${tokenSesion}` },
+  });
+  const data = await res.json().catch(() => ({})) as MetaMetricasReales & { error?: string };
+  if (!res.ok) throw new Error(data.error || 'No se pudieron traer las métricas de Meta.');
+  return data;
+}
 
 export interface DailyMetric {
   date: string;

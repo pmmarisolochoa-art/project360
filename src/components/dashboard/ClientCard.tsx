@@ -69,14 +69,23 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
   const invertedValue = m.invertedThisMonth ?? client.monthlyAdsBudget;
   const salesCount = ventas.salesCount;
   const revenue = ventas.revenueAccumulated;
+  const cashCollected = ventas.cashCollected;
   const target = m.monthlyRevenueTarget;
   const salesColor: 'success' | 'warning' | 'danger' | undefined = (() => {
     if (target == null || target === 0) return undefined;
-    const ratio = revenue / target;
+    const ratio = cashCollected / target;
     if (ratio >= 1) return 'success';
     if (ratio >= 0.7) return 'warning';
     return 'danger';
   })();
+  /**
+   * ROAS real = cash collected ÷ invertido (decidido con la founder,
+   * 2026-10-02): mide caja real, no el valor pactado — un cliente que cerró
+   * pero no ha pagado no debe inflar el ROAS. `null` cuando falta cualquiera
+   * de los dos lados (sin invertido real no hay denominador; sin cobro, el
+   * ratio sería 0x de forma engañosa en vez de "todavía no hay dato").
+   */
+  const roasReal = invertedValue > 0 && cashCollected > 0 ? cashCollected / invertedValue : null;
 
   const refreshInverted = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -98,7 +107,7 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
         // Meta con cuenta real conectada: dato real, no simulado. El resto de
         // plataformas sigue simulado hasta que tengan su propia integración.
         if (platform === 'meta' && client.metaAdAccountId) {
-          const reales = await fetchMetaMetricasReales(client.id, '30d');
+          const reales = await fetchMetaMetricasReales(client.id, 30);
           total += reales.spend;
           continue;
         }
@@ -240,24 +249,32 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
           </div>
         )}
 
-        {/* Métricas rápidas — 2 cols × 3 filas.
-            Ojo: las comparaciones van con `!= null` (no `!== null`) porque un
-            cliente recién creado llega sin métricas y `undefined !== null` es
-            true — eso hacía reventar `.toFixed()`. */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <Metric
-            icon={<TrendingUp className="h-3.5 w-3.5" />}
-            label="ROAS"
-            value={client.metrics.roas != null ? `${client.metrics.roas.toFixed(1)}x` : '—'}
-            accent={accent}
-            dim={client.metrics.roas == null}
-          />
+        {/*
+          Reestructurada 2026-10-02 (founder): arriba lo operativo (Tareas,
+          Próx. reunión); abajo el bloque financiero en 2×3, que es donde CRM
+          (Ventas: valor pactado vs cash collected, programas) se cruza con
+          ADS (Invertido real de Meta) para dar un ROAS real — antes ROAS
+          nunca tenía de dónde salir y quedaba en "—" para siempre.
+          Ojo: `!= null` (no `!==`) porque un cliente recién creado llega sin
+          métricas y `undefined !== null` es true — reventaba `.toFixed()`.
+        */}
+        <div className="grid grid-cols-2 gap-2 mb-2">
           <Metric
             icon={<CheckCircle2 className="h-3.5 w-3.5" />}
             label="Tareas"
             value={String(client.metrics.pendingTasksToday)}
             accent={accent}
           />
+          <Metric
+            icon={<CalendarClock className="h-3.5 w-3.5" />}
+            label="Próx. reunión"
+            value={client.metrics.nextMeetingAt ? formatRelative(client.metrics.nextMeetingAt) : '—'}
+            accent={accent}
+            small
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-3">
           <Metric
             icon={<DollarSign className="h-3.5 w-3.5" />}
             label="Invertido"
@@ -268,19 +285,35 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
           />
           <Metric
             icon={<ShoppingBag className="h-3.5 w-3.5" />}
-            label="Ventas"
-            value={`${salesCount} ventas`}
-            subLabel={revenue > 0 ? `$${revenue.toLocaleString()} fact.` : 'sin facturación aún'}
+            label="Valor de venta"
+            value={revenue > 0 ? `$${revenue.toLocaleString()}` : '—'}
+            subLabel="pactado (programValue)"
+            accent={accent}
+            dim={revenue === 0}
+          />
+          <Metric
+            icon={<DollarSign className="h-3.5 w-3.5" />}
+            label="Cash collected"
+            value={cashCollected > 0 ? `$${cashCollected.toLocaleString()}` : '—'}
+            subLabel="ya cobrado"
             accent={accent}
             valueColor={salesColor}
+            dim={cashCollected === 0}
+          />
+          <Metric
+            icon={<ShoppingBag className="h-3.5 w-3.5" />}
+            label="Programas vendidos"
+            value={String(salesCount)}
+            accent={accent}
             dim={salesCount === 0}
           />
           <Metric
-            icon={<CalendarClock className="h-3.5 w-3.5" />}
-            label="Próx. reunión"
-            value={client.metrics.nextMeetingAt ? formatRelative(client.metrics.nextMeetingAt) : '—'}
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+            label="ROAS"
+            value={roasReal != null ? `${roasReal.toFixed(1)}x` : '—'}
+            subLabel={roasReal != null ? 'cash collected ÷ invertido' : 'falta invertido o cobro'}
             accent={accent}
-            small
+            dim={roasReal == null}
           />
           <Metric
             icon={<Zap className="h-3.5 w-3.5" />}

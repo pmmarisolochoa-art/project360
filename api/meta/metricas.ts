@@ -58,8 +58,12 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // ── 3. Traer insights de Meta ────────────────────────────────────────────
-  const datePreset = new URL(req.url).searchParams.get('rango') === '7d' ? 'last_7d' : 'last_30d';
-  const fields = 'spend,impressions,clicks,ctr,cpc,actions';
+  // `dias` manda; `rango` (7d/30d) se mantiene por compatibilidad con llamadas viejas.
+  const params = new URL(req.url).searchParams;
+  const diasParam = Number(params.get('dias'));
+  const dias = [7, 14, 30].includes(diasParam) ? diasParam : (params.get('rango') === '7d' ? 7 : 30);
+  const datePreset = dias === 7 ? 'last_7d' : dias === 14 ? 'last_14d' : 'last_30d';
+  const fields = 'spend,impressions,clicks,ctr,cpc,reach,frequency,actions';
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${cliente.meta_ad_account_id}/insights` +
     `?fields=${fields}&date_preset=${datePreset}&access_token=${encodeURIComponent(metaToken)}`;
 
@@ -84,7 +88,10 @@ export default async function handler(req: Request): Promise<Response> {
     : null;
 
   if (!fila) {
-    return json({ cliente: cliente.name, sinDatos: true, spend: 0, impressions: 0, clicks: 0, ctr: 0, cpc: 0, leads: 0 });
+    return json({
+      cliente: cliente.name, sinDatos: true, spend: 0, impressions: 0, clicks: 0,
+      ctr: 0, cpc: 0, reach: 0, frequency: 0, leads: 0, dias,
+    });
   }
 
   const acciones = Array.isArray(fila.actions) ? (fila.actions as Array<{ action_type?: string; value?: string }>) : [];
@@ -98,8 +105,10 @@ export default async function handler(req: Request): Promise<Response> {
     clicks: Number(fila.clicks ?? 0),
     ctr: Number(fila.ctr ?? 0),
     cpc: Number(fila.cpc ?? 0),
+    reach: Number(fila.reach ?? 0),
+    frequency: Number(fila.frequency ?? 0),
     leads: leads ? Number(leads) : 0,
-    rango: datePreset,
+    dias,
   });
 }
 

@@ -13,12 +13,15 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
   fetchPlatformDailyMetrics, fetchCampaigns, platformLabel,
+  fetchMetaMetricasReales, type MetaMetricasReales,
   type Campaign, type DailyMetric,
 } from '@/services/adsIntegrations';
 import { generateMetricsInsights } from '@/services/claudeInsights';
 import { formatCurrency, formatNumber, formatPercent } from '@/utils/metricsCalculator';
 import { withAlpha } from '@/utils/colorGenerator';
 import { useClientStore } from '@/store/useClientStore';
+import { useLeadsStore } from '@/store/useLeadsStore';
+import { ventasForClient } from '@/utils/ventas';
 
 const PLATFORMS: AdPlatform[] = ['meta', 'google', 'tiktok', 'ga4'];
 const PERIODS = [
@@ -90,13 +93,76 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
     );
   }, [trend]);
 
-  const overallRoas = trend.length ? trend[trend.length - 1].metrics.roas : 0;
-  const overallCtr = totals.impressions > 0 ? totals.clicks / totals.impressions : 0;
-  const overallCpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
-  // Métricas derivadas de los datos disponibles (0D). Las que el modelo demo
-  // no tiene aún (resultados, compras, visitas, video) se muestran como "—".
-  const frecuencia = totals.reach > 0 ? totals.impressions / totals.reach : null;
-  const cpm = totals.impressions > 0 ? (totals.spend / totals.impressions) * 1000 : null;
+  /**
+   * Meta real — reemplaza SOLO la porción de Meta en los totales, no todo el
+   * módulo: si hay otras plataformas conectadas (todavía simuladas), sus
+   * números siguen sumando igual que antes. Mismo blend que ya se hizo en
+   * `ClientCard` (founder, 2026-10-02): real donde se puede, simulado donde
+   * no, nunca mezclado sin que se note.
+   */
+  const metaConectado = client.adsConnected.meta && !!client.metaAdAccountId;
+  const [metaReal, setMetaReal] = useState<MetaMetricasReales | null>(null);
+  const [metaRealError, setMetaRealError] = useState<string | null>(null);
+  const [loadingMetaReal, setLoadingMetaReal] = useState(false);
+
+  useEffect(() => {
+    if (!metaConectado) { setMetaReal(null); setMetaRealError(null); return; }
+    let vivo = true;
+    setLoadingMetaReal(true);
+    setMetaRealError(null);
+    const dias = (period === 7 || period === 14 || period === 30 ? period : 30) as 7 | 14 | 30;
+    fetchMetaMetricasReales(client.id, dias)
+      .then((r) => { if (vivo) setMetaReal(r); })
+      .catch((e: Error) => { if (vivo) setMetaRealError(e.message); })
+      .finally(() => { if (vivo) setLoadingMetaReal(false); });
+    return () => { vivo = false; };
+  }, [metaConectado, client.id, period]);
+
+  // Lo que la serie SIMULADA le atribuía a Meta, para poder restárselo del
+  // total y poner en su lugar el dato real — sin esto, Meta contaría doble.
+  const metaSimulada: DailyMetric[] = useMemo(
+    () => (connectedPlatforms.includes('meta') ? fetchPlatformDailyMetrics(client.id, 'meta', period) : []),
+    [client.id, connectedPlatforms, period],
+  );
+  const metaSimuladaAgg = useMemo(
+    () => metaSimulada.reduce(
+      (acc, d) => ({
+        spend: acc.spend + d.metrics.spend,
+        reach: acc.reach + d.metrics.reach,
+        impressions: acc.impressions + d.metrics.impressions,
+        clicks: acc.clicks + d.metrics.clicks,
+      }),
+      { spend: 0, reach: 0, impressions: 0, clicks: 0 },
+    ),
+    [metaSimulada],
+  );
+
+  const displayTotals = useMemo(() => {
+    if (!metaReal) return totals;
+    return {
+      spend: totals.spend - metaSimuladaAgg.spend + metaReal.spend,
+      reach: totals.reach - metaSimuladaAgg.reach + metaReal.reach,
+      impressions: totals.impressions - metaSimuladaAgg.impressions + metaReal.impressions,
+      clicks: totals.clicks - metaSimuladaAgg.clicks + metaReal.clicks,
+    };
+  }, [totals, metaReal, metaSimuladaAgg]);
+
+  const overallCtr = displayTotals.impressions > 0 ? displayTotals.clicks / displayTotals.impressions : 0;
+  const overallCpc = displayTotals.clicks > 0 ? displayTotals.spend / displayTotals.clicks : 0;
+  const frecuencia = displayTotals.reach > 0 ? displayTotals.impressions / displayTotals.reach : null;
+  const cpm = displayTotals.impressions > 0 ? (displayTotals.spend / displayTotals.impressions) * 1000 : null;
+
+  /**
+   * ROAS real = cash collected (CRM, leads 'ganado') ÷ invertido real.
+   * Decidido con la founder (2026-10-02): mide caja cobrada, no lo pactado.
+   * Sin invertido real (Meta no conectado) se cae al promedio simulado de
+   * siempre, para no mostrar "0x" como si fuera un dato real.
+   */
+  const allLeads = useLeadsStore((s) => s.leads);
+  const ventas = useMemo(() => ventasForClient(allLeads, client.id), [allLeads, client.id]);
+  const roasSimulado = trend.length ? trend[trend.length - 1].metrics.roas : 0;
+  const roasReal = metaReal && displayTotals.spend > 0 ? ventas.cashCollected / displayTotals.spend : null;
+  const overallRoas = roasReal ?? roasSimulado;
 
   useEffect(() => {
     setInsights(null);
@@ -114,22 +180,39 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
 
   return (
     <div className="space-y-4">
-      {/* Banner: datos de demostración hasta tener OAuth real con Meta/Google/TikTok/GA4 */}
-      <div
-        className="rounded-[12px] border p-3 flex items-start gap-3"
-        style={{
-          borderColor: 'rgba(245,158,11,0.3)',
-          background: 'rgba(245,158,11,0.08)',
-        }}
-      >
-        <FlaskConical className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#F59E0B' }} />
-        <div className="text-[12px] leading-relaxed text-text-secondary">
-          <strong className="text-text-primary">Datos de demostración.</strong>{' '}
-          Las métricas que ves aquí son simuladas (deterministas por cliente y plataforma).
-          Cuando conectes tu cuenta real de Meta Ads, Google Ads, TikTok o GA4 mediante OAuth,
-          el módulo cambiará automáticamente a datos reales.
+      {/* Banner: refleja qué parte es real y qué parte sigue simulada —
+          antes decía "simulado" aunque Meta ya estuviera conectado. */}
+      {metaConectado ? (
+        <div
+          className="rounded-[12px] border p-3 flex items-start gap-3"
+          style={{ borderColor: 'rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.08)' }}
+        >
+          <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#10B981' }} />
+          <div className="text-[12px] leading-relaxed text-text-secondary">
+            <strong className="text-text-primary">Meta Ads con datos reales.</strong>{' '}
+            {loadingMetaReal
+              ? 'Consultando Meta…'
+              : metaRealError
+                ? `No se pudo traer el dato real: ${metaRealError} — se muestra el simulado mientras tanto.`
+                : 'Inversión total, Alcance, Clics y CTR salen de la cuenta publicitaria real.'}
+            {connectedPlatforms.length > 1 && ' Las demás plataformas conectadas siguen simuladas.'}
+            {' '}El gráfico de tendencia y la tabla de campañas abajo siguen simulados (pendiente de construir).
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className="rounded-[12px] border p-3 flex items-start gap-3"
+          style={{ borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.08)' }}
+        >
+          <FlaskConical className="h-4 w-4 mt-0.5 shrink-0" style={{ color: '#F59E0B' }} />
+          <div className="text-[12px] leading-relaxed text-text-secondary">
+            <strong className="text-text-primary">Datos de demostración.</strong>{' '}
+            Las métricas que ves aquí son simuladas (deterministas por cliente y plataforma).
+            Conecta Meta Ads con un Ad Account ID real (Perfil → Editar información → Integraciones)
+            para que este módulo cambie a datos reales.
+          </div>
+        </div>
+      )}
 
       {/* Conexiones */}
       <div className="surface p-5">
@@ -190,9 +273,9 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
         <>
           {/* KPIs principales */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <KpiCard icon={<DollarSign className="h-4 w-4" />} label="Inversión total" value={formatCurrency(totals.spend)} accent={accent} />
-            <KpiCard icon={<Eye className="h-4 w-4" />} label="Alcance" value={formatNumber(totals.reach)} accent={accent} />
-            <KpiCard icon={<MousePointerClick className="h-4 w-4" />} label="Clics" value={formatNumber(totals.clicks)} accent={accent} />
+            <KpiCard icon={<DollarSign className="h-4 w-4" />} label="Inversión total" value={formatCurrency(displayTotals.spend)} accent={accent} />
+            <KpiCard icon={<Eye className="h-4 w-4" />} label="Alcance" value={formatNumber(displayTotals.reach)} accent={accent} />
+            <KpiCard icon={<MousePointerClick className="h-4 w-4" />} label="Clics" value={formatNumber(displayTotals.clicks)} accent={accent} />
             <KpiCard icon={<TrendingUp className="h-4 w-4" />} label="CTR" value={formatPercent(overallCtr, 2)} accent={accent} />
             <KpiCard icon={<TrendingUp className="h-4 w-4" />} label="ROAS hoy" value={`${overallRoas.toFixed(2)}x`} accent={accent} highlight />
           </div>
@@ -211,11 +294,11 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1.5">Rendimiento</div>
                 <MetricLine label="Presupuesto" value={client.monthlyAdsBudget ? formatCurrency(client.monthlyAdsBudget) : '—'} />
-                <MetricLine label="Importe gastado" value={formatCurrency(totals.spend)} />
+                <MetricLine label="Importe gastado" value={formatCurrency(displayTotals.spend)} />
                 <MetricLine label="Resultado" value="—" />
                 <MetricLine label="Costo por resultado" value="—" />
-                <MetricLine label="Impresiones" value={formatNumber(totals.impressions)} />
-                <MetricLine label="Alcance" value={formatNumber(totals.reach)} />
+                <MetricLine label="Impresiones" value={formatNumber(displayTotals.impressions)} />
+                <MetricLine label="Alcance" value={formatNumber(displayTotals.reach)} />
                 <MetricLine label="Frecuencia" value={frecuencia != null ? frecuencia.toFixed(2) : '—'} />
                 <MetricLine label="CPM" value={cpm != null ? formatCurrency(cpm) : '—'} />
                 <MetricLine label="Pagos iniciados" value="—" />
@@ -226,7 +309,7 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
               {/* Columna 2 — Clics */}
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1.5">Clics</div>
-                <MetricLine label="Clics en el enlace" value={formatNumber(totals.clicks)} />
+                <MetricLine label="Clics en el enlace" value={formatNumber(displayTotals.clicks)} />
                 <MetricLine label="CPC" value={formatCurrency(overallCpc)} />
                 <MetricLine label="CTR" value={formatPercent(overallCtr, 2)} />
                 <MetricLine label="Visitas a la página de destino" value="—" />

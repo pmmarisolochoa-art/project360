@@ -16,7 +16,10 @@ export interface MetaMetricasReales {
   clicks: number;
   ctr: number;
   cpc: number;
+  reach: number;
+  frequency: number;
   leads: number;
+  dias: number;
 }
 
 /**
@@ -24,13 +27,13 @@ export interface MetaMetricasReales {
  * (el token del Usuario del Sistema vive solo ahí, nunca en el navegador).
  * Lanza si el cliente no tiene `metaAdAccountId` o si Meta rechaza la llamada.
  */
-export async function fetchMetaMetricasReales(clientId: string, rango: '7d' | '30d' = '30d'): Promise<MetaMetricasReales> {
+export async function fetchMetaMetricasReales(clientId: string, dias: 7 | 14 | 30 = 30): Promise<MetaMetricasReales> {
   if (!supabase) throw new Error('Sin conexión a Supabase.');
   const { data: sessionData } = await supabase.auth.getSession();
   const tokenSesion = sessionData.session?.access_token;
   if (!tokenSesion) throw new Error('Tu sesión expiró. Vuelve a entrar e inténtalo de nuevo.');
 
-  const res = await fetch(`/api/meta/metricas?clientId=${encodeURIComponent(clientId)}&rango=${rango}`, {
+  const res = await fetch(`/api/meta/metricas?clientId=${encodeURIComponent(clientId)}&dias=${dias}`, {
     headers: { Authorization: `Bearer ${tokenSesion}` },
   });
   const data = await res.json().catch(() => ({})) as MetaMetricasReales & { error?: string };

@@ -107,7 +107,7 @@ export function ClientCard({ client, index = 0 }: { client: Client; index?: numb
         // Meta con cuenta real conectada: dato real, no simulado. El resto de
         // plataformas sigue simulado hasta que tengan su propia integración.
         if (platform === 'meta' && client.metaAdAccountId) {
-          const reales = await fetchMetaMetricasReales(client.id, 30);
+          const reales = await fetchMetaMetricasReales(client.id, { dias: 30 });
           total += reales.spend;
           continue;
         }

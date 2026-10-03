@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
   fetchPlatformDailyMetrics, fetchCampaigns, platformLabel,
-  fetchMetaMetricasReales, type MetaMetricasReales,
+  fetchMetaMetricasReales, fetchMetaCampanasReales,
+  type MetaMetricasReales, type CampanaMetaReal, type RangoMeta,
   type Campaign, type DailyMetric,
 } from '@/services/adsIntegrations';
 import { generateMetricsInsights } from '@/services/claudeInsights';
@@ -104,19 +105,36 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
   const [metaReal, setMetaReal] = useState<MetaMetricasReales | null>(null);
   const [metaRealError, setMetaRealError] = useState<string | null>(null);
   const [loadingMetaReal, setLoadingMetaReal] = useState(false);
+  // Rango libre desde/hasta — si ambos están, manda sobre los botones 7/14/30.
+  const [desdeCustom, setDesdeCustom] = useState('');
+  const [hastaCustom, setHastaCustom] = useState('');
+  const rangoCustomActivo = !!desdeCustom && !!hastaCustom;
+  const rangoMeta: RangoMeta = rangoCustomActivo
+    ? { desde: desdeCustom, hasta: hastaCustom }
+    : { dias: (period === 7 || period === 14 || period === 30 ? period : 30) as 7 | 14 | 30 };
+
+  const [campanasReales, setCampanasReales] = useState<CampanaMetaReal[] | null>(null);
+  const [loadingCampanas, setLoadingCampanas] = useState(false);
 
   useEffect(() => {
-    if (!metaConectado) { setMetaReal(null); setMetaRealError(null); return; }
+    if (!metaConectado) { setMetaReal(null); setMetaRealError(null); setCampanasReales(null); return; }
     let vivo = true;
     setLoadingMetaReal(true);
     setMetaRealError(null);
-    const dias = (period === 7 || period === 14 || period === 30 ? period : 30) as 7 | 14 | 30;
-    fetchMetaMetricasReales(client.id, dias)
+    fetchMetaMetricasReales(client.id, rangoMeta)
       .then((r) => { if (vivo) setMetaReal(r); })
       .catch((e: Error) => { if (vivo) setMetaRealError(e.message); })
       .finally(() => { if (vivo) setLoadingMetaReal(false); });
+
+    setLoadingCampanas(true);
+    fetchMetaCampanasReales(client.id, rangoMeta)
+      .then((c) => { if (vivo) setCampanasReales(c); })
+      .catch(() => { if (vivo) setCampanasReales(null); }) // el banner/error ya lo cubre metaRealError
+      .finally(() => { if (vivo) setLoadingCampanas(false); });
+
     return () => { vivo = false; };
-  }, [metaConectado, client.id, period]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rangoMeta es un objeto nuevo cada render; se comparan sus campos primitivos abajo
+  }, [metaConectado, client.id, period, desdeCustom, hastaCustom]);
 
   // Lo que la serie SIMULADA le atribuía a Meta, para poder restárselo del
   // total y poner en su lugar el dato real — sin esto, Meta contaría doble.
@@ -196,7 +214,7 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
                 ? `No se pudo traer el dato real: ${metaRealError} — se muestra el simulado mientras tanto.`
                 : 'Inversión total, Alcance, Clics y CTR salen de la cuenta publicitaria real.'}
             {connectedPlatforms.length > 1 && ' Las demás plataformas conectadas siguen simuladas.'}
-            {' '}El gráfico de tendencia y la tabla de campañas abajo siguen simulados (pendiente de construir).
+            {' '}Campañas activas también es real. El gráfico de tendencia diaria sigue simulado (pendiente de construir).
           </div>
         </div>
       ) : (
@@ -211,6 +229,38 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
             Conecta Meta Ads con un Ad Account ID real (Perfil → Editar información → Integraciones)
             para que este módulo cambie a datos reales.
           </div>
+        </div>
+      )}
+
+      {/* Rango libre de fecha para Meta real — manda sobre los botones 7/14/30
+          cuando ambos campos están llenos. Decidido con la founder, 2026-10-02:
+          para comparar un período específico (ej. desde que arrancó una campaña). */}
+      {metaConectado && (
+        <div className="surface p-3 flex flex-wrap items-center gap-3">
+          <span className="text-[11px] text-text-muted font-medium">Rango personalizado (Meta):</span>
+          <input
+            type="date"
+            value={desdeCustom}
+            onChange={(e) => setDesdeCustom(e.target.value)}
+            className="bg-bg-base/40 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none"
+            aria-label="Desde"
+          />
+          <span className="text-text-muted text-xs">→</span>
+          <input
+            type="date"
+            value={hastaCustom}
+            onChange={(e) => setHastaCustom(e.target.value)}
+            className="bg-bg-base/40 border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none"
+            aria-label="Hasta"
+          />
+          {rangoCustomActivo && (
+            <button
+              onClick={() => { setDesdeCustom(''); setHastaCustom(''); }}
+              className="text-[11px] text-text-secondary hover:text-text-primary underline"
+            >
+              Quitar rango · volver a {PERIODS.find((p) => p.value === period)?.label}
+            </button>
+          )}
         </div>
       )}
 
@@ -295,8 +345,8 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
                 <div className="text-[10px] uppercase tracking-wider text-text-muted mb-1.5">Rendimiento</div>
                 <MetricLine label="Presupuesto" value={client.monthlyAdsBudget ? formatCurrency(client.monthlyAdsBudget) : '—'} />
                 <MetricLine label="Importe gastado" value={formatCurrency(displayTotals.spend)} />
-                <MetricLine label="Resultado" value="—" />
-                <MetricLine label="Costo por resultado" value="—" />
+                <MetricLine label="Resultado (leads)" value={metaReal ? formatNumber(metaReal.leads) : '—'} />
+                <MetricLine label="Costo por resultado (CPL)" value={metaReal && metaReal.leads > 0 ? formatCurrency(metaReal.cpl) : '—'} />
                 <MetricLine label="Impresiones" value={formatNumber(displayTotals.impressions)} />
                 <MetricLine label="Alcance" value={formatNumber(displayTotals.reach)} />
                 <MetricLine label="Frecuencia" value={frecuencia != null ? frecuencia.toFixed(2) : '—'} />
@@ -379,56 +429,104 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
             </div>
           </div>
 
-          {/* Campañas */}
+          {/* Campañas — reales si Meta está conectado, simuladas si no. */}
           <div className="surface p-5">
             <header className="flex items-center justify-between mb-3">
-              <h3 className="heading text-base font-bold">Campañas activas</h3>
-              <span className="text-[11px] text-text-muted">{campaigns.length} campañas</span>
+              <h3 className="heading text-base font-bold">
+                Campañas {metaConectado && campanasReales ? '(Meta, reales)' : ''}
+              </h3>
+              <span className="text-[11px] text-text-muted">
+                {loadingCampanas
+                  ? 'Consultando Meta…'
+                  : `${metaConectado && campanasReales ? campanasReales.length : campaigns.length} campañas`}
+              </span>
             </header>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-subtle">
-                    <th className="py-2 pr-3">Campaña</th>
-                    <th className="py-2 pr-3">Plataforma</th>
-                    <th className="py-2 pr-3">Estado</th>
-                    <th className="py-2 pr-3 text-right">Spend</th>
-                    <th className="py-2 pr-3 text-right">CTR</th>
-                    <th className="py-2 pr-3 text-right">CPC</th>
-                    <th className="py-2 pr-3 text-right">CPL</th>
-                    <th className="py-2 pr-3 text-right">ROAS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.map((c, i) => (
-                    <motion.tr
-                      key={c.id}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.03 }}
-                      className="border-b border-border-subtle/40 hover:bg-bg-elevated/30 transition"
-                    >
-                      <td className="py-2.5 pr-3 text-text-primary">{c.name}</td>
-                      <td className="py-2.5 pr-3 text-text-secondary">{platformLabel(c.platform)}</td>
-                      <td className="py-2.5 pr-3">
-                        <Badge tone={c.status === 'active' ? 'success' : c.status === 'paused' ? 'warning' : 'neutral'}>
-                          {c.status === 'active' ? 'Activa' : c.status === 'paused' ? 'Pausada' : 'Finalizada'}
-                        </Badge>
-                      </td>
-                      <td className="py-2.5 pr-3 text-right text-text-primary">{formatCurrency(c.spend)}</td>
-                      <td className="py-2.5 pr-3 text-right">{formatPercent(c.ctr, 2)}</td>
-                      <td className="py-2.5 pr-3 text-right">{formatCurrency(c.cpc)}</td>
-                      <td className="py-2.5 pr-3 text-right">{formatCurrency(c.cpl)}</td>
-                      <td
-                        className="py-2.5 pr-3 text-right font-semibold"
-                        style={{ color: c.roas >= 2.5 ? '#10B981' : c.roas >= 1.5 ? '#F59E0B' : '#EF4444' }}
+              {metaConectado && campanasReales ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-subtle">
+                      <th className="py-2 pr-3">Campaña</th>
+                      <th className="py-2 pr-3">Estado</th>
+                      <th className="py-2 pr-3 text-right">Spend</th>
+                      <th className="py-2 pr-3 text-right">CTR</th>
+                      <th className="py-2 pr-3 text-right">CPC</th>
+                      <th className="py-2 pr-3 text-right">Leads</th>
+                      <th className="py-2 pr-3 text-right">CPL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campanasReales.map((c, i) => (
+                      <motion.tr
+                        key={c.id}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="border-b border-border-subtle/40 hover:bg-bg-elevated/30 transition"
                       >
-                        {c.roas.toFixed(2)}x
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
+                        <td className="py-2.5 pr-3 text-text-primary">{c.nombre}</td>
+                        <td className="py-2.5 pr-3">
+                          <Badge tone={c.estado === 'ACTIVE' ? 'success' : c.estado === 'PAUSED' ? 'warning' : 'neutral'}>
+                            {c.estado}
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 pr-3 text-right text-text-primary">{formatCurrency(c.spend)}</td>
+                        <td className="py-2.5 pr-3 text-right">{formatPercent(c.ctr / 100, 2)}</td>
+                        <td className="py-2.5 pr-3 text-right">{formatCurrency(c.cpc)}</td>
+                        <td className="py-2.5 pr-3 text-right">{formatNumber(c.leads)}</td>
+                        <td className="py-2.5 pr-3 text-right">{c.leads > 0 ? formatCurrency(c.cpl) : '—'}</td>
+                      </motion.tr>
+                    ))}
+                    {campanasReales.length === 0 && (
+                      <tr><td colSpan={7} className="py-6 text-center text-text-muted">Sin campañas en esta cuenta.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wider text-text-muted border-b border-border-subtle">
+                      <th className="py-2 pr-3">Campaña</th>
+                      <th className="py-2 pr-3">Plataforma</th>
+                      <th className="py-2 pr-3">Estado</th>
+                      <th className="py-2 pr-3 text-right">Spend</th>
+                      <th className="py-2 pr-3 text-right">CTR</th>
+                      <th className="py-2 pr-3 text-right">CPC</th>
+                      <th className="py-2 pr-3 text-right">CPL</th>
+                      <th className="py-2 pr-3 text-right">ROAS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaigns.map((c, i) => (
+                      <motion.tr
+                        key={c.id}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="border-b border-border-subtle/40 hover:bg-bg-elevated/30 transition"
+                      >
+                        <td className="py-2.5 pr-3 text-text-primary">{c.name}</td>
+                        <td className="py-2.5 pr-3 text-text-secondary">{platformLabel(c.platform)}</td>
+                        <td className="py-2.5 pr-3">
+                          <Badge tone={c.status === 'active' ? 'success' : c.status === 'paused' ? 'warning' : 'neutral'}>
+                            {c.status === 'active' ? 'Activa' : c.status === 'paused' ? 'Pausada' : 'Finalizada'}
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 pr-3 text-right text-text-primary">{formatCurrency(c.spend)}</td>
+                        <td className="py-2.5 pr-3 text-right">{formatPercent(c.ctr, 2)}</td>
+                        <td className="py-2.5 pr-3 text-right">{formatCurrency(c.cpc)}</td>
+                        <td className="py-2.5 pr-3 text-right">{formatCurrency(c.cpl)}</td>
+                        <td
+                          className="py-2.5 pr-3 text-right font-semibold"
+                          style={{ color: c.roas >= 2.5 ? '#10B981' : c.roas >= 1.5 ? '#F59E0B' : '#EF4444' }}
+                        >
+                          {c.roas.toFixed(2)}x
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
 

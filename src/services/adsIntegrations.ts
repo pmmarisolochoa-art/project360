@@ -19,7 +19,36 @@ export interface MetaMetricasReales {
   reach: number;
   frequency: number;
   leads: number;
+  cpl: number;
   dias: number;
+  desde?: string;
+  hasta?: string;
+}
+
+export interface CampanaMetaReal {
+  id: string;
+  nombre: string;
+  estado: string;
+  spend: number;
+  ctr: number;
+  cpc: number;
+  leads: number;
+  cpl: number;
+}
+
+/** Período para una consulta real a Meta: días relativos o un rango libre desde/hasta. */
+export type RangoMeta = { dias: 7 | 14 | 30 } | { desde: string; hasta: string };
+
+function qsRango(rango: RangoMeta): string {
+  return 'desde' in rango ? `desde=${rango.desde}&hasta=${rango.hasta}` : `dias=${rango.dias}`;
+}
+
+async function tokenSesionActual(): Promise<string> {
+  if (!supabase) throw new Error('Sin conexión a Supabase.');
+  const { data: sessionData } = await supabase.auth.getSession();
+  const t = sessionData.session?.access_token;
+  if (!t) throw new Error('Tu sesión expiró. Vuelve a entrar e inténtalo de nuevo.');
+  return t;
 }
 
 /**
@@ -27,18 +56,25 @@ export interface MetaMetricasReales {
  * (el token del Usuario del Sistema vive solo ahí, nunca en el navegador).
  * Lanza si el cliente no tiene `metaAdAccountId` o si Meta rechaza la llamada.
  */
-export async function fetchMetaMetricasReales(clientId: string, dias: 7 | 14 | 30 = 30): Promise<MetaMetricasReales> {
-  if (!supabase) throw new Error('Sin conexión a Supabase.');
-  const { data: sessionData } = await supabase.auth.getSession();
-  const tokenSesion = sessionData.session?.access_token;
-  if (!tokenSesion) throw new Error('Tu sesión expiró. Vuelve a entrar e inténtalo de nuevo.');
-
-  const res = await fetch(`/api/meta/metricas?clientId=${encodeURIComponent(clientId)}&dias=${dias}`, {
+export async function fetchMetaMetricasReales(clientId: string, rango: RangoMeta = { dias: 30 }): Promise<MetaMetricasReales> {
+  const tokenSesion = await tokenSesionActual();
+  const res = await fetch(`/api/meta/metricas?clientId=${encodeURIComponent(clientId)}&${qsRango(rango)}`, {
     headers: { Authorization: `Bearer ${tokenSesion}` },
   });
   const data = await res.json().catch(() => ({})) as MetaMetricasReales & { error?: string };
   if (!res.ok) throw new Error(data.error || 'No se pudieron traer las métricas de Meta.');
   return data;
+}
+
+/** Trae las campañas REALES de Meta (una por una, con su insight del rango pedido). */
+export async function fetchMetaCampanasReales(clientId: string, rango: RangoMeta = { dias: 30 }): Promise<CampanaMetaReal[]> {
+  const tokenSesion = await tokenSesionActual();
+  const res = await fetch(`/api/meta/campanas?clientId=${encodeURIComponent(clientId)}&${qsRango(rango)}`, {
+    headers: { Authorization: `Bearer ${tokenSesion}` },
+  });
+  const data = await res.json().catch(() => ({})) as { campanas?: CampanaMetaReal[]; error?: string };
+  if (!res.ok) throw new Error(data.error || 'No se pudieron traer las campañas de Meta.');
+  return data.campanas ?? [];
 }
 
 export interface DailyMetric {

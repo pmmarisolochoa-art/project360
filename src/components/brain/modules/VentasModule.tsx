@@ -487,12 +487,23 @@ function KpisTab({
   );
 }
 
+/**
+ * Comisión = % de cash collected, no del valor pactado (decidido con la
+ * founder, 2026-10-02): se paga sobre lo YA cobrado, no sobre lo que falta.
+ * 5% setter / 10% closer — mismos porcentajes para todos los roles por ahora,
+ * no configurable por cliente (si hace falta variar por cliente, se mueve a
+ * `src/config/`, pero no inventamos esa flexibilidad sin que alguien la pida).
+ */
+const COMISION_PCT: Record<string, number> = { Setter: 0.05, Closer: 0.10 };
+
 function PersonKpiCard({ nombre, leads, accent, rolLabel }: { nombre: string; leads: Lead[]; accent: string; rolLabel: string }) {
   const ganados = leads.filter((l) => l.etapa === 'ganado');
   const perdidos = leads.filter((l) => l.etapa === 'perdido');
   const cerrados = ganados.length + perdidos.length;
   const tasaCierre = cerrados > 0 ? Math.round((ganados.length / cerrados) * 100) : 0;
   const cashCollected = ganados.reduce((s, l) => s + (l.cashCollected ?? 0), 0);
+  const pctComision = COMISION_PCT[rolLabel] ?? 0;
+  const comision = cashCollected * pctComision;
   return (
     <div className="rounded-[12px] border border-border-default bg-bg-surface p-3.5">
       <div className="flex items-center justify-between mb-2.5">
@@ -516,6 +527,14 @@ function PersonKpiCard({ nombre, leads, accent, rolLabel }: { nombre: string; le
           <div className="text-text-muted text-[9.5px] uppercase tracking-wide">Cash collected</div>
           <div className="font-mono font-semibold" style={{ color: accent }}>${cashCollected.toLocaleString('es-CO')}</div>
         </div>
+        {pctComision > 0 && (
+          <div className="col-span-2 pt-1.5 mt-0.5 border-t border-border-subtle/50">
+            <div className="text-text-muted text-[9.5px] uppercase tracking-wide">
+              Comisión ({Math.round(pctComision * 100)}% cash collected)
+            </div>
+            <div className="font-mono font-semibold" style={{ color: '#0CA30C' }}>${comision.toLocaleString('es-CO')}</div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -58,14 +58,23 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // ── 3. Traer insights de Meta ────────────────────────────────────────────
-  // `dias` manda; `rango` (7d/30d) se mantiene por compatibilidad con llamadas viejas.
+  // `desde`/`hasta` (YYYY-MM-DD) mandan si ambos vienen — rango libre. Si no,
+  // `dias` (7/14/30) vía date_preset. `rango` (7d/30d) queda por compatibilidad.
   const params = new URL(req.url).searchParams;
+  const desde = params.get('desde');
+  const hasta = params.get('hasta');
+  const rangoLibre = !!desde && !!hasta && /^\d{4}-\d{2}-\d{2}$/.test(desde) && /^\d{4}-\d{2}-\d{2}$/.test(hasta);
+
   const diasParam = Number(params.get('dias'));
   const dias = [7, 14, 30].includes(diasParam) ? diasParam : (params.get('rango') === '7d' ? 7 : 30);
   const datePreset = dias === 7 ? 'last_7d' : dias === 14 ? 'last_14d' : 'last_30d';
+
   const fields = 'spend,impressions,clicks,ctr,cpc,reach,frequency,actions';
+  const tiempoQS = rangoLibre
+    ? `time_range=${encodeURIComponent(JSON.stringify({ since: desde, until: hasta }))}`
+    : `date_preset=${datePreset}`;
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${cliente.meta_ad_account_id}/insights` +
-    `?fields=${fields}&date_preset=${datePreset}&access_token=${encodeURIComponent(metaToken)}`;
+    `?fields=${fields}&${tiempoQS}&access_token=${encodeURIComponent(metaToken)}`;
 
   let payload: { data?: unknown[]; error?: { message?: string; code?: number } };
   try {
@@ -90,25 +99,32 @@ export default async function handler(req: Request): Promise<Response> {
   if (!fila) {
     return json({
       cliente: cliente.name, sinDatos: true, spend: 0, impressions: 0, clicks: 0,
-      ctr: 0, cpc: 0, reach: 0, frequency: 0, leads: 0, dias,
+      ctr: 0, cpc: 0, reach: 0, frequency: 0, leads: 0, cpl: 0,
+      dias, desde: rangoLibre ? desde : undefined, hasta: rangoLibre ? hasta : undefined,
     });
   }
 
   const acciones = Array.isArray(fila.actions) ? (fila.actions as Array<{ action_type?: string; value?: string }>) : [];
-  const leads = acciones.find((a) => a.action_type === 'lead')?.value;
+  const leads = Number(acciones.find((a) => a.action_type === 'lead')?.value ?? 0);
+  const spend = Number(fila.spend ?? 0);
 
   return json({
     cliente: cliente.name,
     sinDatos: false,
-    spend: Number(fila.spend ?? 0),
+    spend,
     impressions: Number(fila.impressions ?? 0),
     clicks: Number(fila.clicks ?? 0),
     ctr: Number(fila.ctr ?? 0),
     cpc: Number(fila.cpc ?? 0),
     reach: Number(fila.reach ?? 0),
     frequency: Number(fila.frequency ?? 0),
-    leads: leads ? Number(leads) : 0,
+    leads,
+    // Costo por resultado — el "resultado" de Alejo es un lead (formulario/
+    // mensajes), decidido con la founder (2026-10-02), no una compra.
+    cpl: leads > 0 ? spend / leads : 0,
     dias,
+    desde: rangoLibre ? desde : undefined,
+    hasta: rangoLibre ? hasta : undefined,
   });
 }
 

@@ -10,13 +10,14 @@ Sesión larga (02→04 oct) con Alejo Luengas como primer caso real de: personal
 
 1. ~~Acceso de Omar mal guardado~~ — **CORREGIDO a mano en Supabase (04-oct).** Falta solo que Omar cierre y vuelva a abrir sesión para que se refresque.
 2. ~~Migraciones 057–060~~ — **confirmado que corrieron (04-oct)** (proyecciones, fuente whatsapp/dm, acceso de miembro a leads).
-3. **Jessica (Closer) — nunca se completó su invitación.** Se probó con un correo (`sv500285@gmail.com`) que no aparecía en Supabase Auth tras un intento "exitoso" — no se llegó a diagnosticar la causa (se priorizó el bug de Omar, que resultó ser el mismo origen: acceso mal guardado + contraseña no vigente). Revisar con el fix ya puesto.
+3. ~~Jessica (Closer) sin invitar~~ — **RESUELTO (04-oct).** Con el fix del formulario ya desplegado, se invitó de nuevo, entró, no ve Planeación, y su Pipeline de Ventas carga con datos reales. Setter + Closer quedan verificados de punta a punta.
 4. **"Olvidé mi contraseña"** (login → reset-password) construido y la URL de redirect ya está en el allowlist de Supabase — falta una prueba de punta a punta confirmada (se intentó pero se enredó con el tema de acceso de Omar).
 5. **Funnel financiero — "según números propios"**: hecho el arranque por benchmark de nicho + el banner de "aplicar datos reales" (cierre/ticket desde CRM). Lo que falta, si se quiere completar la visión original: CTR/conversión de landing reales (hoy sólo Métricas los tiene vía Meta, no se jaló a Proyecciones a propósito, para no duplicar el fetch).
 6. **"Campañas activas" y tendencia diaria en Métricas**: la tabla de campañas ya es real (Meta); el GRÁFICO de tendencia por día sigue simulado — declarado en el banner, no resuelto.
 7. **Reporte mensual en PDF** (`reportsPdf.ts:492-493`) tiene el mismo bug que ya se arregló en la tarjeta de Clientes: usa `client.metrics.salesCount/revenueAccumulated` (guardado, nunca se recalcula) en vez de derivarlo en vivo de los leads. Anotado, no tocado.
 8. **CSV de leads**: cada vez que aparece una fuente no reconocida (van "Nuevo seguidor", "DM directo"...) se agrega bajo pedido. Puede que falten más al reimportar el archivo completo de Alejo — revisar si salen más rechazos.
 9. **Plantilla estándar de accesos por rol** (Setter/Closer → `management`+`ventas` editor; Admin del cliente → `pm`+`finanzas`+`ventas` editor) queda documentada arriba para aplicarse a **cualquier cliente nuevo**, no solo Alejo.
+10. **Falta invitar a Alejo Luengas y Santi como "admin del cliente"** (los 3 departamentos marcados) — Setter y Closer ya quedaron verificados; falta este último paso para cerrar el tema de accesos de Alejo por completo.
 
 ---
 

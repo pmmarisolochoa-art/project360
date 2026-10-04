@@ -6,6 +6,7 @@ import type {
 } from '@/types/projection';
 import type { ProjectType } from '@/types/client';
 import { ProjectionsRepo } from '@/services/repositories';
+import { getBenchmark } from '@/services/benchmarks';
 
 /**
  * Auto-save debounced por clientId — evita golpear Supabase en cada keystroke.
@@ -41,7 +42,7 @@ const existing = saveTimers.get(clientId);
 
 interface Store {
   states: Record<string, ProjectionState>;
-  ensure: (clientId: string, defaults: Partial<ProjectionState> & { projectType?: ProjectType }) => void;
+  ensure: (clientId: string, defaults: Partial<ProjectionState> & { projectType?: ProjectType; industry?: string }) => void;
   patchFunnel: (clientId: string, patch: Partial<FunnelInputs>) => void;
   patchMarket: (clientId: string, patch: Partial<MarketSizing>) => void;
   patchDebriefing: (clientId: string, patch: DebriefingSections) => void;
@@ -190,15 +191,25 @@ function defaultPhases(projectType: ProjectType): ProjectPhase[] {
   return base;
 }
 
-function defaultFunnel(monthlyAdsBudget: number, averageTicket: number): FunnelInputs {
+/**
+ * Arranca con el benchmark REAL del nicho del cliente (ver
+ * `services/benchmarks.ts` — agregado de reportes públicos), no con un
+ * número genérico igual para cualquier industria. Pedido de la founder,
+ * 04-oct-2026: "qué se necesita para que se haga una proyección con datos
+ * reales del mercado según el nicho". `sqlRate` se queda fija — el
+ * benchmark no modela esa etapa intermedia (calificación), solo CTR,
+ * conversión de landing y cierre final.
+ */
+function defaultFunnel(monthlyAdsBudget: number, averageTicket: number, industry: string): FunnelInputs {
+  const bench = getBenchmark(industry);
   return {
     monthlyAdsBudget: monthlyAdsBudget || 1500,
     estimatedReach: 120_000,
-    ctr: 0.018,
-    landingConversionRate: 0.030,
+    ctr: bench.ctrMeta / 100,
+    landingConversionRate: bench.landingConv / 100,
     sqlRate: 0.45,
-    closeRate: 0.18,
-    averageTicket: averageTicket || 250,
+    closeRate: bench.closeRate / 100,
+    averageTicket: averageTicket || bench.avgLtv,
   };
 }
 
@@ -223,7 +234,7 @@ export const useProjectionStore = create<Store>((set, get) => ({
       const adsBudget = defaults.funnel?.monthlyAdsBudget ?? 1500;
       const fresh: ProjectionState = {
         clientId,
-        funnel: defaultFunnel(adsBudget, defaults.funnel?.averageTicket ?? 0),
+        funnel: defaultFunnel(adsBudget, defaults.funnel?.averageTicket ?? 0, defaults.industry ?? ''),
         activeScenario: 'realistic',
         phases: defaultPhases(projectType),
         okrs: [

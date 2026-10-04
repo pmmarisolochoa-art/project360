@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { toast } from '@/store/useToastStore';
+import { useLeadsStore } from '@/store/useLeadsStore';
 import { withAlpha } from '@/utils/colorGenerator';
 import { formatCurrency, formatNumber } from '@/utils/metricsCalculator';
 import { cn } from '@/utils/cn';
@@ -78,6 +79,7 @@ export function ProjectionsModule({ client, readOnly = false }: { client: Client
   useEffect(() => {
     ensure(client.id, {
       projectType: client.projectType,
+      industry: client.industry,
       funnel: {
         monthlyAdsBudget: client.monthlyAdsBudget,
         averageTicket: (client.onboardingData.business as { averageTicket?: number } | undefined)?.averageTicket ?? 0,
@@ -91,7 +93,7 @@ export function ProjectionsModule({ client, readOnly = false }: { client: Client
           : undefined,
       },
     });
-  }, [client.id, client.monthlyAdsBudget, client.projectType, client.aiBrainData.executiveSummary, client.aiBrainData.irresistibleOffer, client.onboardingData.business, ensure]);
+  }, [client.id, client.monthlyAdsBudget, client.projectType, client.industry, client.aiBrainData.executiveSummary, client.aiBrainData.irresistibleOffer, client.onboardingData.business, ensure]);
 
   if (!state) return null;
 
@@ -330,11 +332,46 @@ function midOfRange(s: string): number {
    B — FUNNEL FINANCIERO + ESCENARIOS
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/** Leads reales mínimos para confiar en la tasa de cierre/ticket propios en vez del benchmark del nicho. */
+const MIN_LEADS_DATOS_REALES = 5;
+
 function FunnelSection({ client, accent, currency, readOnly = false }: { client: Client; accent: string; currency: CurrencyCode; readOnly?: boolean }) {
   const state = useProjectionStore((s) => s.states[client.id]);
   const patch = useProjectionStore((s) => s.patchFunnel);
   const f = state.funnel;
   const outputs = useMemo(() => calculateFunnel(f), [f]);
+
+  /**
+   * Datos propios reales del CRM — segunda mitad del pedido de la founder
+   * (04-oct-2026): "según el nicho" primero (benchmark, ver defaultFunnel),
+   * "según números propios" después. Cierre y ticket SÍ se pueden derivar
+   * del CRM sin llamada extra a Meta (los leads ya están en el store); CTR y
+   * conversión de landing se quedan en benchmark/manual porque ese dato real
+   * vive en la pestaña Métricas y traerlo aquí duplicaría la llamada a Meta.
+   */
+  const allLeads = useLeadsStore((s) => s.leads);
+  const leadsCliente = useMemo(() => allLeads.filter((l) => l.clientId === client.id), [allLeads, client.id]);
+  const datosReales = useMemo(() => {
+    if (leadsCliente.length < MIN_LEADS_DATOS_REALES) return null;
+    const ganados = leadsCliente.filter((l) => l.etapa === 'ganado');
+    const cerrados = ganados.length + leadsCliente.filter((l) => l.etapa === 'perdido').length;
+    if (cerrados === 0) return null;
+    const closeRate = ganados.length / cerrados;
+    const ticketsValidos = ganados.map((l) => l.programValue).filter((v): v is number => !!v && v > 0);
+    const averageTicket = ticketsValidos.length
+      ? ticketsValidos.reduce((s, v) => s + v, 0) / ticketsValidos.length
+      : null;
+    return { closeRate, averageTicket, muestra: cerrados };
+  }, [leadsCliente]);
+
+  const aplicarDatosReales = () => {
+    if (!datosReales) return;
+    patch(client.id, {
+      closeRate: datosReales.closeRate,
+      ...(datosReales.averageTicket ? { averageTicket: datosReales.averageTicket } : {}),
+    });
+    toast.success('Proyección actualizada con tus datos reales de Ventas.');
+  };
   // Montos en la moneda seleccionada (base de cálculo = USD).
   const money = (usd: number) => formatMoney(usd, currency);
 
@@ -361,10 +398,28 @@ function FunnelSection({ client, accent, currency, readOnly = false }: { client:
 
   return (
     <div className="space-y-4">
+      {datosReales && (
+        <div
+          className="rounded-[12px] border p-3 flex items-center justify-between gap-3 flex-wrap"
+          style={{ borderColor: 'rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.08)' }}
+        >
+          <div className="text-[12px] text-text-secondary">
+            <strong className="text-text-primary">Tienes datos reales de Ventas</strong> ({datosReales.muestra} leads cerrados):
+            tasa de cierre {(datosReales.closeRate * 100).toFixed(0)}%
+            {datosReales.averageTicket ? ` · ticket promedio $${Math.round(datosReales.averageTicket).toLocaleString()}` : ''}.
+            {' '}El cuadro de abajo sigue con el benchmark del nicho.
+          </div>
+          {!readOnly && (
+            <Button size="sm" onClick={aplicarDatosReales}>Aplicar a la proyección</Button>
+          )}
+        </div>
+      )}
+
       <div className="surface p-5">
         <h3 className="heading text-base font-bold mb-1">Cuadro de proyecciones según resultados</h3>
         <p className="text-[11px] text-text-muted mb-4">
           Edita cualquier valor. El funnel y los outputs se recalculan en tiempo real.
+          {!datosReales && ' Arranca con el benchmark de mercado de tu industria — se puede ajustar a mano en cualquier momento.'}
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-4">

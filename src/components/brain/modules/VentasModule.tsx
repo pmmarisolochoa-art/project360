@@ -17,7 +17,7 @@ import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
 
 const SOURCE_TONE: Record<LeadSource, 'info' | 'success' | 'warning' | 'neutral'> = {
-  meta_ads: 'info', reel: 'success', story: 'success', carrusel: 'success', perfil: 'warning', referido: 'warning', otro: 'neutral',
+  meta_ads: 'info', reel: 'success', story: 'success', carrusel: 'success', perfil: 'warning', referido: 'warning', whatsapp: 'success', otro: 'neutral',
 };
 
 const ASISTIO_OPTIONS = ['', 'Sí', 'No', 'Reprogramó'];

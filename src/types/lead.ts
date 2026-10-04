@@ -36,9 +36,9 @@ export const LEAD_STAGE_LABELS: Record<LeadStage, string> = {
  * Fuente del lead — distingue FORMATO de contenido (reel/story/carrusel/perfil)
  * además de meta_ads/referido/otro (migración 048, 29-sep-2026).
  */
-export type LeadSource = 'meta_ads' | 'reel' | 'story' | 'carrusel' | 'perfil' | 'referido' | 'otro';
+export type LeadSource = 'meta_ads' | 'reel' | 'story' | 'carrusel' | 'perfil' | 'referido' | 'whatsapp' | 'otro';
 
-export const LEAD_SOURCES: LeadSource[] = ['meta_ads', 'reel', 'story', 'carrusel', 'perfil', 'referido', 'otro'];
+export const LEAD_SOURCES: LeadSource[] = ['meta_ads', 'reel', 'story', 'carrusel', 'perfil', 'referido', 'whatsapp', 'otro'];
 
 export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   meta_ads: 'Meta Ads',
@@ -47,6 +47,7 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   carrusel: 'Carrusel',
   perfil: 'Perfil',
   referido: 'Referido',
+  whatsapp: 'WhatsApp',
   otro: 'Otro',
 };
 

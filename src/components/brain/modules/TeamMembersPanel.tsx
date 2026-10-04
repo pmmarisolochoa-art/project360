@@ -316,6 +316,15 @@ function InviteMemberModal({
       if (match.email) setEmail(match.email);
       if (match.telefono) setTelefono(match.telefono);
       setRol(match.rol);
+      // OJO (04-oct-2026): antes NO se cargaban estos dos — el formulario
+      // siempre arrancaba en el default ["pm"]/"editor" aunque la persona ya
+      // tuviera acceso real guardado. Editar "a ciegas" así hizo que un
+      // cambio de departamentos pareciera no guardarse — se estaba viendo
+      // (y a veces re-guardando) el default, no el valor real de esa persona.
+      if (match.departamentos && match.departamentos.length > 0) {
+        setDepartamentos(match.departamentos as DepartmentId[]);
+      }
+      if (match.accessLevel) setAccessLevel(match.accessLevel);
       setAutoFilled(true);
     } else if (autoFilled) {
       setAutoFilled(false);

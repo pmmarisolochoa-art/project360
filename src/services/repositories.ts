@@ -395,6 +395,8 @@ function rowToTeamMember(row: Record<string, unknown>): TeamMember {
     email: r.email ?? undefined,
     telefono: r.telefono ?? undefined,
     veTodasTareas: r.ve_todas_tareas ?? false,
+    departamentos: Array.isArray(r.departamentos) ? r.departamentos : [],
+    accessLevel: r.access_level === 'viewer' ? 'viewer' : r.access_level === 'editor' ? 'editor' : undefined,
     avatarColor: r.avatar_color ?? '#6366F1',
     funciones: Array.isArray(r.funciones) ? r.funciones : [],
     kpis: r.kpis_custom && typeof r.kpis_custom === 'object'

@@ -43,6 +43,10 @@ export interface TeamMember {
   telefono?: string;
   /** Coordinador: si true, ve TODAS las tareas del cliente (no solo las suyas). */
   veTodasTareas?: boolean;
+  /** Departamentos de acceso (ver src/config/departments.ts) — solo si tiene login. */
+  departamentos?: string[];
+  /** Nivel de acceso — solo si tiene login (invitado, no solo "agregado"). */
+  accessLevel?: 'editor' | 'viewer';
   avatarColor: string;
   funciones: string[];
   kpis: TeamMemberKpis;

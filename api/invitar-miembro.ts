@@ -13,6 +13,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { DEPARTMENTS } from '../src/config/departments';
 
 export const config = { runtime: 'edge' };
 
@@ -22,7 +23,10 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-const ALLOWED_DEPTS = ['pm', 'finanzas', 'content'];
+// Fuente única real — antes era una lista copiada a mano que se desincronizó
+// en silencio cuando se agregó el departamento 'ventas' (04-oct-2026): el
+// checkbox existía en la UI pero el backend lo filtraba sin avisar.
+const ALLOWED_DEPTS = DEPARTMENTS.map((d) => d.id);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -74,7 +78,7 @@ export default async function handler(req: Request): Promise<Response> {
   const password = String(body.password ?? '');
   const avatarColor = String(body.avatarColor ?? '#6366F1');
   const departamentos = Array.isArray(body.departamentos)
-    ? (body.departamentos as unknown[]).filter((d) => ALLOWED_DEPTS.includes(d as string))
+    ? (body.departamentos as unknown[]).filter((d) => (ALLOWED_DEPTS as string[]).includes(d as string))
     : [];
   const funciones = Array.isArray(body.funciones)
     ? (body.funciones as unknown[]).slice(0, 40).map((f) => String(f))
@@ -161,6 +165,18 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // ── 5. Fila gemela en public.users (role 'team' = miembro de agencia) ─────
+  //
+  // OJO (04-oct-2026): "eliminar acceso" borra el usuario de Auth pero no
+  // necesariamente esta fila — queda un `public.users` HUÉRFANO con el mismo
+  // correo, apuntando a un id de Auth que ya no existe. El upsert de abajo
+  // choca entonces con `users_email_key` (concilia por id, no por correo) y
+  // revienta la invitación entera, dejando otra vez un usuario de Auth recién
+  // creado sin ficha — el mismo patrón de "queda a medias" que ya se peleó
+  // en el paso 6. Se limpia el huérfano ANTES de intentar, no después de fallar.
+  if (!loginYaExistia) {
+    await admin.from('users').delete().eq('email', email).neq('id', userId).then(() => {});
+  }
+
   const { error: userErr } = await admin
     .from('users')
     .upsert({ id: userId, email, name: nombre, role: 'team' }, { onConflict: 'id' });

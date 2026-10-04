@@ -9,6 +9,7 @@ import { useAuthStore, administra } from '@/store/useAuthStore';
 // demanda solo añadiría un parpadeo sin ahorrar nada, porque siempre se piden.
 import { DashboardMacro } from '@/pages/DashboardMacro';
 import { LoginPage } from '@/pages/LoginPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 
 /**
  * El resto de rutas se cargan bajo demanda. Antes TODAS las páginas (con sus
@@ -69,6 +70,7 @@ export function AppRouter() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="login" element={<LoginPage />} />
+            <Route path="reset-password" element={<ResetPasswordPage />} />
             <Route path="client-portal/funnel/:token" element={<ClientPortalFunnelPage />} />
             <Route element={<MemberLayout />}>
               <Route path="mi-espacio" element={<MiEspacio />} />
@@ -88,6 +90,7 @@ export function AppRouter() {
       <Suspense fallback={<RouteFallback />}>
         <Routes>
         <Route path="login" element={<LoginPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
         {/* Portal cliente — público (sin Layout) para que el cliente final acceda sin login */}
         <Route path="client-portal/funnel/:token" element={<ClientPortalFunnelPage />} />
         <Route element={<Layout />}>

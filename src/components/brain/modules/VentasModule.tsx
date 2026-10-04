@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Upload, Search, Trash2, Copy } from 'lucide-react';
 import { ImportarLeadsCSVModal } from './ImportarLeadsCSVModal';
 import { LeadsDuplicadosModal } from './LeadsDuplicadosModal';
+import { LeadsCSVLimpiarModal } from './LeadsCSVLimpiarModal';
 import { detectarLeadsDuplicados } from '@/utils/leadDedup';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
@@ -73,6 +74,20 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const clientAccess = useAuthStore((s) => s.clientAccess);
   const actor = { nombre: (isMember ? clientAccess?.nombre : undefined) ?? authUser?.email ?? 'Equipo' };
   const allMembers = useTeamMembersStore((s) => s.members);
+  const allEvents = useLeadsStore((s) => s.events);
+  /**
+   * De dónde se importó cada lead — distinto de `fuente` (canal de
+   * marketing: Meta Ads/Reel/etc). Se deriva del primer evento del "viaje
+   * del lead" porque no hay un campo dedicado todavía (founder, 04-oct-2026:
+   * necesitaba ver esto para poder limpiar los de CSV sin tocar los de API).
+   */
+  const origenImportPorLead = useMemo(() => {
+    const m = new Map<string, 'csv'>();
+    for (const e of allEvents) {
+      if (e.nota === 'Importado desde CSV') m.set(e.leadId, 'csv');
+    }
+    return m;
+  }, [allEvents]);
   const members = useMemo(() => allMembers.filter((m) => m.clientId === client.id), [allMembers, client.id]);
   const setters = useMemo(() => members.filter((m) => m.rol === 'setter'), [members]);
   const closers = useMemo(() => members.filter((m) => m.rol === 'closer'), [members]);
@@ -95,6 +110,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [duplicadosOpen, setDuplicadosOpen] = useState(false);
+  const [limpiarCSVOpen, setLimpiarCSVOpen] = useState(false);
   // Alerta automática: se recalcula cada vez que cambian los leads del
   // cliente, no solo al hacer click — así no hace falta acordarse de abrirla.
   const gruposDuplicados = useMemo(() => detectarLeadsDuplicados(allLeads, client.id), [allLeads, client.id]);
@@ -234,6 +250,13 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                   </button>
                 )}
                 <button
+                  onClick={() => setLimpiarCSVOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-[8px] px-3 py-1.5 focus-ring text-text-secondary hover:bg-bg-hover border border-border-default"
+                  title="Borrar leads de CSV que siguen en Nuevo, para reimportar limpio"
+                >
+                  🧹 Limpiar CSV
+                </button>
+                <button
                   onClick={() => setImportOpen(true)}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-[8px] px-3 py-1.5 focus-ring text-text-secondary hover:bg-bg-hover border border-border-default"
                 >
@@ -346,6 +369,14 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                           </div>
                           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                             <Badge tone={SOURCE_TONE[lead.fuente]} className="text-[8.5px] px-1.5 py-0">{LEAD_SOURCE_LABELS[lead.fuente]}</Badge>
+                            {origenImportPorLead.get(lead.id) === 'csv' && (
+                              <span
+                                className="text-[8.5px] px-1.5 py-0 rounded-full border border-border-subtle text-text-muted"
+                                title="Importado desde un archivo CSV"
+                              >
+                                CSV
+                              </span>
+                            )}
                             {lead.score !== undefined && <span className="text-[9.5px] font-mono text-text-muted">{lead.score}</span>}
                           </div>
                           {stage === 'ganado' && (
@@ -479,6 +510,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
 
       <ImportarLeadsCSVModal open={importOpen} clientId={client.id} onClose={() => setImportOpen(false)} />
       <LeadsDuplicadosModal open={duplicadosOpen} clientId={client.id} onClose={() => setDuplicadosOpen(false)} />
+      <LeadsCSVLimpiarModal open={limpiarCSVOpen} clientId={client.id} onClose={() => setLimpiarCSVOpen(false)} />
     </div>
   );
 }

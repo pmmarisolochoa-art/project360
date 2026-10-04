@@ -1,0 +1,397 @@
+<title>Vista de Accesos</title>
+<style>
+  :root {
+    --rojo: #E11822;
+    --rojo-suave: #E1182214;
+    --rojo-linea: #E1182233;
+    --negro: #0B0B0B;
+    --plomo: #686868;
+    --plomo-claro: #9A9A9A;
+    --hueso: #F7F7F7;
+    --borde: #E7E5E2;
+    --superficie: #FFFFFF;
+    --verde: #1B8A4C;
+    --verde-bg: #1B8A4C14;
+    --ambar: #B5790A;
+    --ambar-bg: #B5790A14;
+    --sombra: 0 1px 2px rgba(11,11,11,0.04), 0 8px 24px -12px rgba(11,11,11,0.10);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--hueso);
+    color: var(--negro);
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .marca {
+    font-family: 'Montserrat', 'Inter', sans-serif;
+    text-wrap: balance;
+  }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 24px 64px;
+  }
+
+  /* ── Encabezado del prototipo ─────────────────────────────────── */
+  .proto-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+  }
+  .proto-tag {
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--plomo);
+    font-weight: 600;
+  }
+  .proto-title { font-size: 20px; font-weight: 800; margin: 2px 0 0; }
+
+  .switcher {
+    display: inline-flex;
+    gap: 4px;
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 4px;
+    box-shadow: var(--sombra);
+  }
+  .switcher button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--plomo);
+    padding: 9px 16px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .switcher button.on {
+    background: var(--negro);
+    color: #fff;
+  }
+  .switcher button:focus-visible { outline: 2px solid var(--rojo); outline-offset: 2px; }
+
+  /* ── Header de marca del cliente (calca BrainHeader real) ───────── */
+  .brain-header {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--rojo-suave) 0%, transparent 55%, var(--superficie) 100%);
+    border: 1px solid var(--borde);
+    padding: 22px 26px;
+    margin-bottom: 18px;
+  }
+  .bh-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  .bh-left { display: flex; gap: 14px; align-items: flex-start; min-width: 0; }
+  .logo-chip {
+    height: 52px; width: 52px; border-radius: 10px;
+    background: var(--negro); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; letter-spacing: -0.02em;
+    flex-shrink: 0;
+  }
+  .bh-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+    padding: 4px 10px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--borde); color: var(--plomo);
+  }
+  .chip.on { background: var(--rojo); color: #fff; border-color: var(--rojo); }
+  .bh-name { font-size: 27px; font-weight: 800; color: var(--rojo); line-height: 1.1; margin: 0; }
+  .bh-sub { font-size: 13px; color: var(--plomo); margin: 4px 0 0; }
+  .bh-kpis { display: flex; gap: 10px; flex-wrap: wrap; }
+  .kpi {
+    background: #fff; border: 1px solid var(--borde); border-radius: 12px;
+    padding: 9px 14px; min-width: 96px;
+  }
+  .kpi .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--plomo-claro); font-weight: 700; }
+  .kpi .v { font-size: 16px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  /* ── Cajones (nivel 1 de navegación) ─────────────────────────────── */
+  .cajones {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: 14px;
+    padding: 6px;
+    margin-bottom: 20px;
+  }
+  .cajon {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 128px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--plomo);
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+    user-select: none;
+  }
+  .cajon:hover:not(.locked) { background: var(--hueso); }
+  .cajon.active { background: var(--rojo); color: #fff; }
+  .cajon.locked { color: var(--plomo-claro); cursor: not-allowed; }
+  .cajon .lock { font-size: 12px; opacity: .8; }
+
+  /* ── Contenido del módulo activo ─────────────────────────────────── */
+  .panel {
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: 16px;
+    padding: 24px;
+    min-height: 320px;
+    box-shadow: var(--sombra);
+  }
+  .panel h2 { font-size: 17px; margin: 0 0 4px; }
+  .panel .hint { font-size: 12.5px; color: var(--plomo); margin: 0 0 18px; }
+
+  .locked-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 320px;
+    gap: 10px;
+    text-align: center;
+  }
+  .locked-panel .icon {
+    height: 48px; width: 48px; border-radius: 12px;
+    background: var(--ambar-bg); color: var(--ambar);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .locked-panel h3 { font-size: 15px; margin: 0; }
+  .locked-panel p { font-size: 12.5px; color: var(--plomo); margin: 0; max-width: 320px; }
+
+  /* Pipeline mock (Ventas) */
+  .pipeline { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+  .col { flex: 0 0 180px; background: var(--hueso); border-radius: 12px; padding: 10px; }
+  .col .ch { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--plomo); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .card {
+    background: #fff; border: 1px solid var(--borde); border-radius: 9px;
+    padding: 8px 9px; margin-bottom: 7px; font-size: 12px;
+  }
+  .card b { font-size: 12.5px; }
+  .card .tag { display: inline-block; margin-top: 4px; font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--verde-bg); color: var(--verde); }
+
+  /* KPI grid (Management/Finanzas) */
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat {
+    background: var(--hueso); border-radius: 12px; padding: 14px;
+  }
+  .stat .l { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--plomo); font-weight: 700; }
+  .stat .v { font-size: 21px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .stat .v.good { color: var(--verde); }
+
+  .tasklist { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .task { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--hueso); border-radius: 10px; font-size: 13px; }
+  .task .dot { height: 7px; width: 7px; border-radius: 999px; background: var(--rojo); flex-shrink: 0; }
+  .task .who { margin-left: auto; font-size: 11px; color: var(--plomo); }
+
+  footer.note {
+    margin-top: 20px; font-size: 11.5px; color: var(--plomo-claro); text-align: center;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --negro: #F2F2F0; --plomo: #ABABAB; --plomo-claro: #7A7A7A;
+      --hueso: #141414; --borde: #2A2A2A; --superficie: #1C1C1C;
+      --rojo-suave: #E1182222; --ambar-bg: #B5790A22; --verde-bg: #1B8A4C22;
+      --sombra: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+    :root:not([data-theme="light"]) .logo-chip { background: #fff; color: #111; }
+    :root:not([data-theme="light"]) .chip { background: #1C1C1C; }
+    :root:not([data-theme="light"]) .card, :root:not([data-theme="light"]) .stat, :root:not([data-theme="light"]) .task { background: #141414; }
+    :root:not([data-theme="light"]) .col { background: #141414; }
+  }
+  :root[data-theme="dark"] {
+    --negro: #F2F2F0; --plomo: #ABABAB; --plomo-claro: #7A7A7A;
+    --hueso: #141414; --borde: #2A2A2A; --superficie: #1C1C1C;
+    --rojo-suave: #E1182222; --ambar-bg: #B5790A22; --verde-bg: #1B8A4C22;
+    --sombra: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+  :root[data-theme="dark"] .logo-chip { background: #fff; color: #111; }
+  :root[data-theme="dark"] .chip { background: #1C1C1C; }
+  :root[data-theme="dark"] .card, :root[data-theme="dark"] .stat, :root[data-theme="dark"] .task { background: #141414; }
+  :root[data-theme="dark"] .col { background: #141414; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<div class="wrap">
+  <div class="proto-top">
+    <div>
+      <div class="proto-tag">Prototipo · sin conectar a datos reales</div>
+      <h1 class="proto-title">¿Qué ve cada rol en la tarjeta de Alejo?</h1>
+    </div>
+    <div class="switcher" role="tablist" aria-label="Elegir rol">
+      <button class="on" data-role="admin" onclick="setRole('admin')">Alejo / Santi — Admin del cliente</button>
+      <button data-role="setter" onclick="setRole('setter')">Setter / Closer</button>
+    </div>
+  </div>
+
+  <div class="brain-header">
+    <div class="bh-row">
+      <div class="bh-left">
+        <div class="logo-chip">AL</div>
+        <div>
+          <div class="bh-badges">
+            <span class="chip on">Onboarding</span>
+            <span class="chip">Coaching / Mentoría</span>
+          </div>
+          <h2 class="bh-name">Alejo Luengas</h2>
+          <p class="bh-sub">Alejandro Luengas Grajales · Miami, Estados Unidos</p>
+        </div>
+      </div>
+      <div class="bh-kpis">
+        <div class="kpi"><div class="l">ROAS</div><div class="v">6.6x</div></div>
+        <div class="kpi"><div class="l">Avance</div><div class="v">41%</div></div>
+        <div class="kpi"><div class="l">Próx. reunión</div><div class="v">—</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cajones" id="cajones"></div>
+  <div id="panel"></div>
+
+  <footer class="note">Prototipo HTML — nada de esto escribe en la base. Úsalo para decidir qué se ve bien antes de tocar código real.</footer>
+</div>
+
+<script>
+  const CAJONES = [
+    { id: 'planeacion', label: '📐 Planeación' },
+    { id: 'management',  label: '🗂 Management' },
+    { id: 'ventas',      label: '💰 Ventas' },
+    { id: 'metricas',    label: '📊 Métricas' },
+    { id: 'finanzas',    label: '🏦 Finanzas' },
+  ];
+
+  const ACCESO = {
+    admin:  ['planeacion', 'management', 'ventas', 'metricas', 'finanzas'],
+    setter: ['management', 'ventas'],
+  };
+
+  let rol = 'admin';
+  let activo = 'management';
+
+  function setRole(r) {
+    rol = r;
+    activo = ACCESO[r][0];
+    document.querySelectorAll('.switcher button').forEach(b => b.classList.toggle('on', b.dataset.role === r));
+    render();
+  }
+
+  function abrir(id, permitido) {
+    if (!permitido) return;
+    activo = id;
+    render();
+  }
+
+  function render() {
+    const permitidos = ACCESO[rol];
+    const cajonesEl = document.getElementById('cajones');
+    cajonesEl.innerHTML = CAJONES.map(c => {
+      const ok = permitidos.includes(c.id);
+      const cls = ['cajon', ok ? '' : 'locked', (ok && c.id === activo) ? 'active' : ''].join(' ').trim();
+      return `<div class="${cls}" onclick="abrir('${c.id}', ${ok})" role="tab" aria-selected="${c.id === activo}">
+        ${c.label}${ok ? '' : ' <span class="lock">🔒</span>'}
+      </div>`;
+    }).join('');
+
+    document.getElementById('panel').innerHTML = permitidos.includes(activo)
+      ? contenidoDe(activo)
+      : panelBloqueado();
+  }
+
+  function panelBloqueado() {
+    return `<div class="panel locked-panel">
+      <div class="icon">🔒</div>
+      <h3>Sin acceso a este cajón</h3>
+      <p>Este rol no tiene asignado este departamento. Se gestiona desde Equipo → Invitar miembro.</p>
+    </div>`;
+  }
+
+  function contenidoDe(id) {
+    if (id === 'planeacion') return `<div class="panel">
+      <h2>Planeación</h2>
+      <p class="hint">Perfil del negocio + proyección financiera del cliente.</p>
+      <div class="grid4">
+        <div class="stat"><div class="l">Industria</div><div class="v" style="font-size:15px">Coaching racing cars</div></div>
+        <div class="stat"><div class="l">Inversión mensual</div><div class="v">$2,000</div></div>
+        <div class="stat"><div class="l">Ticket promedio</div><div class="v">$2,997</div></div>
+        <div class="stat"><div class="l">ROAS proyectado</div><div class="v good">3.4x</div></div>
+      </div>
+    </div>`;
+
+    if (id === 'management') return `<div class="panel">
+      <h2>Management</h2>
+      <p class="hint">Tareas, agenda, equipo y programas — el día a día operativo.</p>
+      <div class="tasklist">
+        <div class="task"><span class="dot"></span> Enviar guion de los 5 reels de la semana <span class="who">Santiago Durán</span></div>
+        <div class="task"><span class="dot"></span> Confirmar asistencia llamada de Rafael <span class="who">Jessica Valdés</span></div>
+        <div class="task"><span class="dot"></span> Subir creativos de la campaña Reels <span class="who">Media Buyer</span></div>
+        <div class="task"><span class="dot"></span> Dar seguimiento a Miguel Perez (sin datos extra) <span class="who">Omar (Rayo)</span></div>
+      </div>
+    </div>`;
+
+    if (id === 'ventas') return `<div class="panel">
+      <h2>Ventas</h2>
+      <p class="hint">Pipeline en vivo — igual que el real, filtrable por setter/closer y fecha.</p>
+      <div class="pipeline">
+        <div class="col"><div class="ch">Nuevo <span>268</span></div>
+          <div class="card"><b>Enrique Carreño</b><div class="tag" style="background:var(--ambar-bg);color:var(--ambar)">Otro · 47</div></div>
+          <div class="card"><b>Andres Neisa</b><div class="tag" style="background:var(--ambar-bg);color:var(--ambar)">Otro · 85</div></div>
+        </div>
+        <div class="col"><div class="ch">Cita agendada <span>3</span></div>
+          <div class="card"><b>Rafael Soto</b><div class="tag">DM directo</div></div>
+        </div>
+        <div class="col"><div class="ch">Cita realizada <span>2</span></div>
+          <div class="card"><b>Rodrigo Ayala</b><div class="tag">Meta Ads</div></div>
+        </div>
+        <div class="col"><div class="ch">Ganado <span>3</span></div>
+          <div class="card"><b>Daniel Ramírez</b><div class="tag">$2,997 cobrado</div></div>
+        </div>
+      </div>
+    </div>`;
+
+    if (id === 'metricas') return `<div class="panel">
+      <h2>Métricas</h2>
+      <p class="hint">Meta Ads con datos reales de la cuenta publicitaria conectada.</p>
+      <div class="grid4">
+        <div class="stat"><div class="l">Inversión</div><div class="v">$916</div></div>
+        <div class="stat"><div class="l">Alcance</div><div class="v">73,127</div></div>
+        <div class="stat"><div class="l">Clics</div><div class="v">10,091</div></div>
+        <div class="stat"><div class="l">CTR</div><div class="v good">4.96%</div></div>
+      </div>
+    </div>`;
+
+    if (id === 'finanzas') return `<div class="panel">
+      <h2>Finanzas</h2>
+      <p class="hint">Fee de agencia y costos internos del proyecto — por eso solo entra con acceso completo.</p>
+      <div class="grid4">
+        <div class="stat"><div class="l">Fee de agencia</div><div class="v">$1,000/mes</div></div>
+        <div class="stat"><div class="l">Inversión total proyecto</div><div class="v">$48,972</div></div>
+        <div class="stat"><div class="l">Facturación proyectada</div><div class="v">$188,772</div></div>
+        <div class="stat"><div class="l">ROI estimado</div><div class="v good">3.85x</div></div>
+      </div>
+    </div>`;
+  }
+
+  render();
+</script>

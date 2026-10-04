@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-10-04 — Plantilla ESTÁNDAR de accesos por rol (aplica a CUALQUIER cliente nuevo)
+
+Probada primero como prototipo HTML (Mi Espacio por rol) y aprobada por la founder antes de construirla. Queda como el reparto de acceso **por defecto** para todo cliente que se cree de aquí en adelante — no es específico de Alejo, es la plantilla.
+
+**Los 5 cajones del cerebro de un cliente:** Planeación, Management, Ventas, Métricas, Finanzas (`src/components/brain/BrainNav.tsx` → `CAJONES`). Cada uno se mapea a departamentos (`src/config/departments.ts`):
+- `pm` → Planeación (perfil) + Management (tareas, agenda, equipo, programas)
+- `finanzas` → Planeación (proyección) + Métricas + Finanzas
+- `ventas` → Ventas
+
+**Reparto estándar por rol:**
+- **Setter / Closer** → departamentos `pm` + `ventas` (ven Management + Ventas), nivel **Editor** (necesitan mover leads y marcar tareas). Cada uno, al entrar a "Mi Espacio", ve SOLO sus leads asignados y sus tareas — no las de los demás.
+- **Admin del cliente** (el dueño del negocio + su mano derecha, ej. Alejo + Santi) → los 3 departamentos (`pm`+`finanzas`+`ventas`) = acceso completo a los 5 cajones de ESA tarjeta únicamente. Incluye Finanzas (fee de agencia y costos internos) a propósito: la founder decidió que el cliente vea todo de su propia cuenta, sin excepciones. Nunca ve otros clientes ni el agregado de la agencia — eso sigue siendo exclusivo de `owner`/`direccion`.
+
+**Dónde se configura:** Equipo → Invitar miembro (nivel de acceso + checkboxes de departamentos). Nada de esto requiere código nuevo por cliente — es 100% configuración con la infraestructura que ya existe (`ClientAccess`, `team_members.departamentos`).
+
+**Bug cerrado en el camino (2026-10-04):** invitar fallaba con "Invalid login credentials" / "duplicate key" porque "eliminar acceso" no limpiaba `public.users`, y porque el checkbox de "Ventas" se guardaba vacío (el endpoint de invitar tenía su propia lista de departamentos, desincronizada de la real). Los dos arreglados — ver commits `126719f` y `9c2cdd5`.
+
+---
+
 ## 2026-10-02 (noche) — Integración con Fathom para traer reuniones de Alejo (y futuros clientes sin Paralelo)
 
 Al revisar cómo se traen reuniones/tareas por cliente, se encontró que **"Transcribir con IA" y "Subir archivo" (audio/video) en `MeetingDrawer` son botones decorativos** — solo muestran un toast "disponible próximamente", nunca se construyeron. El camino real hoy es: notas a mano, o subir un `.md`/`.docx` con "Subir resumen" (esto sí funciona), y de ahí "Extraer tareas"/"Generar ROPRE" leen ese texto.

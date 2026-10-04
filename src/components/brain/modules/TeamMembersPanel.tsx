@@ -279,6 +279,7 @@ const DEPT_HINT: Record<DepartmentId, string> = {
   finanzas: 'Planeación, Proyección, Métricas, Finanzas',
   content: 'Contenido, Perfil, Tareas, Equipo',
   ventas: 'Pipeline de Ventas, KPIs',
+  management: 'Tareas, Agenda, Programas, Equipo — sin Planeación',
 };
 
 function InviteMemberModal({

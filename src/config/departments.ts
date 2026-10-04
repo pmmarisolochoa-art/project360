@@ -11,7 +11,7 @@
  * aparte y no se toca desde acá.
  */
 
-export type DepartmentId = 'pm' | 'finanzas' | 'content' | 'ventas';
+export type DepartmentId = 'pm' | 'finanzas' | 'content' | 'ventas' | 'management';
 
 export interface DepartmentDef {
   id: DepartmentId;
@@ -28,6 +28,15 @@ export const DEPARTMENTS: DepartmentDef[] = [
     label: 'Project Manager',
     hint: 'gestión y seguimiento',
     modules: ['profile', 'tasks', 'meetings', 'programs', 'team'],
+  },
+  {
+    id: 'management',
+    label: 'Management (sin Planeación)',
+    hint: 'tareas, agenda, equipo y programas',
+    // Distinto de 'pm': NO incluye 'profile', que es el módulo que abre el
+    // cajón Planeación. Un Setter/Closer no debe ver Planeación — encontrado
+    // armando su acceso (04-oct-2026): con 'pm' les aparecía igual.
+    modules: ['tasks', 'meetings', 'programs', 'team'],
   },
   {
     id: 'finanzas',

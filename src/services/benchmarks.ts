@@ -32,6 +32,24 @@ export const DEFAULT_BENCHMARK: IndustryBenchmark = {
   ctrMeta: 1.4, ctrGoogle: 3.0, landingConv: 3.0, avgCpl: 12, avgRoas: 3.0, closeRate: 10, avgLtv: 500,
 };
 
+const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+/**
+ * `industry` en el cliente puede ser texto libre (el onboarding permite
+ * "Otro" + lo que se escriba) — "Coaching racing cars" no calza exacto con
+ * la clave "Coaching" y caía en silencio al benchmark genérico, con el
+ * mismo resultado visual que si el nicho SÍ se hubiera reconocido (nada
+ * avisaba la diferencia). Encontrado 04-oct-2026 revisando por qué el
+ * funnel de Alejo (coach) salía con números de "cualquier industria".
+ *
+ * Ahora: exacto primero: si no, la clave cuyo nombre aparece COMO PALABRA
+ * dentro del texto del cliente (coincidencia por substring normalizado) —
+ * "Coaching racing cars" contiene "coaching", así que usa ese benchmark.
+ */
 export function getBenchmark(industry: string): IndustryBenchmark {
-  return INDUSTRY_BENCHMARKS[industry] ?? DEFAULT_BENCHMARK;
+  if (INDUSTRY_BENCHMARKS[industry]) return INDUSTRY_BENCHMARKS[industry];
+  const texto = normalizar(industry);
+  if (!texto) return DEFAULT_BENCHMARK;
+  const clave = Object.keys(INDUSTRY_BENCHMARKS).find((k) => texto.includes(normalizar(k)));
+  return clave ? INDUSTRY_BENCHMARKS[clave] : DEFAULT_BENCHMARK;
 }

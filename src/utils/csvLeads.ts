@@ -141,7 +141,7 @@ const FUENTES: Record<string, LeadSource> = {
   reel: 'reel', reels: 'reel',
   story: 'story', stories: 'story', historia: 'story',
   carrusel: 'carrusel', carousel: 'carrusel',
-  perfil: 'perfil', bio: 'perfil', biolink: 'perfil',
+  perfil: 'perfil', bio: 'perfil', biolink: 'perfil', nuevoseguidor: 'perfil', seguidor: 'perfil',
   referido: 'referido', referral: 'referido', recomendado: 'referido',
   whatsapp: 'whatsapp', wsp: 'whatsapp', wpp: 'whatsapp',
   otro: 'otro', other: 'otro', organico: 'otro', landing: 'otro', formulario: 'otro', web: 'otro',

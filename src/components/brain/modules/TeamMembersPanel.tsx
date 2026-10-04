@@ -276,8 +276,9 @@ function genTempPassword(): string {
 
 const DEPT_HINT: Record<DepartmentId, string> = {
   pm: 'Perfil, Tareas, ROPRE, Agenda, Programas, Equipo',
-  finanzas: 'Planeación, Proyección, Métricas',
+  finanzas: 'Planeación, Proyección, Métricas, Finanzas',
   content: 'Contenido, Perfil, Tareas, Equipo',
+  ventas: 'Pipeline de Ventas, KPIs',
 };
 
 function InviteMemberModal({

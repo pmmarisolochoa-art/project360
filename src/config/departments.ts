@@ -11,7 +11,7 @@
  * aparte y no se toca desde acá.
  */
 
-export type DepartmentId = 'pm' | 'finanzas' | 'content';
+export type DepartmentId = 'pm' | 'finanzas' | 'content' | 'ventas';
 
 export interface DepartmentDef {
   id: DepartmentId;
@@ -33,7 +33,17 @@ export const DEPARTMENTS: DepartmentDef[] = [
     id: 'finanzas',
     label: 'Planeación & Finanzas',
     hint: 'números del cliente',
-    modules: ['projections', 'metrics'],
+    // OJO (04-oct-2026): hasta ahora este departamento daba Proyección y
+    // Métricas pero NUNCA el módulo 'finanzas' de verdad (el cajón
+    // "Finanzas" del BrainNav) — nadie con solo este departamento podía
+    // entrar ahí. Encontrado armando el acceso de admin-de-cliente de Alejo.
+    modules: ['projections', 'metrics', 'finanzas'],
+  },
+  {
+    id: 'ventas',
+    label: 'Ventas',
+    hint: 'pipeline y KPIs de venta',
+    modules: ['ventas'],
   },
   {
     id: 'content',

@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-10-04 (cierre de sesión) — PENDIENTES abiertos de Project360
+
+Sesión larga (02→04 oct) con Alejo Luengas como primer caso real de: personalización de marca, integración Meta Ads real, integración Fathom, CRM de Ventas (CSV, duplicados, comisiones), Proyecciones con benchmark de nicho, y sistema de accesos por rol. La plantilla de accesos y casi todos los bugs de esta tanda ya quedaron documentados arriba con su propia entrada. Esto es el **estado de lo que sigue abierto**, para no perder el hilo:
+
+1. **Acceso de Omar (Setter) sigue mal en producción** — su fila en `team_members.departamentos` dice `["pm","ventas"]`, debería ser `["management","ventas"]`. El bug de fondo (el formulario no cargaba el acceso real de alguien ya existente) **ya está arreglado y desplegado** (commit `c51de0d`), pero su fila concreta no se corrigió — hay que editarla a mano en Supabase o reinvitarlo ahora que el formulario sí precarga bien.
+2. **Migraciones 057–060 — confirmar que TODAS corrieron.** Se fueron pidiendo una a una en la sesión (proyecciones, fuente whatsapp/dm, acceso de miembro a leads). Si alguna quedó sin correr, los síntomas vuelven (Proyecciones sin guardar, Pipeline vacío para el equipo).
+3. **Jessica (Closer) — nunca se completó su invitación.** Se probó con un correo (`sv500285@gmail.com`) que no aparecía en Supabase Auth tras un intento "exitoso" — no se llegó a diagnosticar la causa (se priorizó el bug de Omar, que resultó ser el mismo origen: acceso mal guardado + contraseña no vigente). Revisar con el fix ya puesto.
+4. **"Olvidé mi contraseña"** (login → reset-password) construido y la URL de redirect ya está en el allowlist de Supabase — falta una prueba de punta a punta confirmada (se intentó pero se enredó con el tema de acceso de Omar).
+5. **Funnel financiero — "según números propios"**: hecho el arranque por benchmark de nicho + el banner de "aplicar datos reales" (cierre/ticket desde CRM). Lo que falta, si se quiere completar la visión original: CTR/conversión de landing reales (hoy sólo Métricas los tiene vía Meta, no se jaló a Proyecciones a propósito, para no duplicar el fetch).
+6. **"Campañas activas" y tendencia diaria en Métricas**: la tabla de campañas ya es real (Meta); el GRÁFICO de tendencia por día sigue simulado — declarado en el banner, no resuelto.
+7. **Reporte mensual en PDF** (`reportsPdf.ts:492-493`) tiene el mismo bug que ya se arregló en la tarjeta de Clientes: usa `client.metrics.salesCount/revenueAccumulated` (guardado, nunca se recalcula) en vez de derivarlo en vivo de los leads. Anotado, no tocado.
+8. **CSV de leads**: cada vez que aparece una fuente no reconocida (van "Nuevo seguidor", "DM directo"...) se agrega bajo pedido. Puede que falten más al reimportar el archivo completo de Alejo — revisar si salen más rechazos.
+9. **Plantilla estándar de accesos por rol** (Setter/Closer → `management`+`ventas` editor; Admin del cliente → `pm`+`finanzas`+`ventas` editor) queda documentada arriba para aplicarse a **cualquier cliente nuevo**, no solo Alejo.
+
+---
+
 ## 2026-10-04 — Plantilla ESTÁNDAR de accesos por rol (aplica a CUALQUIER cliente nuevo)
 
 Probada primero como prototipo HTML (Mi Espacio por rol) y aprobada por la founder antes de construirla. Queda como el reparto de acceso **por defecto** para todo cliente que se cree de aquí en adelante — no es específico de Alejo, es la plantilla.

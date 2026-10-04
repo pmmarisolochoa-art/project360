@@ -144,6 +144,7 @@ const FUENTES: Record<string, LeadSource> = {
   perfil: 'perfil', bio: 'perfil', biolink: 'perfil', nuevoseguidor: 'perfil', seguidor: 'perfil',
   referido: 'referido', referral: 'referido', recomendado: 'referido',
   whatsapp: 'whatsapp', wsp: 'whatsapp', wpp: 'whatsapp',
+  dm: 'dm', dmdirecto: 'dm', directo: 'dm', mensajedirecto: 'dm', inbox: 'dm',
   otro: 'otro', other: 'otro', organico: 'otro', landing: 'otro', formulario: 'otro', web: 'otro',
 };
 const ETIQUETAS_FUENTE = LEAD_SOURCES.join(', ');

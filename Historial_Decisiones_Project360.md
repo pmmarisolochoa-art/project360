@@ -14,7 +14,7 @@ Probada primero como prototipo HTML (Mi Espacio por rol) y aprobada por la found
 - `ventas` → Ventas
 
 **Reparto estándar por rol:**
-- **Setter / Closer** → departamentos `pm` + `ventas` (ven Management + Ventas), nivel **Editor** (necesitan mover leads y marcar tareas). Cada uno, al entrar a "Mi Espacio", ve SOLO sus leads asignados y sus tareas — no las de los demás.
+- **Setter / Closer** → departamentos **`management`** (NO `pm` — ese incluye 'profile' y abre Planeación de más) + `ventas`, nivel **Editor** (necesitan mover leads y marcar tareas). Cada uno, al entrar a "Mi Espacio", ve SOLO sus leads asignados y sus tareas — no las de los demás.
 - **Admin del cliente** (el dueño del negocio + su mano derecha, ej. Alejo + Santi) → los 3 departamentos (`pm`+`finanzas`+`ventas`) = acceso completo a los 5 cajones de ESA tarjeta únicamente. Incluye Finanzas (fee de agencia y costos internos) a propósito: la founder decidió que el cliente vea todo de su propia cuenta, sin excepciones. Nunca ve otros clientes ni el agregado de la agencia — eso sigue siendo exclusivo de `owner`/`direccion`.
 
 **Dónde se configura:** Equipo → Invitar miembro (nivel de acceso + checkboxes de departamentos). Nada de esto requiere código nuevo por cliente — es 100% configuración con la infraestructura que ya existe (`ClientAccess`, `team_members.departamentos`).

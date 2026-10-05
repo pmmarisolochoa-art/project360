@@ -17,7 +17,7 @@ Sesión larga (02→04 oct) con Alejo Luengas como primer caso real de: personal
 7. **Reporte mensual en PDF** (`reportsPdf.ts:492-493`) tiene el mismo bug que ya se arregló en la tarjeta de Clientes: usa `client.metrics.salesCount/revenueAccumulated` (guardado, nunca se recalcula) en vez de derivarlo en vivo de los leads. Anotado, no tocado.
 8. **CSV de leads**: cada vez que aparece una fuente no reconocida (van "Nuevo seguidor", "DM directo"...) se agrega bajo pedido. Puede que falten más al reimportar el archivo completo de Alejo — revisar si salen más rechazos.
 9. **Plantilla estándar de accesos por rol** (Setter/Closer → `management`+`ventas` editor; Admin del cliente → `pm`+`finanzas`+`ventas` editor) queda documentada arriba para aplicarse a **cualquier cliente nuevo**, no solo Alejo.
-10. **Falta invitar a Alejo Luengas y Santi como "admin del cliente"** (los 3 departamentos marcados) — Setter y Closer ya quedaron verificados; falta este último paso para cerrar el tema de accesos de Alejo por completo.
+10. **Alejo Luengas y Santi ya invitados como "admin del cliente"** (04-oct) — falta confirmar que al entrar ven los 5 cajones completos (Planeación, Management, Ventas, Métricas, Finanzas). No verificado todavía en esta sesión.
 
 ---
 

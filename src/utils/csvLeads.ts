@@ -159,22 +159,38 @@ const ETIQUETAS_FUENTE = LEAD_SOURCES.join(', ');
 const UTM_FUENTES: Record<string, LeadSource> = { ig: 'meta_ads', fb: 'meta_ads', an: 'meta_ads', instagram: 'meta_ads', facebook: 'meta_ads' };
 
 /**
- * Fecha "D-M-Y" o "D/M/Y" (con año de 4 dígitos) → ISO. Las hojas de este
- * cliente la escriben así ("9-9-2026"), que `Date.parse` interpretaría mal
- * (formato no estándar, ambiguo entre D-M-Y y M-D-Y según motor). Si no
- * calza el patrón, se intenta `Date.parse` tal cual como respaldo.
+ * Fecha "D-M-Y" o "D/M/Y", con año de 2 o 4 dígitos → ISO. Las hojas de este
+ * cliente mezclan ambos ("9-9-2026" y "18-9-26" en la misma columna), que
+ * `Date.parse` interpretaría mal (formato no estándar, ambiguo entre D-M-Y y
+ * M-D-Y según motor). Año de 2 dígitos se asume 20XX — no tiene sentido un
+ * lead de 1926. Si no calza el patrón, se intenta `Date.parse` tal cual
+ * como respaldo (cubre ISO "2026-09-18", que SÍ entiende nativamente).
  */
 function parsearFechaLatam(s: string): string | undefined {
-  const m = s.trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  const m = s.trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/);
   if (m) {
-    const [, d, mo, y] = m;
+    const [, d, mo, yCrudo] = m;
     const dia = Number(d), mes = Number(mo);
+    const y = yCrudo.length === 2 ? `20${yCrudo}` : yCrudo;
     if (mes >= 1 && mes <= 12 && dia >= 1 && dia <= 31) {
       return `${y}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
     }
   }
   return !Number.isNaN(Date.parse(s)) ? new Date(s).toISOString().slice(0, 10) : undefined;
 }
+
+/**
+ * ¿Parece un número de teléfono? Solo dígitos y puntuación de teléfono
+ * (+, espacios, guiones, paréntesis), con 7+ dígitos reales — así
+ * "fedechas36" (usuario de Instagram, trae letras) no cae aquí.
+ */
+function pareceTelefono(s: string): boolean {
+  const limpio = s.trim();
+  if (!/^[+]?[\d\s().-]+$/.test(limpio)) return false;
+  return limpio.replace(/\D/g, '').length >= 7;
+}
+
+const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Resuelve un nombre crudo de Setter/Closer a un id del equipo del cliente —
@@ -258,9 +274,20 @@ export function leerLeadsCSV(
       idsExternosVistos.add(externalId);
     }
 
-    const telefono = leer('telefono') || undefined;
-    const email = leer('email') || undefined;
+    let telefono = leer('telefono') || undefined;
+    let email = leer('email') || undefined;
     const contacto = leer('contacto') || undefined;
+    // El CSV de este cliente no trae columnas "teléfono"/"email" separadas —
+    // todo el contacto vive en una sola columna "Contacto" (número O usuario
+    // de Instagram, sin patrón fijo). Antes se descartaba entero; ahora se
+    // clasifica: si parece teléfono o email va al campo correcto, y si no
+    // (usuario de red social) se guarda en notas más abajo para no perderlo.
+    let contactoSinClasificar: string | undefined;
+    if (contacto) {
+      if (!telefono && pareceTelefono(contacto)) telefono = contacto;
+      else if (!email && RE_EMAIL.test(contacto)) email = contacto;
+      else if (contacto !== telefono && contacto !== email) contactoSinClasificar = contacto;
+    }
 
     // El id propio, cuando viene, es la identidad. Sin eso: teléfono o email
     // normalizados. Sin NINGUNO de los tres (caso real: CSV cuyo "Contacto"
@@ -303,13 +330,55 @@ export function leerLeadsCSV(
     const fechaTexto = leer('creadoEn');
     const createdAt = fechaTexto ? parsearFechaLatam(fechaTexto) : undefined;
 
+    // Dinero en texto libre ("USD 3.000", "$1,000", "$0"): el punto y la
+    // coma pueden ser separador de miles O decimal según quién lo escribió
+    // (este archivo mezcla los dos estilos). Regla: el ÚLTIMO separador que
+    // aparece es el decimal SOLO si le siguen 1-2 dígitos; si le siguen 3,
+    // es de miles (nadie paga "$3.00" por una mentoría de miles de dólares).
+    // Sin ambigüedad (los dos símbolos presentes) el último manda y el otro
+    // es de miles. Antes "USD 3.000" daba 3 en vez de 3000.
     const numero = (texto: string): number | undefined => {
-      const limpio = texto.replace(/[^\d.,-]/g, '').replace(',', '.');
-      return limpio && !Number.isNaN(Number(limpio)) ? Number(limpio) : undefined;
+      const limpio = texto.replace(/[^\d.,-]/g, '');
+      if (!limpio) return undefined;
+      const ultimaComa = limpio.lastIndexOf(',');
+      const ultimoPunto = limpio.lastIndexOf('.');
+      let sepDecimal: ',' | '.' | null = null;
+      if (ultimaComa >= 0 && ultimoPunto >= 0) {
+        sepDecimal = ultimaComa > ultimoPunto ? ',' : '.';
+      } else if (ultimaComa >= 0) {
+        sepDecimal = limpio.length - ultimaComa - 1 === 3 ? null : ',';
+      } else if (ultimoPunto >= 0) {
+        sepDecimal = limpio.length - ultimoPunto - 1 === 3 ? null : '.';
+      }
+      let normalizado: string;
+      if (sepDecimal) {
+        const idx = sepDecimal === ',' ? ultimaComa : ultimoPunto;
+        normalizado = `${limpio.slice(0, idx).replace(/[.,]/g, '')}.${limpio.slice(idx + 1)}`;
+      } else {
+        normalizado = limpio.replace(/[.,]/g, '');
+      }
+      return normalizado && !Number.isNaN(Number(normalizado)) ? Number(normalizado) : undefined;
     };
 
     const setterNombre = leer('setter') || undefined;
     const closerNombre = leer('closer') || undefined;
+
+    // "Último seguimiento" se guarda como fecha (así lo pide el formulario),
+    // pero en este archivo la columna mezcla fechas con notas de texto libre
+    // ("Reagendar llamada", "Cobrar 2.º pago"...). Si no parsea como fecha,
+    // no se descarta: se mueve a Notas para no perder el seguimiento real.
+    const seguimientoTexto = leer('ultimoSeguimiento');
+    const ultimoSeguimiento = seguimientoTexto ? parsearFechaLatam(seguimientoTexto) : undefined;
+    const seguimientoSinFecha = seguimientoTexto && !ultimoSeguimiento ? seguimientoTexto : undefined;
+
+    const notasExtra = [
+      contactoSinClasificar ? `Contacto: ${contactoSinClasificar}` : undefined,
+      seguimientoSinFecha ? `Último seguimiento: ${seguimientoSinFecha}` : undefined,
+    ].filter(Boolean);
+    const notasOriginal = leer('notas') || undefined;
+    const notas = notasExtra.length
+      ? [...notasExtra, notasOriginal].filter(Boolean).join(' · ')
+      : notasOriginal;
 
     const datos: DatosFilaLead = {
       nombre, telefono, email, fuente,
@@ -333,8 +402,8 @@ export function leerLeadsCSV(
       programValue: (() => { const t = leer('precioPactado'); return t ? numero(t) : undefined; })(),
       cashCollected: (() => { const t = leer('totalCobrado'); return t ? numero(t) : undefined; })(),
       lostReason: leer('motivoNoCerro') || undefined,
-      ultimoSeguimiento: (() => { const t = leer('ultimoSeguimiento'); return t ? parsearFechaLatam(t) : undefined; })(),
-      notas: leer('notas') || undefined,
+      ultimoSeguimiento,
+      notas,
     };
     return { linea, nombreCrudo: nombre, estado: 'nueva', datos };
   });

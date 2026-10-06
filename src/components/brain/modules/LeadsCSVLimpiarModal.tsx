@@ -13,7 +13,7 @@
  * se llevaría ese trabajo, y no es lo que se pidió ("solo los que dice nuevo").
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -42,8 +42,24 @@ export function LeadsCSVLimpiarModal({
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [allLeads, allEvents, clientId]);
 
-  const [marcados, setMarcados] = useState<Set<string>>(() => new Set(candidatos.map((l) => l.id)));
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [eliminando, setEliminando] = useState(false);
+
+  // Este modal vive montado en el DOM desde que abre VentasModule (Modal solo
+  // esconde con CSS), así que al nacer casi siempre el store de leads aún no
+  // hidrató — "marcar todos por defecto" con `candidatos` vacío marcaba 0.
+  // Se preselecciona la PRIMERA vez que llegan candidatos reales, y solo esa
+  // vez, para no pisar una deselección manual del usuario después.
+  const preseleccionado = useRef(false);
+  useEffect(() => {
+    if (!preseleccionado.current && candidatos.length > 0) {
+      setMarcados(new Set(candidatos.map((l) => l.id)));
+      preseleccionado.current = true;
+    }
+  }, [candidatos]);
+
+  const todosMarcados = candidatos.length > 0 && marcados.size === candidatos.length;
+  const alternarTodos = () => setMarcados(todosMarcados ? new Set() : new Set(candidatos.map((l) => l.id)));
 
   const alternar = (id: string) =>
     setMarcados((prev) => {
@@ -99,6 +115,16 @@ export function LeadsCSVLimpiarModal({
           <div className="surface p-8 text-center text-sm text-text-secondary">
             No hay leads de CSV en "Nuevo" para limpiar.
           </div>
+        )}
+
+        {candidatos.length > 0 && (
+          <button
+            type="button"
+            onClick={alternarTodos}
+            className="text-xs text-text-secondary hover:text-text-primary underline underline-offset-2"
+          >
+            {todosMarcados ? 'Desmarcar todos' : `Marcar los ${candidatos.length}`}
+          </button>
         )}
 
         <div className="space-y-1.5 max-h-[400px] overflow-y-auto">

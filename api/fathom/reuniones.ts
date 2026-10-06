@@ -67,6 +67,42 @@ interface FathomMeeting {
   action_items?: FathomActionItem[];
 }
 
+/**
+ * Pide una página (o varias, siguiendo el cursor) de `GET /meetings` a
+ * Fathom con los parámetros dados. Separado del handler porque se llama DOS
+ * VECES (pasada liviana + pasada con detalle) con distintos parámetros — ver
+ * el comentario en el handler.
+ */
+async function listarFathom(
+  fathomKey: string,
+  params: Record<string, string>,
+  maxPaginas: number,
+): Promise<{ items: FathomMeeting[] } | { error: Response }> {
+  let items: FathomMeeting[] = [];
+  let cursor: string | undefined;
+  try {
+    for (let pagina = 0; pagina < maxPaginas; pagina++) {
+      const url = new URL('https://api.fathom.ai/external/v1/meetings');
+      for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+      if (cursor) url.searchParams.set('cursor', cursor);
+
+      const r = await fetch(url, { headers: { 'X-Api-Key': fathomKey, Accept: 'application/json' } });
+      if (r.status === 401) {
+        return { error: json({ error: 'Fathom rechazó la llave (401). Está vencida o revocada: pide una nueva.' }, 502) };
+      }
+      if (!r.ok) return { error: json({ error: `Fathom respondió ${r.status}.` }, 502) };
+
+      const data = (await r.json()) as { items?: FathomMeeting[]; next_cursor?: string };
+      items = items.concat(Array.isArray(data.items) ? data.items : []);
+      if (!data.next_cursor) break;
+      cursor = data.next_cursor;
+    }
+  } catch (e) {
+    return { error: json({ error: `No se pudo hablar con Fathom: ${(e as Error).message}` }, 502) };
+  }
+  return { items };
+}
+
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'GET') return json({ error: 'Método no permitido.' }, 405);
@@ -109,32 +145,64 @@ export default async function handler(req: Request): Promise<Response> {
     );
   }
 
-  // ── 3. Traer de Fathom: reuniones con resumen + action items ───────────────
+  // ── 3. Traer de Fathom en DOS PASADAS ───────────────────────────────────────
+  //
+  // Fathom no filtra por cliente de su lado (no hay "proyectos" ahí) — antes
+  // esto pedía `include_summary`+`include_action_items` para TODA la cuenta
+  // desde FATHOM_DESDE de una sola pasada, y con varios clientes grabando
+  // desde septiembre eso agota el límite de 25s del edge function (confirmado
+  // en prod: 504 a los 25.29s, SIN llegar nunca a filtrar por título).
+  //
+  // Pasada 1 — liviana: solo título + fecha, SIN resumen ni tareas, para
+  // encontrar cuáles reuniones son de este cliente.
+  // Pasada 2 — solo si hubo match: vuelve a pedir, pero acotada a la fecha
+  // real de esas reuniones (±1 día de margen por huso horario), CON resumen y
+  // tareas. El costo caro queda limitado al puñado de reuniones del cliente,
+  // no a la cuenta entera.
   const createdAfter = `${FATHOM_DESDE}T00:00:00Z`;
+
+  const pase1 = await listarFathom(fathomKey, { created_after: createdAfter, limit: '25' }, 40);
+  if ('error' in pase1) return pase1.error;
+  const livianas = pase1.items;
+
+  const diag: Record<string, unknown> = { recibidasDeFathom: livianas.length };
+
+  const esDeEsteCliente = (m: FathomMeeting) => {
+    const r = clienteDeTituloFathom(m.title || m.meeting_title || '');
+    return r !== undefined && r !== 'ambiguo' && r.cliente === declarado.cliente;
+  };
+
+  const matchLivianas = livianas.filter(esDeEsteCliente);
+  diag.trasPalabraClave = matchLivianas.length;
+
+  const ambiguas = livianas
+    .filter((m) => clienteDeTituloFathom(m.title || m.meeting_title || '') === 'ambiguo')
+    .map((m) => m.title || m.meeting_title || '(sin título)');
+  diag.ambiguasDescartadas = ambiguas;
+
   let items: FathomMeeting[] = [];
-  let cursor: string | undefined;
-  try {
-    for (let pagina = 0; pagina < 10; pagina++) {
-      const url = new URL('https://api.fathom.ai/external/v1/meetings');
-      url.searchParams.set('created_after', createdAfter);
-      url.searchParams.set('include_summary', 'true');
-      url.searchParams.set('include_action_items', 'true');
-      if (cursor) url.searchParams.set('cursor', cursor);
+  if (matchLivianas.length > 0) {
+    const fechas = matchLivianas
+      .map((m) => m.recording_start_time || m.scheduled_start_time)
+      .filter((f): f is string => Boolean(f))
+      .map((f) => new Date(f).getTime())
+      .filter((t) => !Number.isNaN(t));
+    const DIA_MS = 86400000;
+    const params: Record<string, string> = {
+      created_after: fechas.length ? new Date(Math.min(...fechas) - DIA_MS).toISOString() : createdAfter,
+      include_summary: 'true',
+      include_action_items: 'true',
+      limit: '25',
+    };
+    if (fechas.length) params.created_before = new Date(Math.max(...fechas) + DIA_MS).toISOString();
 
-      const r = await fetch(url, { headers: { 'X-Api-Key': fathomKey, Accept: 'application/json' } });
-      if (r.status === 401) {
-        return json({ error: 'Fathom rechazó la llave (401). Está vencida o revocada: pide una nueva.' }, 502);
-      }
-      if (!r.ok) return json({ error: `Fathom respondió ${r.status}.` }, 502);
-
-      const data = (await r.json()) as { items?: FathomMeeting[]; next_cursor?: string };
-      items = items.concat(Array.isArray(data.items) ? data.items : []);
-      if (!data.next_cursor) break;
-      cursor = data.next_cursor;
-    }
-  } catch (e) {
-    return json({ error: `No se pudo hablar con Fathom: ${(e as Error).message}` }, 502);
+    const pase2 = await listarFathom(fathomKey, params, 10);
+    if ('error' in pase2) return pase2.error;
+    // Reafirma el filtro por título: la ventana de fechas puede traer
+    // reuniones de OTROS clientes grabadas el mismo día.
+    items = pase2.items.filter(esDeEsteCliente);
   }
+  diag.trasDetalle = items.length;
 
   // ── 3.5 Cargar el equipo del cliente destino (para resolver assignees) ─────
   let nombresEquipo: string[] = [];
@@ -146,22 +214,8 @@ export default async function handler(req: Request): Promise<Response> {
     }
   }
 
-  // ── 4. Filtrar por palabra clave + traducir ─────────────────────────────────
-  const diag: Record<string, unknown> = { recibidasDeFathom: items.length };
-
-  const paso1 = items.filter((m) => {
-    const titulo = m.title || m.meeting_title || '';
-    const r = clienteDeTituloFathom(titulo);
-    return r !== undefined && r !== 'ambiguo' && r.cliente === declarado.cliente;
-  });
-  diag.trasPalabraClave = paso1.length;
-
-  const ambiguas = items
-    .filter((m) => clienteDeTituloFathom(m.title || m.meeting_title || '') === 'ambiguo')
-    .map((m) => m.title || m.meeting_title || '(sin título)');
-  diag.ambiguasDescartadas = ambiguas;
-
-  const reuniones = paso1
+  // ── 4. Traducir ──────────────────────────────────────────────────────────
+  const reuniones = items
     .map((m) => {
       const titulo = (m.title || m.meeting_title || 'Reunión sin título').trim();
       const fecha = m.recording_start_time || m.scheduled_start_time || null;

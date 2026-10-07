@@ -12,6 +12,10 @@
  * acentos) y prueba con UNA reunión antes de soltar el histórico.
  */
 
+// Relativo, no alias '@/': este archivo lo compila también tsconfig.api.json
+// (lo importa api/fathom/reuniones.ts), que no tiene configurado ese alias.
+import type { MeetingType } from '../types/meeting.js';
+
 export interface FathomCliente {
   /** Cliente de Project360, tal cual está escrito allí. */
   cliente: string;
@@ -77,6 +81,39 @@ export const externalIdTareaFathom = (recordingId: number | string, descripcion:
     .slice(0, 48);
   return `fathom:${recordingId}:${huella}`;
 };
+
+/**
+ * Palabras clave → tipo de reunión de Project360 (founder, 07-oct-2026):
+ * calzar el título de Fathom con el SOP de reuniones de la agencia, no
+ * importarlas todas como "General". Mismo criterio que `FATHOM_CLIENTES`:
+ * lista blanca por palabra, generosa pero explícita — si el título no trae
+ * ninguna de estas palabras, o trae de DOS tipos distintos, se deja en
+ * 'general' en vez de adivinar.
+ */
+const PALABRAS_TIPO_REUNION: Array<{ tipo: MeetingType; palabras: string[] }> = [
+  { tipo: 'weekly_planning', palabras: ['planeacion', 'planning'] },
+  { tipo: 'ropre_strategy', palabras: ['estrategia', 'strategy', 'ropre'] },
+  { tipo: 'content_strategy', palabras: ['contenido', 'content'] },
+  { tipo: 'ads_review', palabras: ['ads', 'pauta', 'anuncios'] },
+  { tipo: 'weekly_metrics', palabras: ['metricas', 'metrics'] },
+  { tipo: 'kickoff', palabras: ['kickoff', 'arranque'] },
+  { tipo: 'crisis', palabras: ['crisis', 'urgente'] },
+  { tipo: 'monthly_closing', palabras: ['cierre mensual', 'monthly closing'] },
+  { tipo: 'weekly_closing', palabras: ['cierre de semana', 'sprint de cierre'] },
+];
+
+/**
+ * A qué tipo de reunión de Project360 corresponde un título de Fathom.
+ * Substring sobre el título completo (no palabra por palabra, a diferencia
+ * de `clienteDeTituloFathom`) porque varias claves son frases ("cierre de
+ * semana"). `undefined` = ninguna frase calzó, o calzaron dos tipos
+ * distintos (ambiguo) → el llamador cae a 'general'.
+ */
+export function tipoDesdeTituloFathom(titulo: string): MeetingType | undefined {
+  const t = sinAcentos(titulo);
+  const coincide = PALABRAS_TIPO_REUNION.filter((x) => x.palabras.some((p) => t.includes(p)));
+  return coincide.length === 1 ? coincide[0].tipo : undefined;
+}
 
 /**
  * Resuelve el nombre del assignee de Fathom a una persona del equipo.

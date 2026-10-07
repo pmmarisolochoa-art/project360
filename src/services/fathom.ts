@@ -13,6 +13,7 @@ import { supabase } from './supabase';
 import { MeetingsRepo } from './repositories';
 import { useClientStore } from '@/store/useClientStore';
 import { TASK_SLA_DAYS } from '@/config/taskSLA';
+import { tipoDesdeTituloFathom } from '@/config/fathom';
 import { genId } from '@/utils/id';
 
 export interface TareaFathom {
@@ -103,7 +104,10 @@ export async function importarReunionesFathom(
       id: meetingId,
       clientId,
       title: r.titulo,
-      type: 'general',
+      // Por palabra clave en el título ("Planeación" → weekly_planning,
+      // "Estrategia" → ropre_strategy...) — founder, 07-oct-2026. Sin calce
+      // claro se queda en 'general', no se adivina.
+      type: tipoDesdeTituloFathom(r.titulo) ?? 'general',
       scheduledAt: fechaISO,
       durationMin: r.duracionMin,
       participants: [],

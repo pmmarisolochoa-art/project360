@@ -20,6 +20,12 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+// La extensión `.js` (el archivo real es `fathom.ts`) es obligatoria aquí:
+// como función Node normal, Vercel NO empaqueta este archivo en uno solo
+// (como sí hacía Edge con esbuild) — solo lo copia y deja que el loader ESM
+// nativo de Node resuelva el import en producción, y ese loader exige
+// extensión explícita en imports relativos. Sin ella: ERR_MODULE_NOT_FOUND
+// en prod (confirmado en los logs de Vercel), aunque typecheck pase local.
 import {
   FATHOM_CLIENTES,
   FATHOM_DESDE,
@@ -27,7 +33,7 @@ import {
   externalIdReunionFathom,
   externalIdTareaFathom,
   resolverResponsableFathom,
-} from '../../src/config/fathom';
+} from '../../src/config/fathom.js';
 
 // SIN runtime 'edge' a propósito: las Edge Functions de Vercel tienen que
 // EMPEZAR a responder dentro de 25s pase lo que pase (no es negociable con

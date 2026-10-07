@@ -106,7 +106,16 @@ async function listarFathom(
   return { items };
 }
 
-export default async function handler(req: Request): Promise<Response> {
+// Exportada como `fetch` más abajo (no `export default`) a propósito: en el
+// runtime Node.js de Vercel, `export default` usa la firma VIEJA de Node
+// `(req, res) => void` (tus `return json(...)` se ignoran) — solo Edge le da
+// la firma de Fetch (Request/Response) gratis a un `export default`. `fetch`
+// es el nombre que Vercel reconoce para pedir la firma moderna también en
+// Node. Sin esto: 500 FUNCTION_INVOCATION_FAILED instantáneo, confirmado en
+// prod. Se llama `handler` (no `fetch`) y se reexporta con alias al final del
+// archivo — nombrar la función misma `fetch` ensombrecería el `fetch` GLOBAL
+// que este mismo archivo usa para hablar con Fathom y Anthropic.
+async function handler(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
   if (req.method !== 'GET') return json({ error: 'Método no permitido.' }, 405);
 
@@ -353,3 +362,5 @@ function json(body: unknown, status = 200): Response {
     headers: { 'Content-Type': 'application/json', ...CORS },
   });
 }
+
+export { handler as fetch };

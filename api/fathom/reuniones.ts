@@ -29,8 +29,11 @@ import {
   resolverResponsableFathom,
 } from '../../src/config/fathom';
 
-export const config = { runtime: 'edge' };
-
+// SIN runtime 'edge' a propósito: las Edge Functions de Vercel tienen que
+// EMPEZAR a responder dentro de 25s pase lo que pase (no es negociable con
+// menos trabajo) — confirmado en prod con 504 a los 25.1s incluso tras
+// aligerar la primera pasada. Como función Node normal (`maxDuration` en
+// vercel.json) no tiene ese límite rígido.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',

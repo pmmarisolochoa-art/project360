@@ -4,5 +4,8 @@
   ],
   "crons": [
     { "path": "/api/cron/recordatorios", "schedule": "0 13 * * *" }
-  ]
+  ],
+  "functions": {
+    "api/fathom/reuniones.ts": { "maxDuration": 60 }
+  }
 }

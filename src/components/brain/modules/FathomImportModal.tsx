@@ -128,7 +128,7 @@ export function FathomImportModal({ open, onClose, clientId, clienteNombre }: Pr
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-text-secondary">
-            Solo entra lo que marques. Los responsables salen de Fathom — revísalos.
+            Solo entra lo que marques — trae resumen, transcripción completa y tareas. Los responsables salen de Fathom — revísalos.
           </p>
           <Button variant="ghost" onClick={() => void cargar()} disabled={cargando}>
             <RefreshCw className={`h-3.5 w-3.5 ${cargando ? 'animate-spin' : ''}`} /> Actualizar

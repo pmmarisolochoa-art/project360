@@ -32,6 +32,8 @@ export interface ReunionFathom {
   duracionMin: number;
   url?: string;
   resumen?: string;
+  /** Transcript completo, diarizado — se pide solo para las reuniones ya filtradas por cliente. */
+  transcripcion?: string;
   tareas: TareaFathom[];
 }
 
@@ -106,6 +108,8 @@ export async function importarReunionesFathom(
       durationMin: r.duracionMin,
       participants: [],
       summary: r.resumen,
+      // Transcript real en "Notas" — mismo campo donde ya se pegaba a mano.
+      notes: r.transcripcion,
       recordingUrl: r.url,
       completed: true,
       origen: 'fathom',

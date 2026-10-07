@@ -63,6 +63,12 @@ interface FathomInvitee {
   email?: string;
 }
 
+interface FathomTranscriptItem {
+  speaker?: { display_name?: string };
+  text?: string;
+  timestamp?: string;
+}
+
 interface FathomMeeting {
   title?: string;
   meeting_title?: string;
@@ -74,6 +80,20 @@ interface FathomMeeting {
   calendar_invitees?: FathomInvitee[];
   default_summary?: { markdown_formatted?: string } | null;
   action_items?: FathomActionItem[];
+  transcript?: FathomTranscriptItem[];
+}
+
+/**
+ * "00:05:32 – Alice Johnson\n  Let's revisit..." — mismo formato que ya
+ * usaba la founder pegando transcripciones a mano en Notas, para que el
+ * cambio sea invisible desde su lado. NO se traduce (a diferencia de
+ * título/resumen/tareas): es palabra por palabra lo que se dijo.
+ */
+function formatearTranscript(items: FathomTranscriptItem[] | undefined): string | undefined {
+  if (!items || items.length === 0) return undefined;
+  return items
+    .map((it) => `${it.timestamp ?? ''} – ${it.speaker?.display_name ?? 'Desconocido'}\n  ${(it.text ?? '').trim()}`)
+    .join('\n\n');
 }
 
 /**
@@ -210,6 +230,7 @@ async function handler(req: Request): Promise<Response> {
       created_after: fechas.length ? new Date(Math.min(...fechas) - DIA_MS).toISOString() : createdAfter,
       include_summary: 'true',
       include_action_items: 'true',
+      include_transcript: 'true',
       limit: '25',
     };
     if (fechas.length) params.created_before = new Date(Math.max(...fechas) + DIA_MS).toISOString();
@@ -248,6 +269,7 @@ async function handler(req: Request): Promise<Response> {
         duracionMin: minutosEntre(m.recording_start_time, m.recording_end_time),
         url: m.url,
         resumen: m.default_summary?.markdown_formatted?.trim() || undefined,
+        transcripcion: formatearTranscript(m.transcript),
         tareas: actionItems
           .filter((a) => !a.completed) // ya resueltos en la reunión misma: no hace falta traerlos
           .map((a) => {

@@ -76,6 +76,7 @@ const TIPO_REUNION: Record<MeetingType, string> = {
   weekly_closing: 'Cierre de semana',
   general: 'General',
   management: 'Gerencia',
+  sponsor_strategy: 'Estrategia de Patrocinios',
 };
 
 const ESTADO_ENTREGABLE: Record<string, string> = {

@@ -39,6 +39,7 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   weekly_closing: 'Sprint de cierre de semana',
   general: 'Reunión general',
   management: 'Reunión de gerencia',
+  sponsor_strategy: 'Estrategia de Patrocinios',
 };
 
 const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' | 'neutral' | 'danger'> = {
@@ -53,6 +54,7 @@ const TYPE_TONE: Record<MeetingType, 'info' | 'success' | 'warning' | 'accent' |
   weekly_closing: 'success',
   general: 'neutral',
   management: 'accent',
+  sponsor_strategy: 'warning',
 };
 
 // Descripciones que se muestran en el modal "Nueva reunión" al seleccionar tipo.
@@ -69,6 +71,7 @@ export const TYPE_DESCRIPTION: Record<MeetingType, string> = {
   weekly_closing: '🏁 Cierre de la semana: resumen automático de tareas completadas vs pendientes, cumplimiento por persona y compromisos que pasan a la próxima semana.',
   general: '🗣️ Reunión general y esporádica, sin un tema fijo. Para alineaciones puntuales, novedades o temas varios del equipo.',
   management: '🏛️ Reunión de gerencia: sistema y procesos (SOPs), objetivos y KPIs generales de la agencia, y decisiones importantes de dirección.',
+  sponsor_strategy: '🏆 Llamada de calificación con un deportista que busca patrocinio — perfil, categoría, objetivo y presupuesto disponible.',
 };
 
 /**

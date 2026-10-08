@@ -40,13 +40,14 @@ import { sendMeetingTasks, type MeetingTaskToSend } from '@/services/sendMeeting
 import { dedupeExtracted } from '@/utils/taskDedup';
 import { limpiarTextoPegado } from '@/utils/limpiarTexto';
 import { MeetingRecap } from './MeetingRecap';
+import { MeetingModeLauncher } from '@/components/meetingMode/MeetingModeLauncher';
 
 const TYPE_LABEL: Record<MeetingType, string> = {
   kickoff: 'Kickoff', weekly_metrics: 'Revisión semanal', content_strategy: 'Estrategia de contenido',
   ads_review: 'Revisión de ADS', monthly_closing: 'Cierre mensual', crisis: 'Crisis / Urgente',
   weekly_planning: 'Planeación semanal', ropre_strategy: 'Estrategia ROPRE & Entregables',
   weekly_closing: 'Sprint de cierre de semana',
-  general: 'Reunión general', management: 'Reunión de gerencia',
+  general: 'Reunión general', management: 'Reunión de gerencia', sponsor_strategy: 'Estrategia de Patrocinios',
 };
 
 export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting: Meeting; onClose: () => void; readOnly?: boolean }) {
@@ -606,9 +607,12 @@ export function MeetingDrawer({ meeting, onClose, readOnly = false }: { meeting:
             <h2 className="heading text-lg font-bold leading-tight">{meeting.title}</h2>
             {meeting.completed && <Badge tone="success" className="mt-1"><CheckCircle2 className="h-3 w-3" /> Completada</Badge>}
           </div>
-          <button onClick={onClose} className="h-8 w-8 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-elevated" aria-label="Cerrar">
-            <X className="h-4 w-4 mx-auto" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {client && <MeetingModeLauncher meeting={meeting} />}
+            <button onClick={onClose} className="h-8 w-8 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-elevated" aria-label="Cerrar">
+              <X className="h-4 w-4 mx-auto" />
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">

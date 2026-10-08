@@ -39,7 +39,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { CALENDLY_CLIENTES, externalIdInviteeCalendly } from '../../src/config/calendly';
+import { CALENDLY_CLIENTES, externalIdInviteeCalendly, tipoReunionDesdeNombreEvento } from '../../src/config/calendly';
 import { normalizar, normalizarTelefono } from '../../src/utils/csvLeads';
 import type { LeadStage } from '../../src/types/lead';
 
@@ -123,7 +123,11 @@ export default async function handler(req: Request): Promise<Response> {
 
   // ── Resolver o crear el lead ─────────────────────────────────────────────
   const email = invitee.email?.trim() || undefined;
-  const telefono = invitee.text_reminder_number?.trim() || undefined;
+  // El número de SMS (text_reminder_number) es OPCIONAL y aparte de las
+  // preguntas del formulario — este Event Type en particular pide el
+  // teléfono como pregunta custom, no como ese campo. Se intentan los dos.
+  const telefono = invitee.text_reminder_number?.trim() || telefonoDesdePreguntas(invitee.questions_and_answers);
+  const notasPreguntas = formatearPreguntas(invitee.questions_and_answers);
   let leadId: string | undefined;
   let leadEtapaActual: LeadStage | undefined;
 
@@ -161,9 +165,16 @@ export default async function handler(req: Request): Promise<Response> {
       console.error('[calendly] api_lead_crear falló', externalId, error);
     } else {
       leadId = nuevoId as string;
-      leadEtapaActual = 'nuevo';
+      leadEtapaActual = 'nuevo'; // default de la RPC — recién creado.
     }
-  } else if (leadEtapaActual && ETAPAS_QUE_SUBEN_A_CITA_AGENDADA.includes(leadEtapaActual)) {
+  }
+
+  // Un lead que agenda (sea nuevo o existente) debe quedar en "Cita
+  // agendada" — antes un lead NUEVO se quedaba sin subir de etapa porque
+  // esta rama vivía como `else if` de la creación de arriba y nunca corría
+  // para el caso recién creado (bug real, encontrado probando con Marisol
+  // Ochoa L el 08-oct-2026: el lead quedó en "Nuevo").
+  if (leadId && leadEtapaActual && ETAPAS_QUE_SUBEN_A_CITA_AGENDADA.includes(leadEtapaActual)) {
     await admin
       .from('leads')
       .update({ etapa: 'cita_agendada', fecha_agenda: detalle.start_time })
@@ -183,15 +194,24 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   // ── Crear el Meeting ─────────────────────────────────────────────────────
+  // Título y tipo salen del Event Type REAL agendado en Calendly (ej.
+  // "Sesión Estratégica de Patrocinios"), no de un genérico — cada Event
+  // Type puede ser una reunión de naturaleza distinta.
+  const nombreEvento = detalle.name?.trim() || `Llamada agendada — ${invitee.name || 'Sin nombre'}`;
+  const tipoReunion = tipoReunionDesdeNombreEvento(detalle.name ?? '') ?? 'general';
   const duracionMin = minutosEntre(detalle.start_time, detalle.end_time);
   const { error: errMeeting } = await admin.from('meetings').insert({
     client_id: declarado.clientId,
-    title: `Llamada agendada — ${invitee.name || 'Sin nombre'}`,
-    type: 'general',
+    title: invitee.name ? `${nombreEvento} — ${invitee.name}` : nombreEvento,
+    type: tipoReunion,
     scheduled_at: detalle.start_time,
     duration_min: duracionMin,
     participants: closer ? [{ userId: closer.id, name: closer.nombre }] : [],
     video_call_link: detalle.location?.join_url ?? undefined,
+    // Lo que respondió el invitee en el formulario de reserva — cada Event
+    // Type trae sus propias preguntas, así que se guardan TODAS tal cual
+    // (no se adivina cuáles importan para cada caso).
+    notes: notasPreguntas,
     origen: 'calendly',
     external_id: externalId,
     lead_id: leadId ?? null,
@@ -201,6 +221,12 @@ export default async function handler(req: Request): Promise<Response> {
   return texto('OK', 200);
 }
 
+interface CalendlyQA {
+  question?: string;
+  answer?: string;
+  position?: number;
+}
+
 interface CalendlyInvitee {
   uri: string;
   email?: string;
@@ -208,6 +234,27 @@ interface CalendlyInvitee {
   text_reminder_number?: string;
   event: string; // URI del scheduled event
   status?: 'active' | 'canceled';
+  // Respuestas al formulario de reserva — cada Event Type de Calendly trae
+  // las suyas (acá no se adivina cuáles son: se guardan TODAS en las notas
+  // de la reunión, y solo se intenta sacar un teléfono si hay una pregunta
+  // que claramente pregunta por eso).
+  questions_and_answers?: CalendlyQA[];
+}
+
+/** Formatea las preguntas/respuestas del formulario de reserva para Notas. */
+function formatearPreguntas(qa: CalendlyQA[] | undefined): string | undefined {
+  if (!qa || qa.length === 0) return undefined;
+  return qa
+    .slice()
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map((p) => `${(p.question ?? '').trim()}: ${(p.answer ?? '').trim()}`)
+    .join('\n');
+}
+
+/** Si ninguna pregunta de "teléfono"/"whatsapp" trae el número, no se inventa. */
+function telefonoDesdePreguntas(qa: CalendlyQA[] | undefined): string | undefined {
+  const pregunta = (qa ?? []).find((p) => /tel[eé]fono|whatsapp|celular|phone/i.test(p.question ?? ''));
+  return pregunta?.answer?.trim() || undefined;
 }
 
 interface CalendlyWebhookBody {
@@ -216,6 +263,7 @@ interface CalendlyWebhookBody {
 }
 
 interface DetalleEvento {
+  name?: string; // nombre real del Event Type agendado, ej. "Sesión Estratégica de Patrocinios"
   start_time: string;
   end_time: string;
   location?: { join_url?: string };

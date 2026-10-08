@@ -32,3 +32,20 @@ export const CALENDLY_CLIENTES: CalendlyCliente[] = [
 
 /** `external_id` de una reunión creada desde un invitee de Calendly. */
 export const externalIdInviteeCalendly = (inviteeUri: string): string => `calendly:${inviteeUri}`;
+
+function sinAcentos(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/**
+ * Tipo de reunión de Project360 según el nombre del evento agendado en
+ * Calendly (founder, 08-oct-2026: "Sesión Estratégica de Patrocinios" debe
+ * entrar con su propio formato, no como reunión general). Mismo criterio
+ * que `tipoDesdeTituloFathom`: lista blanca por palabra clave, sin calce
+ * claro se queda en `undefined` y el llamador cae a 'general'.
+ */
+export function tipoReunionDesdeNombreEvento(nombreEvento: string): import('../types/meeting').MeetingType | undefined {
+  const t = sinAcentos(nombreEvento);
+  if (t.includes('patrocinio')) return 'sponsor_strategy';
+  return undefined;
+}

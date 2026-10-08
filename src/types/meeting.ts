@@ -9,7 +9,8 @@ export type MeetingType =
   | 'ropre_strategy'
   | 'weekly_closing'
   | 'general'
-  | 'management';
+  | 'management'
+  | 'sponsor_strategy';
 
 export interface Meeting {
   id: string;

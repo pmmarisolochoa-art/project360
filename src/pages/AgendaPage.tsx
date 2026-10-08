@@ -42,6 +42,7 @@ const TYPE_LABEL: Record<MeetingType, string> = {
   weekly_closing: 'Sprint de cierre de semana',
   general: 'Reunión general',
   management: 'Reunión de gerencia',
+  sponsor_strategy: 'Estrategia de Patrocinios',
 };
 
 export function AgendaPage() {

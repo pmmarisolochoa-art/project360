@@ -5,6 +5,7 @@ import { ImportarLeadsCSVModal } from './ImportarLeadsCSVModal';
 import { LeadsDuplicadosModal } from './LeadsDuplicadosModal';
 import { LeadsCSVLimpiarModal } from './LeadsCSVLimpiarModal';
 import { detectarLeadsDuplicados } from '@/utils/leadDedup';
+import { calcularContadoresSeguimiento } from '@/utils/leadSeguimiento';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCES, LEAD_SOURCE_LABELS } from '@/types/lead';
@@ -196,6 +197,18 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const cashCollected = ganados.reduce((s, l) => s + (l.cashCollected ?? 0), 0);
   const pendienteCobro = Math.max(0, valorContratado - cashCollected);
 
+  // Contadores de seguimiento — sobre el universo VIVO (`leads`), no el
+  // período: son alertas operativas ("a quién hay que empujar hoy"), no
+  // estadística histórica.
+  const eventosDelCliente = useMemo(() => {
+    const ids = new Set(leads.map((l) => l.id));
+    return allEvents.filter((e) => ids.has(e.leadId));
+  }, [allEvents, leads]);
+  const contadores = useMemo(
+    () => calcularContadoresSeguimiento(leads, eventosDelCliente),
+    [leads, eventosDelCliente],
+  );
+
   function handleDrop(stage: LeadStage) {
     if (readOnly || !draggedId) return;
     const lead = leads.find((l) => l.id === draggedId);
@@ -237,6 +250,14 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
         <KpiTile label="Valor contratado" value={`$${valorContratado.toLocaleString('es-CO')}`} />
         <KpiTile label="Cash collected" value={`$${cashCollected.toLocaleString('es-CO')}`} tone="good" />
         <KpiTile label="Pendiente de cobro" value={`$${pendienteCobro.toLocaleString('es-CO')}`} tone={pendienteCobro > 0 ? 'warn' : undefined} />
+      </div>
+
+      {/* Seguimiento — alertas operativas sobre el Pipeline vivo, no el período */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiTile label="Sin contactar" value={String(contadores.sinContactar)} tone={contadores.sinContactar > 0 ? 'warn' : undefined} />
+        <KpiTile label="Sin dueño" value={String(contadores.sinDueño)} tone={contadores.sinDueño > 0 ? 'warn' : undefined} />
+        <KpiTile label="No-show" value={String(contadores.noShow)} tone={contadores.noShow > 0 ? 'warn' : undefined} />
+        <KpiTile label="Sin respuesta (+5d)" value={String(contadores.sinRespuesta)} tone={contadores.sinRespuesta > 0 ? 'warn' : undefined} />
       </div>
 
       {tab === 'pipeline' ? (

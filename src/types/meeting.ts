@@ -43,6 +43,10 @@ export interface Meeting {
    *  Vacío = creada dentro de Project360. */
   externalId?: string;
 
+  /* ── Calendly (migración 062) ───────────────────────────────────────────── */
+  /** Lead que agendó esta reunión. Nulo = sin lead asociado. */
+  leadId?: string;
+
   /* ── Reporte guardado (migración 042) ──────────────────────────────────── */
   /** El reporte ya generado. Se genera una vez y se reusa. */
   reporte?: ReporteReunion;
@@ -62,4 +66,4 @@ export interface ReporteReunion {
 }
 
 /** De dónde vino una reunión. Debe coincidir con el CHECK de `meetings.origen`. */
-export type MeetingOrigen = 'manual' | 'api' | 'paralelo' | 'fathom';
+export type MeetingOrigen = 'manual' | 'api' | 'paralelo' | 'fathom' | 'calendly';

@@ -24,7 +24,13 @@
     "noUnusedParameters": true,
     // `process.env` es la única API de Node que usan estas funciones (leer
     // variables de entorno); Vercel la expone también en el Edge Runtime.
-    "types": ["node"]
+    "types": ["node"],
+    // Varios endpoints de `api/` importan utilidades de `src/` (ej. Fathom,
+    // Calendly) que a su vez usan el alias `@/` internamente — sin esto, el
+    // typecheck de archivos arrastrados transitivamente falla aunque esos
+    // archivos ni siquiera sean el punto de entrada.
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] }
   },
   "include": ["api"]
 }

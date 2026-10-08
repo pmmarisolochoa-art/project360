@@ -17,8 +17,10 @@
  * rechaza): pasa a revisión manual en el drawer, mejor que perderlo.
  */
 import { parsearCSV } from './csvClientes';
-import type { Lead, LeadSource } from '@/types/lead';
-import { LEAD_SOURCES } from '@/types/lead';
+// Relativo, no alias '@/': este archivo también lo importa api/calendly/webhook.ts
+// (vía normalizar/normalizarTelefono), cuyo bundler de Edge no conoce el alias.
+import type { Lead, LeadSource } from '../types/lead';
+import { LEAD_SOURCES } from '../types/lead';
 
 export interface DatosFilaLead {
   nombre: string;
@@ -81,12 +83,17 @@ export interface LecturaLeadsCSV {
   columnasIgnoradas: string[];
 }
 
-function normalizar(s: string): string {
+// Exportadas (además de usarse aquí) para que otras integraciones que
+// necesitan emparejar un lead por email/teléfono —hoy el webhook de
+// Calendly, `api/calendly/webhook.ts`— reusen la MISMA normalización en vez
+// de reimplementarla: el bug de "los dos traductores" (11-ago, 14-ago) salió
+// justo de tener la misma lógica escrita dos veces y que una se quedara atrás.
+export function normalizar(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /** Deja solo dígitos — así "+57 300 000 0000" y "300-000-0000" son el mismo teléfono. */
-function normalizarTelefono(s: string): string {
+export function normalizarTelefono(s: string): string {
   return s.replace(/\D/g, '');
 }
 

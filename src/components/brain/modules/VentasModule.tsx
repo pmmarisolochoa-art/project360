@@ -114,6 +114,11 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   // dos preguntas distintas ("¿cómo va el mes?" vs "¿qué tiene fulano hoy?").
   const [filtroSetter, setFiltroSetter] = useState('');
   const [filtroCloser, setFiltroCloser] = useState('');
+  // Qué fecha del lead usa el rango de abajo — creación (cuándo entró) o
+  // cierre (cuándo se ganó/perdió, `closedAt`). Un lead sin cerrar no tiene
+  // `closedAt`, así que filtrar por "Cierre" naturalmente solo muestra
+  // ganados/perdidos en ese rango (founder, 07-oct-2026).
+  const [filtroCampoFecha, setFiltroCampoFecha] = useState<'creado' | 'cierre'>('creado');
   const [filtroDesde, setFiltroDesde] = useState('');
   const [filtroHasta, setFiltroHasta] = useState('');
 
@@ -147,16 +152,19 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
     }
     if (filtroSetter) out = out.filter((l) => l.setterId === filtroSetter);
     if (filtroCloser) out = out.filter((l) => l.closerId === filtroCloser);
-    if (filtroDesde) {
-      const d = fechaLocal(filtroDesde, false);
-      out = out.filter((l) => new Date(l.createdAt) >= d);
-    }
-    if (filtroHasta) {
-      const h = fechaLocal(filtroHasta, true);
-      out = out.filter((l) => new Date(l.createdAt) <= h);
+    if (filtroDesde || filtroHasta) {
+      const campo = filtroCampoFecha === 'cierre' ? 'closedAt' : 'createdAt';
+      if (filtroDesde) {
+        const d = fechaLocal(filtroDesde, false);
+        out = out.filter((l) => { const v = l[campo]; return !!v && new Date(v) >= d; });
+      }
+      if (filtroHasta) {
+        const h = fechaLocal(filtroHasta, true);
+        out = out.filter((l) => { const v = l[campo]; return !!v && new Date(v) <= h; });
+      }
     }
     return out;
-  }, [leads, termino, filtroSetter, filtroCloser, filtroDesde, filtroHasta]);
+  }, [leads, termino, filtroSetter, filtroCloser, filtroCampoFecha, filtroDesde, filtroHasta]);
 
   // El Pipeline (Kanban) siempre muestra el estado VIVO — el filtro de período
   // solo acota qué leads entran a los KPIs y las gráficas, no esconde tarjetas.
@@ -301,7 +309,15 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
               <option value="">Todos los closers</option>
               {closers.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
-            <span className="text-text-muted">Creado:</span>
+            <select
+              value={filtroCampoFecha}
+              onChange={(e) => setFiltroCampoFecha(e.target.value as 'creado' | 'cierre')}
+              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+              aria-label="Filtrar por fecha de"
+            >
+              <option value="creado">Creado</option>
+              <option value="cierre">Cierre</option>
+            </select>
             <input
               type="date"
               value={filtroDesde}
@@ -319,7 +335,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
             />
             {hayFiltrosPipeline && (
               <button
-                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); setFiltroDesde(''); setFiltroHasta(''); }}
+                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); setFiltroCampoFecha('creado'); setFiltroDesde(''); setFiltroHasta(''); }}
                 className="text-text-secondary hover:text-text-primary underline"
               >
                 Quitar filtros

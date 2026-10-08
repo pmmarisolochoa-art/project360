@@ -24,6 +24,8 @@ export interface DatosFilaLead {
   nombre: string;
   telefono?: string;
   email?: string;
+  /** Usuario de Instagram (sin "@") — migración 061. */
+  instagram?: string;
   fuente: LeadSource;
   perfilRol?: string;
   externalId?: string;
@@ -32,11 +34,10 @@ export interface DatosFilaLead {
   ruta?: string;
   createdAt?: string;
   /**
-   * Usuario de Instagram/red social del CSV (columna "Contacto" en el
-   * formato de Alejo) — NO es un teléfono. Solo se usa como identidad para
-   * detectar duplicados dentro del archivo; no se guarda en el Lead porque
-   * no hay campo para eso todavía (ver REGLAS si algún día hace falta
-   * persistirlo de verdad).
+   * Valor CRUDO de la columna "Contacto" del CSV (formato de Alejo): número
+   * O usuario de Instagram, sin patrón fijo. Se usa para detectar duplicados
+   * dentro del archivo; el valor que no resulta teléfono/email se vuelca a
+   * `instagram` (ver `leerLeadsCSV`), este campo queda solo como referencia.
    */
   contacto?: string;
   /** Nombre crudo del CSV — se resuelve a id de equipo si hay match exacto o por primer nombre único. */
@@ -279,14 +280,15 @@ export function leerLeadsCSV(
     const contacto = leer('contacto') || undefined;
     // El CSV de este cliente no trae columnas "teléfono"/"email" separadas —
     // todo el contacto vive en una sola columna "Contacto" (número O usuario
-    // de Instagram, sin patrón fijo). Antes se descartaba entero; ahora se
-    // clasifica: si parece teléfono o email va al campo correcto, y si no
-    // (usuario de red social) se guarda en notas más abajo para no perderlo.
-    let contactoSinClasificar: string | undefined;
+    // de Instagram, sin patrón fijo). Se clasifica: si parece teléfono o
+    // email va al campo correcto; si no, es un usuario de red social y va al
+    // campo `instagram` (migración 061) — antes se perdía o quedaba
+    // enterrado en Notas.
+    let instagram: string | undefined;
     if (contacto) {
       if (!telefono && pareceTelefono(contacto)) telefono = contacto;
       else if (!email && RE_EMAIL.test(contacto)) email = contacto;
-      else if (contacto !== telefono && contacto !== email) contactoSinClasificar = contacto;
+      else if (contacto !== telefono && contacto !== email) instagram = contacto.replace(/^@/, '');
     }
 
     // El id propio, cuando viene, es la identidad. Sin eso: teléfono o email
@@ -371,17 +373,13 @@ export function leerLeadsCSV(
     const ultimoSeguimiento = seguimientoTexto ? parsearFechaLatam(seguimientoTexto) : undefined;
     const seguimientoSinFecha = seguimientoTexto && !ultimoSeguimiento ? seguimientoTexto : undefined;
 
-    const notasExtra = [
-      contactoSinClasificar ? `Contacto: ${contactoSinClasificar}` : undefined,
-      seguimientoSinFecha ? `Último seguimiento: ${seguimientoSinFecha}` : undefined,
-    ].filter(Boolean);
     const notasOriginal = leer('notas') || undefined;
-    const notas = notasExtra.length
-      ? [...notasExtra, notasOriginal].filter(Boolean).join(' · ')
+    const notas = seguimientoSinFecha
+      ? [`Último seguimiento: ${seguimientoSinFecha}`, notasOriginal].filter(Boolean).join(' · ')
       : notasOriginal;
 
     const datos: DatosFilaLead = {
-      nombre, telefono, email, fuente,
+      nombre, telefono, email, instagram, fuente,
       perfilRol: leer('perfilRol') || undefined,
       externalId,
       score,
@@ -419,6 +417,7 @@ export function construirLeadDesdeFila(datos: DatosFilaLead, clientId: string): 
     nombre: datos.nombre,
     telefono: datos.telefono,
     email: datos.email,
+    instagram: datos.instagram,
     fuente: datos.fuente,
     perfilRol: datos.perfilRol,
     externalId: datos.externalId,

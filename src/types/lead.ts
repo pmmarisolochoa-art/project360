@@ -58,6 +58,10 @@ export interface Lead {
   nombre: string;
   telefono?: string;
   email?: string;
+  /** Usuario de Instagram (sin "@", solo el handle) — migración 061. */
+  instagram?: string;
+  /** Alias/usuario de WhatsApp, cuando es distinto del número en `telefono` — migración 061. */
+  whatsappUsuario?: string;
   fuente: LeadSource;
   etapa: LeadStage;
   setterId?: string;

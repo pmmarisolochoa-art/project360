@@ -31,7 +31,10 @@ const CABECERA = 'Nombre,Contacto,Fecha 1er contacto,Canal de entrada,Setter,Fec
 seccion('columna "Contacto" (teléfono o IG, sin separar)');
 let r = leerLeadsCSV(`${CABECERA}\nFederico,fedechas36,29/7/2026,Reel,Jessica,9-9-2026,10-9-2026,NATALIA,No,No asistió,,,,,,`, 'c1', []);
 ok(r.filas[0].datos.telefono === undefined, 'usuario de IG no se cuela como teléfono');
-ok(r.filas[0].datos.notas?.includes('fedechas36'), 'usuario de IG se preserva en notas, no se pierde');
+ok(r.filas[0].datos.instagram === 'fedechas36', 'usuario de IG va al campo instagram, no se pierde');
+
+r = leerLeadsCSV(`${CABECERA}\nPaola,@gustavomendozar57,29/7/2026,Reel,,,,,,,,,,,,`, 'c1', []);
+ok(r.filas[0].datos.instagram === 'gustavomendozar57', 'el "@" inicial se limpia al guardar');
 
 r = leerLeadsCSV(`${CABECERA}\nMaria,5574369308,29/7/2026,Reel,,,,,,,,,,,,`, 'c1', []);
 ok(r.filas[0].datos.telefono === '5574369308', 'número en "Contacto" sí se clasifica como teléfono');

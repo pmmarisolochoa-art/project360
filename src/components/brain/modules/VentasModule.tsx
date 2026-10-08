@@ -47,14 +47,12 @@ function normalizarBanda(b: string): string {
   return b.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
-type Period = 'todos' | 'hoy' | '7d' | '15d' | '30d' | '60d' | 'rango';
+type Period = 'hoy' | '7d' | '15d' | '30d' | '60d' | 'rango';
 const PERIOD_LABELS: Record<Period, string> = {
-  todos: 'Todos', hoy: 'Hoy', '7d': '7 días', '15d': '15 días', '30d': '30 días', '60d': '60 días', rango: 'Rango',
+  hoy: 'Hoy', '7d': '7 días', '15d': '15 días', '30d': '30 días', '60d': '60 días', rango: 'Rango',
 };
 
-/** `null` = sin tope ('todos'). */
-function periodStart(period: Period): Date | null {
-  if (period === 'todos') return null;
+function periodStart(period: Period): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   if (period === 'hoy') return d;
@@ -67,7 +65,8 @@ function periodStart(period: Period): Date | null {
  * "YYYY-MM-DD" (de un <input type="date">) → medianoche LOCAL, no UTC.
  * `new Date('2026-10-07')` a secas interpreta UTC — en un huso detrás de
  * UTC (Miami, Colombia) eso corre el límite ~5h y mete leads del día
- * anterior como "de hoy". Mismo truco que ya usaba el límite "hasta".
+ * anterior como "de hoy", distinto de lo que cuenta "Hoy" arriba (que sí usa
+ * hora local vía `setHours`). Mismo truco que ya usaba el límite "hasta".
  */
 function fechaLocal(yyyyMmDd: string, finDelDia: boolean): Date {
   return new Date(`${yyyyMmDd}T${finDelDia ? '23:59:59' : '00:00:00'}`);
@@ -106,19 +105,17 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
 
   const [tab, setTab] = useState<'pipeline' | 'kpis'>('pipeline');
   const [busqueda, setBusqueda] = useState('');
-  // Un solo filtro de fecha para toda la pantalla (founder, 07-oct-2026):
-  // antes "Hoy/7 días/…" de arriba solo acotaba los KPIs y el "Creado:" del
-  // Pipeline era un filtro de fecha SEPARADO — las dos preguntas sonaban
-  // igual ("¿cuántos leads hoy?") pero daban números distintos. Ahora el
-  // mismo período filtra KPIs, gráficas Y las tarjetas del Kanban.
-  const [period, setPeriod] = useState<Period>('todos');
+  const [period, setPeriod] = useState<Period>('30d');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
 
-  // Setter/closer sí quedan como filtros propios del Pipeline — acotan QUIÉN
-  // trabaja el lead, no CUÁNDO entró, así que no se solapan con el período.
+  // Filtros del Pipeline (Kanban) — a propósito SEPARADOS del período de
+  // arriba: ese acota KPIs/gráficas, estos acotan qué tarjetas se ven, y son
+  // dos preguntas distintas ("¿cómo va el mes?" vs "¿qué tiene fulano hoy?").
   const [filtroSetter, setFiltroSetter] = useState('');
   const [filtroCloser, setFiltroCloser] = useState('');
+  const [filtroDesde, setFiltroDesde] = useState('');
+  const [filtroHasta, setFiltroHasta] = useState('');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -137,8 +134,32 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const selected = leads.find((l) => l.id === selectedId) ?? null;
   const accent = client.primaryColor;
 
-  // El período (Hoy/7 días/…/Rango) es la ÚNICA fuente de verdad de fecha —
-  // alimenta tanto los KPIs/gráficas como el Kanban de abajo (ver leadsKanban).
+  // Búsqueda del Pipeline — filtra las tarjetas del Kanban sin tocar los
+  // KPIs/gráficas, que siguen sobre el universo completo del período.
+  const termino = busqueda.trim().toLowerCase();
+  const hayFiltrosPipeline = !!(filtroSetter || filtroCloser || filtroDesde || filtroHasta);
+  const leadsKanban = useMemo(() => {
+    let out = leads;
+    if (termino) {
+      out = out.filter((l) =>
+        [l.nombre, l.telefono, l.email, l.perfilRol].some((v) => v?.toLowerCase().includes(termino)),
+      );
+    }
+    if (filtroSetter) out = out.filter((l) => l.setterId === filtroSetter);
+    if (filtroCloser) out = out.filter((l) => l.closerId === filtroCloser);
+    if (filtroDesde) {
+      const d = fechaLocal(filtroDesde, false);
+      out = out.filter((l) => new Date(l.createdAt) >= d);
+    }
+    if (filtroHasta) {
+      const h = fechaLocal(filtroHasta, true);
+      out = out.filter((l) => new Date(l.createdAt) <= h);
+    }
+    return out;
+  }, [leads, termino, filtroSetter, filtroCloser, filtroDesde, filtroHasta]);
+
+  // El Pipeline (Kanban) siempre muestra el estado VIVO — el filtro de período
+  // solo acota qué leads entran a los KPIs y las gráficas, no esconde tarjetas.
   const leadsPeriodo = useMemo(() => {
     if (period === 'rango') {
       if (!rangeStart && !rangeEnd) return leads;
@@ -150,24 +171,8 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
       });
     }
     const start = periodStart(period);
-    return start ? leads.filter((l) => new Date(l.createdAt) >= start) : leads;
+    return leads.filter((l) => new Date(l.createdAt) >= start);
   }, [leads, period, rangeStart, rangeEnd]);
-
-  // Búsqueda + setter/closer refinan el Kanban SOBRE el período ya aplicado
-  // — así nunca puede mostrar un número distinto al de los KPIs de arriba.
-  const termino = busqueda.trim().toLowerCase();
-  const hayFiltrosPipeline = !!(filtroSetter || filtroCloser);
-  const leadsKanban = useMemo(() => {
-    let out = leadsPeriodo;
-    if (termino) {
-      out = out.filter((l) =>
-        [l.nombre, l.telefono, l.email, l.perfilRol].some((v) => v?.toLowerCase().includes(termino)),
-      );
-    }
-    if (filtroSetter) out = out.filter((l) => l.setterId === filtroSetter);
-    if (filtroCloser) out = out.filter((l) => l.closerId === filtroCloser);
-    return out;
-  }, [leadsPeriodo, termino, filtroSetter, filtroCloser]);
 
   // ── Dashboard: embudo por etapa, leads por fuente (sobre el período) ──
   const porEtapa = LEAD_STAGES.map((etapa) => ({ etapa, n: leadsPeriodo.filter((l) => l.etapa === etapa).length }));
@@ -240,7 +245,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
               </div>
               {termino && (
                 <span className="text-[11px] text-text-muted">
-                  {leadsKanban.length} de {leadsPeriodo.length}
+                  {leadsKanban.length} de {leads.length}
                 </span>
               )}
             </div>
@@ -296,16 +301,32 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
               <option value="">Todos los closers</option>
               {closers.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
+            <span className="text-text-muted">Creado:</span>
+            <input
+              type="date"
+              value={filtroDesde}
+              onChange={(e) => setFiltroDesde(e.target.value)}
+              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+              aria-label="Desde"
+            />
+            <span className="text-text-muted">→</span>
+            <input
+              type="date"
+              value={filtroHasta}
+              onChange={(e) => setFiltroHasta(e.target.value)}
+              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+              aria-label="Hasta"
+            />
             {hayFiltrosPipeline && (
               <button
-                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); }}
+                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); setFiltroDesde(''); setFiltroHasta(''); }}
                 className="text-text-secondary hover:text-text-primary underline"
               >
                 Quitar filtros
               </button>
             )}
             {hayFiltrosPipeline && (
-              <span className="text-text-muted">{leadsKanban.length} de {leadsPeriodo.length} leads</span>
+              <span className="text-text-muted">{leadsKanban.length} de {leads.length} leads</span>
             )}
           </div>
 
@@ -749,6 +770,8 @@ function LeadDrawer({
   const [nombre, setNombre] = useState(lead.nombre);
   const [telefono, setTelefono] = useState(lead.telefono ?? '');
   const [email, setEmail] = useState(lead.email ?? '');
+  const [instagram, setInstagram] = useState(lead.instagram ?? '');
+  const [whatsappUsuario, setWhatsappUsuario] = useState(lead.whatsappUsuario ?? '');
   const [perfilRol, setPerfilRol] = useState(lead.perfilRol ?? '');
 
   const [fechaAgenda, setFechaAgenda] = useState(dateInputValue(lead.fechaAgenda));
@@ -882,6 +905,27 @@ function LeadDrawer({
                 disabled={readOnly} value={email} placeholder="—"
                 onChange={(e) => setEmail(e.target.value)}
                 onBlur={() => onUpdate({ email: email.trim() || undefined })}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Instagram</span>
+              <div className="relative mt-1">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-text-muted pointer-events-none">@</span>
+                <input
+                  disabled={readOnly} value={instagram} placeholder="usuario"
+                  onChange={(e) => setInstagram(e.target.value.replace(/^@/, ''))}
+                  onBlur={() => onUpdate({ instagram: instagram.trim() || undefined })}
+                  className="w-full rounded-lg border border-border-default bg-bg-base pl-5 pr-2 py-1.5 text-[12px]"
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Usuario WhatsApp</span>
+              <input
+                disabled={readOnly} value={whatsappUsuario} placeholder="—"
+                onChange={(e) => setWhatsappUsuario(e.target.value)}
+                onBlur={() => onUpdate({ whatsappUsuario: whatsappUsuario.trim() || undefined })}
                 className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
               />
             </label>

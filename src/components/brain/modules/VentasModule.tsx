@@ -47,18 +47,30 @@ function normalizarBanda(b: string): string {
   return b.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
 
-type Period = 'hoy' | '7d' | '15d' | '30d' | '60d' | 'rango';
+type Period = 'todos' | 'hoy' | '7d' | '15d' | '30d' | '60d' | 'rango';
 const PERIOD_LABELS: Record<Period, string> = {
-  hoy: 'Hoy', '7d': '7 días', '15d': '15 días', '30d': '30 días', '60d': '60 días', rango: 'Rango',
+  todos: 'Todos', hoy: 'Hoy', '7d': '7 días', '15d': '15 días', '30d': '30 días', '60d': '60 días', rango: 'Rango',
 };
 
-function periodStart(period: Period): Date {
+/** `null` = sin tope ('todos'). */
+function periodStart(period: Period): Date | null {
+  if (period === 'todos') return null;
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   if (period === 'hoy') return d;
   const days = period === '7d' ? 7 : period === '15d' ? 15 : period === '30d' ? 30 : 60;
   d.setDate(d.getDate() - days);
   return d;
+}
+
+/**
+ * "YYYY-MM-DD" (de un <input type="date">) → medianoche LOCAL, no UTC.
+ * `new Date('2026-10-07')` a secas interpreta UTC — en un huso detrás de
+ * UTC (Miami, Colombia) eso corre el límite ~5h y mete leads del día
+ * anterior como "de hoy". Mismo truco que ya usaba el límite "hasta".
+ */
+function fechaLocal(yyyyMmDd: string, finDelDia: boolean): Date {
+  return new Date(`${yyyyMmDd}T${finDelDia ? '23:59:59' : '00:00:00'}`);
 }
 
 export function VentasModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
@@ -94,17 +106,19 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
 
   const [tab, setTab] = useState<'pipeline' | 'kpis'>('pipeline');
   const [busqueda, setBusqueda] = useState('');
-  const [period, setPeriod] = useState<Period>('30d');
+  // Un solo filtro de fecha para toda la pantalla (founder, 07-oct-2026):
+  // antes "Hoy/7 días/…" de arriba solo acotaba los KPIs y el "Creado:" del
+  // Pipeline era un filtro de fecha SEPARADO — las dos preguntas sonaban
+  // igual ("¿cuántos leads hoy?") pero daban números distintos. Ahora el
+  // mismo período filtra KPIs, gráficas Y las tarjetas del Kanban.
+  const [period, setPeriod] = useState<Period>('todos');
   const [rangeStart, setRangeStart] = useState('');
   const [rangeEnd, setRangeEnd] = useState('');
 
-  // Filtros del Pipeline (Kanban) — a propósito SEPARADOS del período de
-  // arriba: ese acota KPIs/gráficas, estos acotan qué tarjetas se ven, y son
-  // dos preguntas distintas ("¿cómo va el mes?" vs "¿qué tiene fulano hoy?").
+  // Setter/closer sí quedan como filtros propios del Pipeline — acotan QUIÉN
+  // trabaja el lead, no CUÁNDO entró, así que no se solapan con el período.
   const [filtroSetter, setFiltroSetter] = useState('');
   const [filtroCloser, setFiltroCloser] = useState('');
-  const [filtroDesde, setFiltroDesde] = useState('');
-  const [filtroHasta, setFiltroHasta] = useState('');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -123,12 +137,28 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const selected = leads.find((l) => l.id === selectedId) ?? null;
   const accent = client.primaryColor;
 
-  // Búsqueda del Pipeline — filtra las tarjetas del Kanban sin tocar los
-  // KPIs/gráficas, que siguen sobre el universo completo del período.
+  // El período (Hoy/7 días/…/Rango) es la ÚNICA fuente de verdad de fecha —
+  // alimenta tanto los KPIs/gráficas como el Kanban de abajo (ver leadsKanban).
+  const leadsPeriodo = useMemo(() => {
+    if (period === 'rango') {
+      if (!rangeStart && !rangeEnd) return leads;
+      const start = rangeStart ? fechaLocal(rangeStart, false) : null;
+      const end = rangeEnd ? fechaLocal(rangeEnd, true) : null;
+      return leads.filter((l) => {
+        const t = new Date(l.createdAt);
+        return (!start || t >= start) && (!end || t <= end);
+      });
+    }
+    const start = periodStart(period);
+    return start ? leads.filter((l) => new Date(l.createdAt) >= start) : leads;
+  }, [leads, period, rangeStart, rangeEnd]);
+
+  // Búsqueda + setter/closer refinan el Kanban SOBRE el período ya aplicado
+  // — así nunca puede mostrar un número distinto al de los KPIs de arriba.
   const termino = busqueda.trim().toLowerCase();
-  const hayFiltrosPipeline = !!(filtroSetter || filtroCloser || filtroDesde || filtroHasta);
+  const hayFiltrosPipeline = !!(filtroSetter || filtroCloser);
   const leadsKanban = useMemo(() => {
-    let out = leads;
+    let out = leadsPeriodo;
     if (termino) {
       out = out.filter((l) =>
         [l.nombre, l.telefono, l.email, l.perfilRol].some((v) => v?.toLowerCase().includes(termino)),
@@ -136,32 +166,8 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
     }
     if (filtroSetter) out = out.filter((l) => l.setterId === filtroSetter);
     if (filtroCloser) out = out.filter((l) => l.closerId === filtroCloser);
-    if (filtroDesde) {
-      const d = new Date(filtroDesde);
-      out = out.filter((l) => new Date(l.createdAt) >= d);
-    }
-    if (filtroHasta) {
-      const h = new Date(filtroHasta + 'T23:59:59');
-      out = out.filter((l) => new Date(l.createdAt) <= h);
-    }
     return out;
-  }, [leads, termino, filtroSetter, filtroCloser, filtroDesde, filtroHasta]);
-
-  // El Pipeline (Kanban) siempre muestra el estado VIVO — el filtro de período
-  // solo acota qué leads entran a los KPIs y las gráficas, no esconde tarjetas.
-  const leadsPeriodo = useMemo(() => {
-    if (period === 'rango') {
-      if (!rangeStart && !rangeEnd) return leads;
-      const start = rangeStart ? new Date(rangeStart) : null;
-      const end = rangeEnd ? new Date(rangeEnd + 'T23:59:59') : null;
-      return leads.filter((l) => {
-        const t = new Date(l.createdAt);
-        return (!start || t >= start) && (!end || t <= end);
-      });
-    }
-    const start = periodStart(period);
-    return leads.filter((l) => new Date(l.createdAt) >= start);
-  }, [leads, period, rangeStart, rangeEnd]);
+  }, [leadsPeriodo, termino, filtroSetter, filtroCloser]);
 
   // ── Dashboard: embudo por etapa, leads por fuente (sobre el período) ──
   const porEtapa = LEAD_STAGES.map((etapa) => ({ etapa, n: leadsPeriodo.filter((l) => l.etapa === etapa).length }));
@@ -234,7 +240,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
               </div>
               {termino && (
                 <span className="text-[11px] text-text-muted">
-                  {leadsKanban.length} de {leads.length}
+                  {leadsKanban.length} de {leadsPeriodo.length}
                 </span>
               )}
             </div>
@@ -290,32 +296,16 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
               <option value="">Todos los closers</option>
               {closers.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
-            <span className="text-text-muted">Creado:</span>
-            <input
-              type="date"
-              value={filtroDesde}
-              onChange={(e) => setFiltroDesde(e.target.value)}
-              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
-              aria-label="Desde"
-            />
-            <span className="text-text-muted">→</span>
-            <input
-              type="date"
-              value={filtroHasta}
-              onChange={(e) => setFiltroHasta(e.target.value)}
-              className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
-              aria-label="Hasta"
-            />
             {hayFiltrosPipeline && (
               <button
-                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); setFiltroDesde(''); setFiltroHasta(''); }}
+                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); }}
                 className="text-text-secondary hover:text-text-primary underline"
               >
                 Quitar filtros
               </button>
             )}
             {hayFiltrosPipeline && (
-              <span className="text-text-muted">{leadsKanban.length} de {leads.length} leads</span>
+              <span className="text-text-muted">{leadsKanban.length} de {leadsPeriodo.length} leads</span>
             )}
           </div>
 

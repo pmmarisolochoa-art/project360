@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-09 — Modo Reunión: presentación guiada para reuniones, con cierre que crea tareas reales
+
+Encargo de la founder: las reuniones no tenían estructura — cada quien hablaba de lo que se le ocurría. Se construyó un **Modo Reunión**: vista a pantalla completa, diapositiva por diapositiva, con 3 plantillas (Sprint/Planeación/Retro) definidas como **datos editables** en `src/config/meetingTemplates.ts` — agregar/quitar/reordenar un paso es editar ese archivo, no tocar componentes. Construido en 4 fases, cada una probada en navegador antes de seguir:
+
+1. **Motor + plantillas** — navegación (flechas/botones), cronómetro por paso (alerta visual al pasarse, nunca bloquea), indicador de progreso, notas por paso.
+2. **Datos reales en revisión** — tareas del cliente por responsable (hecho/en curso/bloqueado) y métricas de contexto (avance, ROAS, inversión), jaladas del mismo store que usa el resto de la app. Las tareas privadas quedan fuera a propósito: esta pantalla se comparte en Meet/Zoom.
+3. **El cierre crea tareas reales** — formulario de compromisos (título/responsable/fecha) que usa el mismo camino de creación de tareas de siempre, con `origen:'reunion'` + referencia a la reunión. Las notas por paso se persisten con la reunión (`meetings.modo_reunion_notas`, jsonb) — **migración 063, corrida y verificada en producción** (curiosamente ya estaba aplicada cuando se fue a correr; se confirmó con consulta directa a `information_schema`, no se asumió).
+4. **Recuento de semana en la apertura del Sprint** — el primer paso del Sprint ahora trae el objetivo que se planteó en la reunión de Planeación de esa semana (si esa reunión corrió por Modo Reunión, sale de su propio paso "Objetivo" guardado en el 063; si no, de su resumen/agenda), el cumplimiento de tareas de la semana, y un resumen de cada reunión que hubo. Si no hubo Planeación esa semana, lo dice en vez de inventar un objetivo.
+
+**Decisión clave:** la plantilla de presentación quedó **desacoplada** del campo `type` que ya existía en reuniones (el que alimenta reportes y tiene reglas de negocio en otras partes) — se elige aparte, al abrir el Modo Reunión, para no arriesgar ese campo.
+
+**Handoff a Ikigai:** documento completo publicado como Artifact (arquitectura, decisiones, lo que depende del stack de cada quien, lecciones del camino) para que su cerebro nuevo (`~/ikigai-plataforma/`) construya el mismo sistema sobre su propia plataforma — no es código para copiar, es la especificación.
+
+**Pendiente:** `src/components/meetingMode/`, `src/config/meetingTemplates.ts` y la migración `063_meetings_modo_reunion_notas.sql` siguen **sin commitear** — el cambio en `MeetingDrawer.tsx` (el botón de entrada) sí quedó commiteado, al parecer arrastrado por un commit de otra sesión que tocó ese mismo archivo por otra razón. Revisar `git status` antes de seguir tocando esos archivos.
+
+---
+
 ## 2026-10-04 (cierre de sesión) — PENDIENTES abiertos de Project360
 
 Sesión larga (02→04 oct) con Alejo Luengas como primer caso real de: personalización de marca, integración Meta Ads real, integración Fathom, CRM de Ventas (CSV, duplicados, comisiones), Proyecciones con benchmark de nicho, y sistema de accesos por rol. La plantilla de accesos y casi todos los bugs de esta tanda ya quedaron documentados arriba con su propia entrada. Esto es el **estado de lo que sigue abierto**, para no perder el hilo:

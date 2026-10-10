@@ -53,6 +53,11 @@ export interface Meeting {
   reporte?: ReporteReunion;
   /** Cuándo se generó. */
   reporteGeneradoEn?: string;
+
+  /* ── Modo Reunión (migración 063) ───────────────────────────────────────── */
+  /** Notas rápidas por paso de la presentación. Clave = id del paso en la
+   *  plantilla (`src/config/meetingTemplates.ts`), valor = lo que se escribió. */
+  modoReunionNotas?: Record<string, string>;
 }
 
 /**

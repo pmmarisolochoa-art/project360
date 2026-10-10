@@ -11,6 +11,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { callerCanAccessClient } from './_lib/clientAccess';
 
 export const config = { runtime: 'edge' };
 
@@ -56,6 +57,11 @@ export default async function handler(req: Request): Promise<Response> {
   if (!cliente.meta_ad_account_id) {
     return json({ error: `${cliente.name} no tiene una cuenta de Meta conectada (meta_ad_account_id vacío).` }, 422);
   }
+
+  // ── 2b. ¿El usuario puede ver ESTE cliente? (dueño de su agencia, dirección
+  // de esa agencia, o miembro de equipo asignado a él) ───────────────────────
+  const autorizado = await callerCanAccessClient(admin, caller.user.id, clientId);
+  if (!autorizado) return json({ error: 'No tienes acceso a este cliente.' }, 403);
 
   // ── 3. Traer insights de Meta ────────────────────────────────────────────
   // `desde`/`hasta` (YYYY-MM-DD) mandan si ambos vienen — rango libre. Si no,

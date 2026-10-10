@@ -8,6 +8,8 @@
  * nunca llega al browser.
  */
 
+import { createClient } from '@supabase/supabase-js';
+
 export const config = { runtime: 'edge' };
 
 const MODEL = 'claude-sonnet-4-6';
@@ -19,7 +21,7 @@ const ANTHROPIC_VERSION = '2023-06-01';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
 interface MeetingAgendaCtx {
@@ -212,6 +214,20 @@ export default async function handler(req: Request): Promise<Response> {
   if (!apiKey) {
     return json({ error: 'ANTHROPIC_API_KEY no configurado en Vercel' }, 500);
   }
+
+  // ── Autenticar: sesión válida de Project360 ────────────────────────────────
+  // Sin esto, cualquiera que conozca esta URL puede gastar la API key del
+  // servidor (o leer prompts) sin pasar por la app. No es un endpoint público.
+  const supaUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supaUrl || !serviceKey) {
+    return json({ error: 'Falta config Supabase.' }, 500);
+  }
+  const authToken = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!authToken) return json({ error: 'No autorizado.' }, 401);
+  const admin = createClient(supaUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: caller, error: callerErr } = await admin.auth.getUser(authToken);
+  if (callerErr || !caller?.user) return json({ error: 'Sesión inválida.' }, 401);
 
   let body: RequestBody;
   try {

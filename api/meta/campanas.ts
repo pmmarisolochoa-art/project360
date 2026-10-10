@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { callerCanAccessClient } from './_lib/clientAccess';
 
 export const config = { runtime: 'edge' };
 
@@ -54,6 +55,12 @@ export default async function handler(req: Request): Promise<Response> {
   if (!cliente.meta_ad_account_id) {
     return json({ error: `${cliente.name} no tiene una cuenta de Meta conectada.` }, 422);
   }
+
+  // ¿El usuario puede ver ESTE cliente? (dueño de su agencia, dirección de
+  // esa agencia, o miembro de equipo asignado a él) — mismo chequeo que
+  // metricas.ts, ambos endpoints comparten el helper.
+  const autorizado = await callerCanAccessClient(admin, caller.user.id, clientId);
+  if (!autorizado) return json({ error: 'No tienes acceso a este cliente.' }, 403);
 
   const desde = params.get('desde');
   const hasta = params.get('hasta');

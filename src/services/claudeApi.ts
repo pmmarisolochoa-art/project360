@@ -3,6 +3,7 @@ import type { OnboardingData } from '@/onboarding/schema';
 import type { TaskPriority, TaskTag } from '@/types/task';
 import type { TeamRoleSlug } from '@/types/team';
 import { toast } from '@/store/useToastStore';
+import { supabase } from './supabase';
 import {
   ACTION_VERBS,
   BULLET_REGEXES,
@@ -24,10 +25,22 @@ import {
 
 const ENDPOINT = '/api/claude';
 
+/**
+ * El backend exige sesión válida (ver api/claude.ts). Sin Supabase configurado
+ * (modo LOCAL de desarrollo) no hay token que mandar — el fetch fallará y cada
+ * caller cae a su fallback heurístico, como ya hacía antes de este endpoint.
+ */
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!supabase) return {};
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function callBackend<T>(feature: string, context: unknown): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ feature, context }),
   });
   if (!res.ok) {
@@ -60,7 +73,7 @@ export async function sendAgentMessage(args: {
 }): Promise<string> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ feature: 'agent_chat', context: args }),
   });
   if (!res.ok || !res.body) {

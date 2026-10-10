@@ -17,7 +17,20 @@ Encargo de la founder: las reuniones no tenían estructura — cada quien hablab
 
 **Handoff a Ikigai:** documento completo publicado como Artifact (arquitectura, decisiones, lo que depende del stack de cada quien, lecciones del camino) para que su cerebro nuevo (`~/ikigai-plataforma/`) construya el mismo sistema sobre su propia plataforma — no es código para copiar, es la especificación.
 
-**Pendiente:** `src/components/meetingMode/`, `src/config/meetingTemplates.ts` y la migración `063_meetings_modo_reunion_notas.sql` siguen **sin commitear** — el cambio en `MeetingDrawer.tsx` (el botón de entrada) sí quedó commiteado, al parecer arrastrado por un commit de otra sesión que tocó ese mismo archivo por otra razón. Revisar `git status` antes de seguir tocando esos archivos.
+~~**Pendiente:** `src/components/meetingMode/`, `src/config/meetingTemplates.ts` y la migración `063` seguían sin commitear.~~ **CORREGIDO (mismo día):** commit `6be0476`, pusheado a `main` y desplegado — confirmado por el status check de Vercel en GitHub (`Deployment has completed`). Sin pendientes de esta sesión.
+
+---
+
+## 2026-10-10 — Modo Reunión probado en navegador real: 3 bugs encontrados y corregidos
+
+Pedido explícito: "pruébalo tú en la app". Se abrió Playwright contra local, se entró a la reunión real de Alejo Luengas (Sprint de cierre de semana) y se recorrieron las 3 plantillas con sus datos reales — no con datos de ejemplo. Salieron 3 fallos que ninguna prueba automática ni el typecheck hubieran visto:
+
+1. **El paso "Objetivo de la semana" dumpeaba la agenda COMPLETA de Planeación** (cientos de palabras, día por día) cuando la reunión no tenía `summary` — el fallback a `agenda` fue un error de diseño: la agenda es el guion de la semana, no un objetivo corto. **Corregido:** se quita el fallback a `agenda`; si no hay `modoReunionNotas.objetivo` ni `summary`, la diapositiva dice explícitamente que no hay objetivo registrado en vez de inundarse de texto. Los resúmenes de reunión (de Fathom, en markdown con links `[texto](url)`) también se acortan y se les quita el markup — antes de esto se veían los corchetes y URLs en crudo en pantalla.
+2. **Loop infinito de renders en el paso de Cierre** ("Maximum update depth exceeded", 108 errores en consola) — el selector de Zustand hacía `.filter()` sobre el array de miembros DENTRO del selector, devolviendo una referencia nueva en cada render. **Corregido:** se selecciona el array completo (referencia estable) y se filtra/deduplica en `useMemo`. Lección reafirmada: un selector de Zustand nunca debe devolver un array/objeto construido inline.
+3. **Nombres duplicados en el desplegable de responsables** (dos miembros "Marisol Ochoa" para el mismo cliente) causaban colisión de keys de React. Corregido con deduplicación por nombre en el mismo `useMemo`.
+4. **El paso "Contexto" mostraba Avance 0% y ROAS "—" para un cliente que en el Dashboard tiene 48% y 6.9x** — leía directo `client.metrics.progressPercent`/`.roas`, el campo GUARDADO que ya se sabía que no se recalcula (mismo patrón documentado en sesiones anteriores para `salesCount`/`revenueAccumulated`). **Corregido:** ahora usa `avanceForClient()` y `ventasForClient()`, las mismas funciones que ya usa la tarjeta del Dashboard — verificado que los números coinciden exactamente (48% / 6.9x) tras el fix.
+
+**Verificado además:** la tarea de prueba creada desde el Cierre sí quedó en Supabase (`origen:'reunion'`, `meeting_id` enlazado) — se confirmó por consulta directa y se borró después por ser de prueba. Consola en 0 errores en las 3 plantillas tras los 4 fixes. Commiteado junto con el cierre del pendiente anterior.
 
 ---
 

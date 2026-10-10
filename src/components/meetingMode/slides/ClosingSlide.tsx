@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { addDays, format } from 'date-fns';
 import type { Meeting } from '@/types/meeting';
@@ -31,7 +31,16 @@ function nuevoCompromiso(defaultDate: string): Compromiso {
  */
 export function ClosingSlide({ meeting, accent }: { meeting: Meeting; accent: string }) {
   const addTask = useClientStore((s) => s.addTask);
-  const members = useTeamMembersStore((s) => s.members.filter((m) => m.clientId === meeting.clientId));
+  // Seleccionar el array completo (referencia estable entre renders) y filtrar
+  // + deduplicar por nombre en useMemo — filtrar DENTRO del selector de Zustand
+  // devuelve un array nuevo en cada render y entra en loop infinito de updates
+  // (confirmado en pruebas: "Maximum update depth exceeded" en este mismo paso).
+  const allMembers = useTeamMembersStore((s) => s.members);
+  const members = useMemo(() => {
+    const porCliente = allMembers.filter((m) => m.clientId === meeting.clientId);
+    const vistos = new Set<string>();
+    return porCliente.filter((m) => (vistos.has(m.nombre) ? false : (vistos.add(m.nombre), true)));
+  }, [allMembers, meeting.clientId]);
   const defaultDate = format(addDays(new Date(), 3), 'yyyy-MM-dd');
 
   const [compromisos, setCompromisos] = useState<Compromiso[]>([nuevoCompromiso(defaultDate)]);

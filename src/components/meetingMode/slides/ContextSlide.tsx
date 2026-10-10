@@ -1,4 +1,7 @@
 import { useClientStore } from '@/store/useClientStore';
+import { useLeadsStore } from '@/store/useLeadsStore';
+import { avanceForClient } from '@/utils/avance';
+import { ventasForClient } from '@/utils/ventas';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -13,12 +16,19 @@ function Stat({ label, value, subLabel, dim }: { label: string; value: string; s
 }
 
 /**
- * Estado actual del cliente, jalado en vivo de `client.metrics` — el mismo
- * dato que pinta la tarjeta del cliente en el Dashboard. No se inventa nada:
- * si una métrica no está fresca, lo dice en vez de aparentar que sí.
+ * Estado actual del cliente, en vivo — avance y ROAS se DERIVAN de tareas y
+ * leads reales (mismo cálculo que la tarjeta del Dashboard: `avanceForClient`
+ * y `ventasForClient`), no del campo guardado `client.metrics.progressPercent`
+ * / `.roas`, que puede quedarse viejo sin que nadie lo note (encontrado
+ * probando con datos reales: el Dashboard mostraba 48% / 6.9x para un
+ * cliente y esta diapositiva, leyendo el campo guardado, mostraba 0% / "—").
+ * Solo lo que de verdad no se recalcula en vivo (inversión del mes, próxima
+ * reunión) sigue saliendo de `client.metrics`.
  */
 export function ContextSlide({ clientId }: { clientId: string; accent: string }) {
   const client = useClientStore((s) => s.clients.find((c) => c.id === clientId));
+  const tasks = useClientStore((s) => s.tasks);
+  const leads = useLeadsStore((s) => s.leads);
 
   if (!client) {
     return (
@@ -28,18 +38,23 @@ export function ContextSlide({ clientId }: { clientId: string; accent: string })
     );
   }
 
+  const avance = avanceForClient(tasks, clientId);
+  const ventas = ventasForClient(leads, clientId);
+  const invertido = client.metrics.invertedThisMonth ?? client.monthlyAdsBudget;
+  const roas = invertido > 0 && ventas.cashCollected > 0 ? ventas.cashCollected / invertido : null;
+
   const m = client.metrics;
   const proxima = m.nextMeetingAt ? format(parseISO(m.nextMeetingAt), "d 'de' MMM · HH:mm", { locale: es }) : '—';
 
   return (
     <div className="grid grid-cols-2 gap-4">
-      <Stat label="Avance" value={`${Math.round(m.progressPercent)}%`} />
-      <Stat label="ROAS" value={m.roas != null ? `${m.roas.toFixed(1)}x` : '—'} dim={m.roas == null} />
+      <Stat label="Avance" value={`${avance}%`} subLabel="tareas completadas" />
+      <Stat label="ROAS" value={roas != null ? `${roas.toFixed(1)}x` : '—'} subLabel={roas != null ? 'cash collected ÷ invertido' : 'falta invertido o cobro'} dim={roas == null} />
       <Stat
         label="Invertido este mes"
-        value={m.invertedThisMonth != null ? `$${m.invertedThisMonth.toLocaleString('es')}` : '—'}
-        subLabel={m.invertedThisMonth != null ? (m.invertedThisMonthFresh ? 'actualizado' : '⚠ puede no estar al día') : undefined}
-        dim={m.invertedThisMonth == null}
+        value={invertido > 0 ? `$${invertido.toLocaleString('es')}` : '—'}
+        subLabel={invertido > 0 ? (m.invertedThisMonthFresh ? 'actualizado' : '⚠ puede no estar al día') : undefined}
+        dim={invertido <= 0}
       />
       <Stat label="Próxima reunión" value={proxima} />
       {m.bottleneck && (

@@ -13,6 +13,23 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 /**
+ * Para una diapositiva se necesita una frase, no un documento. Los resúmenes
+ * de Fathom llegan en markdown con links (`[texto](url)`) — aquí se quita el
+ * markup y se corta a la primera oración o a un límite de caracteres,
+ * cualquiera que llegue primero. No reescribe el contenido, solo lo acorta.
+ */
+function resumenCorto(texto: string, maxChars = 220): string {
+  const sinMarkdown = texto
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [texto](url) → texto
+    .replace(/^#+\s*/gm, '') // encabezados
+    .replace(/[*_`]/g, '') // énfasis
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (sinMarkdown.length <= maxChars) return sinMarkdown;
+  return `${sinMarkdown.slice(0, maxChars).trimEnd()}…`;
+}
+
+/**
  * Arranque del cierre de sprint: recuento de la semana que se cierra.
  *
  * Trae tres cosas reales, nada inventado:
@@ -44,11 +61,14 @@ export function WeekRecapSlide({ meeting, accent }: { meeting: Meeting; accent: 
     [meetings, meeting.clientId, meeting.id, inWeek],
   );
 
+  // Solo el paso "Objetivo" del propio Modo Reunión cuenta como objetivo — es
+  // lo único pensado para ser una frase corta. El resumen (`summary`) puede
+  // servir de respaldo, acortado; la agenda NO: es el guion día-a-día de la
+  // semana completa (párrafos), no un objetivo, y mostrarla entera inunda la
+  // diapositiva (visto al probar con datos reales).
   const planning = weekMeetings.find((m) => m.type === 'weekly_planning');
-  const objetivo = planning?.modoReunionNotas?.objetivo?.trim()
-    || planning?.summary?.trim()
-    || planning?.agenda?.trim()
-    || null;
+  const objetivoCrudo = planning?.modoReunionNotas?.objetivo?.trim() || planning?.summary?.trim() || null;
+  const objetivo = objetivoCrudo ? resumenCorto(objetivoCrudo, 320) : null;
 
   const weekTasks = useMemo(
     () => tasks.filter((t) => t.clientId === meeting.clientId && !t.esPrivada && (inWeek(t.dueDate) || (t.status === 'completed' && inWeek(t.completedAt)))),
@@ -67,6 +87,8 @@ export function WeekRecapSlide({ meeting, accent }: { meeting: Meeting; accent: 
         </div>
         {objetivo ? (
           <p className="text-lg text-text-primary">{objetivo}</p>
+        ) : planning ? (
+          <p className="text-base text-text-muted">Hubo Planeación esta semana, pero no quedó un objetivo ni resumen registrado.</p>
         ) : (
           <p className="text-base text-text-muted">No hay reunión de Planeación registrada esta semana — sin objetivo que mostrar.</p>
         )}
@@ -103,7 +125,7 @@ export function WeekRecapSlide({ meeting, accent }: { meeting: Meeting; accent: 
                   <span className="text-xs text-text-muted">{TYPE_LABEL[m.type] ?? m.type} · {format(parseISO(m.scheduledAt), "d MMM", { locale: es })}</span>
                 </div>
                 <p className="text-sm text-text-secondary mt-0.5">
-                  {m.summary?.trim() || 'Sin resumen registrado.'}
+                  {m.summary?.trim() ? resumenCorto(m.summary) : 'Sin resumen registrado.'}
                 </p>
               </div>
             ))}

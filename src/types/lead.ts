@@ -86,6 +86,11 @@ export interface Lead {
    * quien confirma el pago; no se deriva de un plan de cuotas ni de eventos.
    */
   cashCollected: number;
+  /** Importe previsto del primer pago; separado del cobro confirmado. */
+  pago1Monto?: number;
+  /** Porcentajes acordados para esta venta; sin valor usa 5% setter / 10% closer. */
+  setterComisionPct?: number;
+  closerComisionPct?: number;
   lostReason?: string;
   externalId?: string;
   createdAt: string;
@@ -107,10 +112,8 @@ export interface Lead {
   formaPago?: string;
 
   /**
-   * Plan de pagos — hasta 4 cuotas. El "Pago 1" es `cashCollected` (ya
-   * existe, siempre cobrado al cierre): aquí solo falta su fecha. Los pagos
-   * 2-4 sí llevan su propio `pagado`, porque a diferencia del 1 no están
-   * cobrados por definición.
+   * Plan de hasta 4 cuotas: `pago1Monto` es previsto y `cashCollected` es
+   * el primer cobro confirmado. Los pagos 2–4 llevan una marca explícita de pago.
    */
   pago1Fecha?: string;
   pago2Monto?: number;

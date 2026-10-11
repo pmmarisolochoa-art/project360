@@ -73,7 +73,7 @@ export interface UserContext {
  *   1. Si es owner de una agencia → role 'owner' (ve todo lo suyo, como hasta hoy).
  *   2. Si NO, pero está en team_members.user_id → role 'member'. Un miembro
  *      puede tener VARIAS filas (una por cliente): se devuelven todas.
- *   3. Si no es ninguno → 'owner' sin agencia (estado neutro, como antes).
+ *   3. Si no es ninguno → 'member' sin accesos administrativos.
  * La consulta a team_members la protege la policy `team_members_client_read`
  * de la migración 018 (el miembro solo lee filas de sus clientes).
  */
@@ -145,6 +145,6 @@ export async function resolveUserContext(userId: string): Promise<UserContext> {
     };
   }
 
-  // 3. Sin contexto reconocido — neutro.
-  return { role: 'owner', agencyId: null, clientAccesses: [] };
+  // Sin contexto reconocido: no conceder administración por defecto.
+  return { role: 'member', agencyId: null, clientAccesses: [] };
 }

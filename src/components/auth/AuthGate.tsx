@@ -33,6 +33,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const session = await getCurrentSession();
       if (cancelled) return;
       if (session?.user) {
+        if (useAuthStore.getState().user?.id !== session.user.id) resetBootstrapCache();
         setUser({ id: session.user.id, email: session.user.email ?? '' });
         await hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
@@ -45,6 +46,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
     const unsubscribe = onAuthChange((session) => {
       if (session?.user) {
+        if (useAuthStore.getState().user?.id !== session.user.id) resetBootstrapCache();
         setUser({ id: session.user.id, email: session.user.email ?? '' });
         void hydrateContext(session.user.id, setAgencyId, setRole, setClientAccesses);
       } else {
@@ -84,12 +86,14 @@ async function hydrateContext(
 ): Promise<void> {
   try {
     const ctx = await resolveUserContext(userId);
+    if (useAuthStore.getState().user?.id !== userId) return;
     setRole(ctx.role);
     setAgencyId(ctx.agencyId);
     setClientAccesses(ctx.clientAccesses);
   } catch (e) {
+    if (useAuthStore.getState().user?.id !== userId) return;
     console.warn('[auth] No se pudo resolver el contexto del usuario', e);
-    setRole('owner');
+    setRole('member');
     setAgencyId(null);
     setClientAccesses([]);
   }

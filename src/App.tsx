@@ -23,7 +23,9 @@ function AppShell() {
   const userId = useAuthStore((s) => s.user?.id);
 
   useEffect(() => {
-    void bootstrapFromRemote();
+    void bootstrapFromRemote().catch(() => {
+      // Bootstrap limpia los datos y registra el error; permite reintentar.
+    });
   }, [agencyId, userId]);
 
   useTaskMonitor();

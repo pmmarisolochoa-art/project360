@@ -6,6 +6,8 @@ import { LeadsDuplicadosModal } from './LeadsDuplicadosModal';
 import { LeadsCSVLimpiarModal } from './LeadsCSVLimpiarModal';
 import { detectarLeadsDuplicados } from '@/utils/leadDedup';
 import { calcularContadoresSeguimiento } from '@/utils/leadSeguimiento';
+import { resumenVentas, totalCobradoLead, saldoPendienteLead, comisionLead } from '@/utils/ventas';
+import { patchPlanCuotas } from '@/utils/planCuotas';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCES, LEAD_SOURCE_LABELS } from '@/types/lead';
@@ -192,10 +194,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
     .map((fuente) => ({ fuente, n: leadsPeriodo.filter((l) => l.fuente === fuente).length }))
     .filter((f) => f.n > 0);
   const totalFuente = porFuente.reduce((s, f) => s + f.n, 0) || 1;
-  const ganados = leadsPeriodo.filter((l) => l.etapa === 'ganado');
-  const valorContratado = ganados.reduce((s, l) => s + (l.programValue ?? 0), 0);
-  const cashCollected = ganados.reduce((s, l) => s + (l.cashCollected ?? 0), 0);
-  const pendienteCobro = Math.max(0, valorContratado - cashCollected);
+  const { revenueAccumulated: valorContratado, cashCollected, pendingCollection: pendienteCobro } = resumenVentas(leadsPeriodo);
 
   // Contadores de seguimiento — sobre el universo VIVO (`leads`), no el
   // período: son alertas operativas ("a quién hay que empujar hoy"), no
@@ -440,7 +439,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                           {stage === 'ganado' && (
                             <div className="text-[10px] text-text-muted mt-1.5 font-mono">
                               {lead.programValue ? `$${lead.programValue.toLocaleString('es-CO')}` : '—'}
-                              {lead.cashCollected ? ` · cobrado $${lead.cashCollected.toLocaleString('es-CO')}` : ''}
+                              {totalCobradoLead(lead) ? ` · cobrado $${totalCobradoLead(lead).toLocaleString('es-CO')}` : ''}
                             </div>
                           )}
                           {stage === 'perdido' && lead.lostReason && (
@@ -648,20 +647,17 @@ function KpisTab({
 /**
  * Comisión = % de cash collected, no del valor pactado (decidido con la
  * founder, 2026-10-02): se paga sobre lo YA cobrado, no sobre lo que falta.
- * 5% setter / 10% closer — mismos porcentajes para todos los roles por ahora,
- * no configurable por cliente (si hace falta variar por cliente, se mueve a
- * `src/config/`, pero no inventamos esa flexibilidad sin que alguien la pida).
+ * Defaults históricos: 5% setter / 10% closer. Cada venta permite acordar
+ * porcentajes propios; el KPI suma las comisiones de cada venta.
  */
-const COMISION_PCT: Record<string, number> = { Setter: 0.05, Closer: 0.10 };
-
 function PersonKpiCard({ nombre, leads, accent, rolLabel }: { nombre: string; leads: Lead[]; accent: string; rolLabel: string }) {
   const ganados = leads.filter((l) => l.etapa === 'ganado');
   const perdidos = leads.filter((l) => l.etapa === 'perdido');
   const cerrados = ganados.length + perdidos.length;
   const tasaCierre = cerrados > 0 ? Math.round((ganados.length / cerrados) * 100) : 0;
-  const cashCollected = ganados.reduce((s, l) => s + (l.cashCollected ?? 0), 0);
-  const pctComision = COMISION_PCT[rolLabel] ?? 0;
-  const comision = cashCollected * pctComision;
+  const { cashCollected } = resumenVentas(leads);
+  const rolComision = rolLabel === 'Setter' ? 'setter' : 'closer';
+  const comision = ganados.reduce((sum, lead) => sum + comisionLead(lead, rolComision), 0);
   return (
     <div className="rounded-[12px] border border-border-default bg-bg-surface p-3.5">
       <div className="flex items-center justify-between mb-2.5">
@@ -685,10 +681,10 @@ function PersonKpiCard({ nombre, leads, accent, rolLabel }: { nombre: string; le
           <div className="text-text-muted text-[9.5px] uppercase tracking-wide">Cash collected</div>
           <div className="font-mono font-semibold" style={{ color: accent }}>${cashCollected.toLocaleString('es-CO')}</div>
         </div>
-        {pctComision > 0 && (
+        {(rolLabel === 'Setter' || rolLabel === 'Closer') && (
           <div className="col-span-2 pt-1.5 mt-0.5 border-t border-border-subtle/50">
             <div className="text-text-muted text-[9.5px] uppercase tracking-wide">
-              Comisión ({Math.round(pctComision * 100)}% cash collected)
+              Comisión según porcentaje de cada venta
             </div>
             <div className="font-mono font-semibold" style={{ color: '#0CA30C' }}>${comision.toLocaleString('es-CO')}</div>
           </div>
@@ -827,6 +823,7 @@ function LeadDrawer({
   const [resultado, setResultado] = useState(lead.resultado ?? '');
   const [producto, setProducto] = useState(lead.producto ?? '');
   const [formaPago, setFormaPago] = useState(lead.formaPago ?? '');
+  const [pago1Monto, setPago1Monto] = useState((lead.pago1Monto ?? lead.cashCollected)?.toString() ?? '');
   const [pago1Fecha, setPago1Fecha] = useState(dateInputValue(lead.pago1Fecha));
   const [pago2Monto, setPago2Monto] = useState(lead.pago2Monto?.toString() ?? '');
   const [pago2Fecha, setPago2Fecha] = useState(dateInputValue(lead.pago2Fecha));
@@ -837,45 +834,28 @@ function LeadDrawer({
   const [ultimoSeguimiento, setUltimoSeguimiento] = useState(dateInputValue(lead.ultimoSeguimiento));
   const [notas, setNotas] = useState(lead.notas ?? '');
 
-  // Número de cuotas — solo ayuda a calcular, NO se guarda (founder,
-  // 02-oct-2026): es un insumo de un cálculo puntual, no un dato del lead.
-  // Después de calcular, cada monto queda editable a mano sin que nada lo
-  // vuelva a sobreescribir — no hay recálculo reactivo.
-  const [numCuotas, setNumCuotas] = useState('2');
-
-  const calcularCuotas = () => {
-    const precio = Number(programValue) || 0;
-    const n = Math.max(1, Math.min(4, Number(numCuotas) || 1));
-    if (!precio) { toast.error('Pon el precio pactado primero.'); return; }
-    const totalConRecargo = Math.round(precio * 1.05);
-    const base = Math.floor(totalConRecargo / n);
-    const montos = Array.from({ length: n }, (_, i) => (i === n - 1 ? totalConRecargo - base * (n - 1) : base));
-    // Al recalcular con MENOS cuotas que la vez anterior, las que sobran
-    // (3/4 si antes había más) se limpian — si no, quedan montos viejos
-    // pegados que ya no corresponden a ningún pago real. `null` explícito y
-    // no `undefined`: un patch parcial ignora los campos `undefined` a
-    // propósito (para no pisar algo que no se tocó), así que para BORRAR de
-    // verdad hay que mandar `null`.
-    const patch: Record<string, number | null> = {};
-    patch.cashCollected = montos[0] ?? 0;
-    setCashCollected(String(montos[0] ?? ''));
-    patch.pago2Monto = montos[1] ?? null;
-    setPago2Monto(montos[1] !== undefined ? String(montos[1]) : '');
-    patch.pago3Monto = montos[2] ?? null;
-    setPago3Monto(montos[2] !== undefined ? String(montos[2]) : '');
-    patch.pago4Monto = montos[3] ?? null;
-    setPago4Monto(montos[3] !== undefined ? String(montos[3]) : '');
-    onUpdate(patch as Partial<Lead>);
-    toast.success(`${n} cuota${n === 1 ? '' : 's'} de ~$${base.toLocaleString('es-CO')} (precio +5%). Puedes ajustar cada monto a mano.`);
+  const [numCuotas, setNumCuotas] = useState('');
+  const calcularCuotas = (cantidad: string) => {
+    try {
+      const patch = patchPlanCuotas(lead, Number(programValue), Number(cantidad));
+      setNumCuotas(cantidad);
+      setPago1Monto(String(patch.pago1Monto ?? ''));
+      setPago2Monto(patch.pago2Monto == null ? '' : String(patch.pago2Monto));
+      setPago3Monto(patch.pago3Monto == null ? '' : String(patch.pago3Monto));
+      setPago4Monto(patch.pago4Monto == null ? '' : String(patch.pago4Monto));
+      if (patch.pago2Monto == null) setPago2Fecha('');
+      if (patch.pago3Monto == null) setPago3Fecha('');
+      if (patch.pago4Monto == null) setPago4Fecha('');
+      onUpdate(patch);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
   };
 
   // Calculado, no editable — guardarlo sería mantener dos fuentes de verdad
   // que se pueden desincronizar (founder, 02-oct-2026).
-  const totalCobrado = (lead.cashCollected ?? 0)
-    + (lead.pago2Pagado ? (lead.pago2Monto ?? 0) : 0)
-    + (lead.pago3Pagado ? (lead.pago3Monto ?? 0) : 0)
-    + (lead.pago4Pagado ? (lead.pago4Monto ?? 0) : 0);
-  const saldoPendiente = Math.max(0, (lead.programValue ?? 0) - totalCobrado);
+  const totalCobrado = totalCobradoLead(lead);
+  const saldoPendiente = saldoPendienteLead(lead);
   const proximoPago = [
     { monto: lead.pago2Monto, fecha: lead.pago2Fecha, pagado: lead.pago2Pagado },
     { monto: lead.pago3Monto, fecha: lead.pago3Fecha, pagado: lead.pago3Pagado },
@@ -1154,34 +1134,71 @@ function LeadDrawer({
                 </label>
               </div>
 
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border-subtle">
+                {(['setter', 'closer'] as const).map((rol) => {
+                  const campo = rol === 'setter' ? 'setterComisionPct' : 'closerComisionPct';
+                  const porcentaje = lead[campo] ?? (rol === 'setter' ? 5 : 10);
+                  return (
+                    <label className="block" key={rol}>
+                      <span className="text-[10px] text-text-muted">Comisión {rol} (%) · esta venta</span>
+                      <input
+                        key={`${lead.id}:${porcentaje}`} type="number" min="0" max="100" step="0.01"
+                        disabled={readOnly} defaultValue={porcentaje}
+                        onBlur={(event) => {
+                          const valor = Number(event.currentTarget.value);
+                          if (!event.currentTarget.value.trim() || !Number.isFinite(valor) || valor < 0 || valor > 100) {
+                            toast.error('La comisión debe estar entre 0% y 100%.');
+                            event.currentTarget.value = String(porcentaje);
+                            return;
+                          }
+                          if (valor !== porcentaje) onUpdate({ [campo]: valor });
+                        }}
+                        className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px] font-mono"
+                      />
+                    </label>
+                  );
+                })}
+                <p className="col-span-2 text-[10px] text-text-muted">Se calcula sobre lo cobrado y confirmado de esta venta.</p>
+              </div>
+
               <div className="space-y-2 pt-1 border-t border-border-subtle">
                 <div className="flex items-center justify-between gap-2 pt-2 flex-wrap">
                   <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide">Plan de pagos</div>
                   {!readOnly && (
                     <div className="flex items-center gap-1.5">
                       <select
-                        value={numCuotas} onChange={(e) => setNumCuotas(e.target.value)}
+                        value={numCuotas} onChange={(e) => calcularCuotas(e.target.value)} aria-label="Número de cuotas"
                         className="rounded-lg border border-border-default bg-bg-base px-1.5 py-1 text-[11px]"
                       >
+                        <option value="" disabled>Elegir cuotas</option>
                         {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n} cuota{n === 1 ? '' : 's'}</option>)}
                       </select>
                       <button
-                        onClick={calcularCuotas}
+                        onClick={() => calcularCuotas(numCuotas || '2')}
                         className="text-[11px] font-semibold rounded-lg px-2 py-1"
                         style={{ background: withAlpha(client.primaryColor, 0.16), color: client.primaryColor }}
                       >
-                        Calcular (+5%)
+                        Repartir de nuevo
                       </button>
                     </div>
                   )}
                 </div>
                 <p className="text-[10px] text-text-muted -mt-1">
-                  Reparte el precio pactado +5% en las cuotas elegidas — cada monto queda editable a mano después.
+                  Al elegir las cuotas se reparte el precio pactado sin recargo. Si acuerdas un 5% adicional, inclúyelo manualmente en el precio pactado antes de repartir.
                 </p>
+                <label className="block">
+                  <span className="text-[10px] text-text-muted">Pago 1 · importe previsto</span>
+                  <MoneyInput
+                    disabled={readOnly} value={pago1Monto}
+                    onChangeRaw={setPago1Monto}
+                    onBlur={() => onUpdate({ pago1Monto: Number(pago1Monto) || 0 })}
+                    className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px] font-mono"
+                  />
+                </label>
 
                 <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
                   <label className="block">
-                    <span className="text-[10px] text-text-muted">Pago 1 · monto</span>
+                    <span className="text-[10px] text-text-muted">Pago 1 · cobrado confirmado</span>
                     <MoneyInput
                       disabled={readOnly} value={cashCollected}
                       onChangeRaw={setCashCollected}
@@ -1229,7 +1246,7 @@ function LeadDrawer({
                   onTogglePagado={(v) => onUpdate({ pago4Pagado: v })}
                 />
                 <p className="text-[10px] text-text-muted leading-relaxed">
-                  El monto del Pago 1 se considera siempre cobrado — lo actualiza quien confirma el pago. Los pagos 2-4 se marcan "pagado" cuando llegan de verdad.
+                  El importe previsto no cuenta como cobrado. Registra el cobro confirmado del Pago 1 cuando llegue; los pagos 2–4 se marcan pagados al recibirlos.
                 </p>
               </div>
 

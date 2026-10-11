@@ -67,5 +67,11 @@ jobs:
       - name: Paginación del PDF (¿algo se sale del papel?)
         run: npm run test:paginar
 
+      - name: Cobros y plan de cuotas (¿los indicadores coinciden?)
+        run: npm run test:cobros
+
+      - name: Aislamiento de sesiones y respuestas tardías
+        run: npm run test:sesion
+
       - name: Build (¿construye la app?)
         run: npm run build

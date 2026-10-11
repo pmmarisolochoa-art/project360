@@ -26,6 +26,21 @@ type BootstrapResult = { source: 'remote' | 'local' };
  * contexto para que las llamadas repetidas reusen la misma.
  */
 let lastRun: { key: string; promise: Promise<BootstrapResult> } | null = null;
+let sessionVersion = 0;
+
+/** No conservar datos de otra sesión ni datos demo en modo remoto. */
+function clearRemoteData(): void {
+  useClientStore.setState({ clients: [], tasks: [], meetings: [], hydrated: false });
+  useContentStore.setState({ pieces: [] });
+  useProjectionStore.setState({ states: {} });
+  useRopreStore.setState({ items: [] });
+  useTeamStore.setState({ assignments: [] });
+  useTeamMembersStore.getState().hydrate([]);
+  useProgramsStore.getState().hydrate([]);
+  useFunnelLaunchStore.setState({ funnels: [], phases: [] });
+  useLinksStore.getState().hydrate([]);
+  useLeadsStore.getState().hydrate([], []);
+}
 
 /**
  * Llamado al iniciar la app y al cambiar de sesión.
@@ -42,7 +57,9 @@ export function bootstrapFromRemote(): Promise<BootstrapResult> {
 
   if (lastRun?.key === key) return lastRun.promise;
 
-  const promise = runBootstrap().catch((e) => {
+  if (usingRemote) clearRemoteData();
+  const version = ++sessionVersion;
+  const promise = runBootstrap(version).catch((e) => {
     // Un fallo no debe quedar cacheado: la próxima llamada reintenta.
     if (lastRun?.key === key) lastRun = null;
     throw e;
@@ -53,10 +70,12 @@ export function bootstrapFromRemote(): Promise<BootstrapResult> {
 
 /** Limpia la memoria de hidratación (usar al cerrar sesión). */
 export function resetBootstrapCache(): void {
+  sessionVersion++;
   lastRun = null;
+  if (usingRemote) clearRemoteData();
 }
 
-async function runBootstrap(): Promise<BootstrapResult> {
+async function runBootstrap(version: number): Promise<BootstrapResult> {
   if (!usingRemote || !supabase) {
     useClientStore.getState().setHydrated(true); // modo local: el seed ES la data
     return { source: 'local' };
@@ -118,6 +137,7 @@ async function runBootstrap(): Promise<BootstrapResult> {
 
     if (tasksRes.error) throw tasksRes.error;
     if (meetingsRes.error) throw meetingsRes.error;
+    if (version !== sessionVersion) return { source: 'remote' };
     // Las privadas son un extra: si esta consulta falla, la app sigue
     // funcionando con todo lo demás en vez de quedarse en blanco.
     if (privadasRes?.error) console.warn('[bootstrap] no se pudieron cargar las tareas privadas', privadasRes.error);
@@ -138,53 +158,53 @@ async function runBootstrap(): Promise<BootstrapResult> {
       .map(rowToTask);
     const meetings: Meeting[] = (meetingsRes.data ?? []).map(rowToMeeting);
 
+    useClientStore.setState({ clients, tasks, meetings });
     if (clients.length > 0) {
-      useClientStore.setState({ clients, tasks, meetings });
 
       // Hidratar content_pieces y projections en paralelo
-      try {
-        const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData, links, leads, leadEvents] = await Promise.all([
-          ContentRepo.listByClientIds(clientIds),
-          ProjectionsRepo.listByClientIds(clientIds),
-          RopreRepo.listByClientIds(clientIds),
-          TeamRepo.listByClientIds(clientIds),
-          TeamMembersRepo.listByClientIds(clientIds),
-          ProgramsRepo.listByClientIds(clientIds),
-          FunnelLaunchRepo.listByClientIds(clientIds),
-          TaskLinksRepo.listByClientIds(clientIds),
-          LeadsRepo.listByClientIds(clientIds),
-          LeadEventsRepo.listByClientIds(clientIds),
-        ]);
-        if (contentPieces.length > 0) useContentStore.setState({ pieces: contentPieces });
-        if (Object.keys(projections).length > 0) useProjectionStore.setState({ states: projections });
-        if (ropre.length > 0) useRopreStore.setState({ items: ropre });
-        if (teamAssignments.length > 0) useTeamStore.setState({ assignments: teamAssignments as never });
-        if (teamMembers.length > 0) useTeamMembersStore.getState().hydrate(teamMembers);
-        if (programs.length > 0) useProgramsStore.getState().hydrate(programs);
-        if (funnelData.funnels.length > 0) useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
-        if (links.length > 0) useLinksStore.getState().hydrate(links);
-        if (leads.length > 0) useLeadsStore.getState().hydrate(leads, leadEvents);
-        // Se detalla cuántos son Espacio de Agencia: sin ese dato, un problema
-        // de "no aparece la opción Personal" obliga a adivinar si el cliente no
-        // llegó o si llegó sin su marca. Con esto se distingue de un vistazo.
-        const espacios = clients.filter((c) => c.isAgency);
-        console.info(
-          `[bootstrap] Espacios de agencia: ${espacios.length} → ` +
-            (espacios.map((c) => c.name).join(', ') || 'ninguno'),
-        );
-        console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels, ${links.length} entregables.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
-      } catch (e) {
-        console.warn('[bootstrap] Falló hidratación parcial — UI usa estado local.', e);
-      }
+      const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData, links, leads, leadEvents] = await Promise.all([
+        ContentRepo.listByClientIds(clientIds),
+        ProjectionsRepo.listByClientIds(clientIds),
+        RopreRepo.listByClientIds(clientIds),
+        TeamRepo.listByClientIds(clientIds),
+        TeamMembersRepo.listByClientIds(clientIds),
+        ProgramsRepo.listByClientIds(clientIds),
+        FunnelLaunchRepo.listByClientIds(clientIds),
+        TaskLinksRepo.listByClientIds(clientIds),
+        LeadsRepo.listByClientIds(clientIds),
+        LeadEventsRepo.listByClientIds(clientIds),
+      ]);
+      if (version !== sessionVersion) return { source: 'remote' };
+      useContentStore.setState({ pieces: contentPieces });
+      useProjectionStore.setState({ states: projections });
+      useRopreStore.setState({ items: ropre });
+      useTeamStore.setState({ assignments: teamAssignments as never });
+      useTeamMembersStore.getState().hydrate(teamMembers);
+      useProgramsStore.getState().hydrate(programs);
+      useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
+      useLinksStore.getState().hydrate(links);
+      useLeadsStore.getState().hydrate(leads, leadEvents);
+      // Se detalla cuántos son Espacio de Agencia: sin ese dato, un problema
+      // de "no aparece la opción Personal" obliga a adivinar si el cliente no
+      // llegó o si llegó sin su marca. Con esto se distingue de un vistazo.
+      const espacios = clients.filter((c) => c.isAgency);
+      console.info(
+        `[bootstrap] Espacios de agencia: ${espacios.length} → ` +
+          (espacios.map((c) => c.name).join(', ') || 'ninguno'),
+      );
+      console.info(`[bootstrap] Hidratado: ${clients.length} clientes, ${tasks.length} tareas, ${meetings.length} reuniones, ${contentPieces.length} content, ${Object.keys(projections).length} projections, ${ropre.length} ropre, ${teamAssignments.length} team, ${funnelData.funnels.length} funnels, ${links.length} entregables.${agencyId ? ` (agency=${agencyId.slice(0, 8)}…)` : ''}`);
     } else {
-      console.info('[bootstrap] Sin clientes en esta agencia — usando seed in-memory.');
+      console.info('[bootstrap] Sin clientes accesibles — listas vacías.');
     }
     useClientStore.getState().setHydrated(true);
     return { source: 'remote' };
   } catch (e) {
-    console.warn('[bootstrap] Supabase fetch falló — usando seed local.', e);
-    useClientStore.getState().setHydrated(true);
-    return { source: 'local' };
+    if (version === sessionVersion) {
+      clearRemoteData();
+      useClientStore.getState().setHydrated(true);
+    }
+    console.warn('[bootstrap] No se pudo cargar Supabase.', e);
+    throw e;
   }
 }
 

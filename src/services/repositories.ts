@@ -141,6 +141,21 @@ export const LeadsRepo = {
     const { error } = await supabase.from('leads').delete().eq('id', id);
     if (error) throw error;
   },
+  async moveStage(lead: Lead, event: LeadEvent): Promise<{ lead: Lead; event: LeadEvent }> {
+    if (!usingRemote || !supabase) return {
+      lead: { ...lead, etapa: event.etapaNueva,
+        closedAt: ['ganado', 'perdido'].includes(event.etapaNueva) ? event.createdAt : undefined,
+        lostReason: event.etapaNueva === 'perdido' ? event.nota ?? lead.lostReason : lead.lostReason },
+      event,
+    };
+    const { data, error } = await supabase.rpc('move_lead_stage', {
+      p_lead_id: lead.id, p_etapa_anterior: lead.etapa, p_etapa_nueva: event.etapaNueva,
+      p_event_id: event.id, p_actor_id: event.actorId ?? null,
+      p_actor_nombre: event.actorNombre ?? null, p_nota: event.nota ?? null,
+    });
+    if (error) throw error;
+    return { lead: rowToLead(data.lead), event: rowToLeadEvent(data.event) };
+  },
 };
 
 /**

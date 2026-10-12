@@ -73,5 +73,8 @@ jobs:
       - name: Aislamiento de sesiones y respuestas tardías
         run: npm run test:sesion
 
+      - name: Etapa e historial del lead como una sola operación
+        run: npm run test:etapas
+
       - name: Build (¿construye la app?)
         run: npm run build

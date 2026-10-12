@@ -208,7 +208,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
     [leads, eventosDelCliente],
   );
 
-  function handleDrop(stage: LeadStage) {
+  async function handleDrop(stage: LeadStage) {
     if (readOnly || !draggedId) return;
     const lead = leads.find((l) => l.id === draggedId);
     setDraggedId(null);
@@ -220,8 +220,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
       setLostPending(lead);
       return;
     }
-    moveStage(lead, stage, actor);
-    toast.success(`Movido a ${LEAD_STAGE_LABELS[stage]}`);
+    if (await moveStage(lead, stage, actor)) toast.success(`Movido a ${LEAD_STAGE_LABELS[stage]}`);
   }
 
   return (
@@ -525,11 +524,10 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
           <LostReasonModal
             lead={lostPending}
             onClose={() => setLostPending(null)}
-            onConfirm={(motivo) => {
-              updateLead(lostPending.id, { lostReason: motivo });
-              moveStage(lostPending, 'perdido', actor, motivo);
-              toast.success('Marcado como perdido');
+            onConfirm={async (motivo) => {
+              const pending = lostPending;
               setLostPending(null);
+              if (await moveStage(pending, 'perdido', actor, motivo)) toast.success('Marcado como perdido');
             }}
           />
         )}
@@ -557,7 +555,6 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
                 updatedAt: new Date().toISOString(),
               };
               addLead(lead);
-              moveStage({ ...lead, etapa: 'nuevo' }, 'nuevo', actor, 'Lead registrado');
               toast.success('Lead registrado');
               setAddOpen(false);
             }}

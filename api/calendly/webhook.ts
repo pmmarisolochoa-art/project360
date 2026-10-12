@@ -41,16 +41,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { CALENDLY_CLIENTES, externalIdInviteeCalendly, tipoReunionDesdeNombreEvento } from '../../src/config/calendly';
 import { normalizar, normalizarTelefono } from '../../src/utils/csvLeads';
-import type { LeadStage } from '../../src/types/lead';
 
 export const config = { runtime: 'edge' };
 
 const REPLAY_MAX_SEGUNDOS = 180;
-// Una vez agendada, solo subir la etapa si el lead sigue en un punto
-// temprano del embudo — si ya avanzó más (propuesta, ganado...), agendar de
-// nuevo no debe retroceder su etapa.
-const ETAPAS_QUE_SUBEN_A_CITA_AGENDADA: LeadStage[] = ['nuevo', 'contactado', 'calificado'];
-
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === 'GET') return texto('OK', 200);
   if (req.method !== 'POST') return texto('Solo GET y POST.', 405);
@@ -80,145 +74,125 @@ export default async function handler(req: Request): Promise<Response> {
 
   const invitee = body.payload;
   if (!invitee?.uri || !invitee.event) return texto('Payload sin uri/event.', 400);
+  if (!/^https:\/\/api\.calendly\.com\/scheduled_events\/[a-f0-9-]{36}$/i.test(invitee.event) ||
+      !invitee.uri.startsWith(invitee.event + '/invitees/')) return texto('URI de Calendly inválida.', 400);
 
-  const admin = createClient(supaUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const externalId = externalIdInviteeCalendly(invitee.uri);
+  try {
+    const admin = createClient(supaUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const externalId = externalIdInviteeCalendly(invitee.uri);
+    if (CALENDLY_CLIENTES.length !== 1) return texto('Configuración de cliente Calendly incompleta o ambigua.', 503);
 
-  // Idempotencia: Calendly puede reintentar la misma entrega.
-  const { data: existente } = await admin.from('meetings').select('id').eq('external_id', externalId).maybeSingle();
-  if (existente) return texto('OK (ya procesado)', 200);
+    // Idempotencia: Calendly puede reintentar la misma entrega.
+    const { data: existente, error: lookupError } = await admin.from('meetings').select('id').eq('external_id', externalId).eq('client_id', CALENDLY_CLIENTES[0].clientId).eq('origen', 'calendly').maybeSingle();
+    if (lookupError) throw lookupError;
+    if (existente) return texto('OK (ya procesado)', 200);
 
-  // Hoy solo hay un cliente habilitado (Alejo) — si mañana hay más, esto
-  // necesitará distinguir CUÁL org/evento de Calendly es cuál cliente (ver
-  // nota en `src/config/calendly.ts`).
-  const declarado = CALENDLY_CLIENTES[0];
-  if (!declarado) {
-    console.warn('[calendly] no hay ningún cliente habilitado, se ignora', externalId);
-    return texto('OK (sin cliente habilitado)', 200);
-  }
+    const declarado = CALENDLY_CLIENTES[0];
 
-  const { data: cliente } = await admin.from('clients').select('agency_id').eq('id', declarado.clientId).maybeSingle();
-  if (!cliente) {
-    console.error('[calendly] client_id declarado ya no existe', declarado.clientId);
-    return texto('OK (cliente no encontrado)', 200);
-  }
-
-  // ── Detalle real del evento (hora, link, host) ──────────────────────────
-  const eventoId = invitee.event.split('/').pop();
-  const detalle = await traerDetalleEvento(eventoId!, accessToken);
-  if (!detalle) return texto('OK (no se pudo traer el detalle del evento)', 200);
-
-  // ── Resolver closer por email, dentro de este cliente ───────────────────
-  const hostEmail = detalle.event_memberships?.[0]?.user_email;
-  let closer: { id: string; nombre: string } | null = null;
-  if (hostEmail) {
-    const { data: tm } = await admin
-      .from('team_members')
-      .select('id, nombre')
-      .eq('client_id', declarado.clientId)
-      .ilike('email', hostEmail)
-      .maybeSingle();
-    if (tm) closer = { id: tm.id as string, nombre: tm.nombre as string };
-  }
-
-  // ── Resolver o crear el lead ─────────────────────────────────────────────
-  const email = invitee.email?.trim() || undefined;
-  // El número de SMS (text_reminder_number) es OPCIONAL y aparte de las
-  // preguntas del formulario — este Event Type en particular pide el
-  // teléfono como pregunta custom, no como ese campo. Se intentan los dos.
-  const telefono = invitee.text_reminder_number?.trim() || telefonoDesdePreguntas(invitee.questions_and_answers);
-  const notasPreguntas = formatearPreguntas(invitee.questions_and_answers);
-  let leadId: string | undefined;
-  let leadEtapaActual: LeadStage | undefined;
-
-  if (email || telefono) {
-    const { data: candidatos } = await admin
-      .from('leads')
-      .select('id, etapa, email, telefono')
-      .eq('client_id', declarado.clientId);
-    const match = (candidatos ?? []).find((l: Record<string, unknown>) => {
-      const lEmail = l.email ? normalizar(l.email as string) : '';
-      const lTel = l.telefono ? normalizarTelefono(l.telefono as string) : '';
-      return (email && lEmail && lEmail === normalizar(email)) ||
-        (telefono && lTel && lTel === normalizarTelefono(telefono));
-    });
-    if (match) {
-      leadId = match.id as string;
-      leadEtapaActual = match.etapa as LeadStage;
+    const { data: cliente, error: clientError } = await admin.from('clients').select('agency_id').eq('id', declarado.clientId).maybeSingle();
+    if (clientError) throw clientError;
+    if (!cliente) {
+      console.error('[calendly] client_id declarado ya no existe', declarado.clientId);
+      return texto('Cliente configurado no encontrado.', 503);
     }
-  }
 
-  if (!leadId) {
-    // Sin match: se crea un lead nuevo vía la misma RPC que usa el resto de
-    // la app — fuente 'otro' porque Calendly es DÓNDE se agenda, no de dónde
-    // vino el lead (LeadSource describe canal de origen: reel/dm/referido...).
-    const { data: nuevoId, error } = await admin.rpc('api_lead_crear', {
-      p_agencia: cliente.agency_id,
-      p_client_id: declarado.clientId,
-      p_nombre: invitee.name || email || telefono || 'Sin nombre',
-      p_telefono: telefono ?? null,
-      p_email: email ?? null,
-      p_fuente: 'otro',
-      p_external_id: externalId,
-    });
-    if (error) {
-      console.error('[calendly] api_lead_crear falló', externalId, error);
-    } else {
-      leadId = nuevoId as string;
-      leadEtapaActual = 'nuevo'; // default de la RPC — recién creado.
+    // ── Detalle real del evento (hora, link, host) ──────────────────────────
+    const eventoId = invitee.event.split('/').pop();
+    const detalle = await traerDetalleEvento(eventoId!, accessToken);
+    if (!detalle) return texto('No se pudo consultar Calendly. Reintentar.', 502);
+
+    // ── Resolver closer por email, dentro de este cliente ───────────────────
+    const hostEmail = detalle.event_memberships?.[0]?.user_email;
+    let closer: { id: string; nombre: string } | null = null;
+    if (hostEmail) {
+      const { data: tm, error: closerError } = await admin
+        .from('team_members')
+        .select('id, nombre')
+        .eq('client_id', declarado.clientId)
+        .ilike('email', hostEmail)
+        .maybeSingle();
+      if (closerError) throw closerError;
+      if (tm) closer = { id: tm.id as string, nombre: tm.nombre as string };
     }
-  }
 
-  // Un lead que agenda (sea nuevo o existente) debe quedar en "Cita
-  // agendada" — antes un lead NUEVO se quedaba sin subir de etapa porque
-  // esta rama vivía como `else if` de la creación de arriba y nunca corría
-  // para el caso recién creado (bug real, encontrado probando con Marisol
-  // Ochoa L el 08-oct-2026: el lead quedó en "Nuevo").
-  if (leadId && leadEtapaActual && ETAPAS_QUE_SUBEN_A_CITA_AGENDADA.includes(leadEtapaActual)) {
-    await admin
-      .from('leads')
-      .update({ etapa: 'cita_agendada', fecha_agenda: detalle.start_time })
-      .eq('id', leadId);
-    await admin.from('lead_events').insert({
-      lead_id: leadId,
-      etapa_anterior: leadEtapaActual,
-      etapa_nueva: 'cita_agendada',
-      nota: 'Agendado por Calendly',
-      actor_id: closer?.id ?? null,
-      actor_nombre: closer?.nombre ?? 'Calendly',
+    // ── Resolver o crear el lead ─────────────────────────────────────────────
+    const email = invitee.email?.trim() || undefined;
+    // El número de SMS (text_reminder_number) es OPCIONAL y aparte de las
+    // preguntas del formulario — este Event Type en particular pide el
+    // teléfono como pregunta custom, no como ese campo. Se intentan los dos.
+    const telefono = invitee.text_reminder_number?.trim() || telefonoDesdePreguntas(invitee.questions_and_answers);
+    const notasPreguntas = formatearPreguntas(invitee.questions_and_answers);
+    let leadId: string | undefined;
+
+    if (email || telefono) {
+      const { data: candidatos, error: leadsError } = await admin
+        .from('leads')
+        .select('id, etapa, email, telefono')
+        .eq('client_id', declarado.clientId);
+      if (leadsError) throw leadsError;
+      const match = (candidatos ?? []).find((l: Record<string, unknown>) => {
+        const lEmail = l.email ? normalizar(l.email as string) : '';
+        const lTel = l.telefono ? normalizarTelefono(l.telefono as string) : '';
+        return (email && lEmail && lEmail === normalizar(email)) ||
+          (telefono && lTel && lTel === normalizarTelefono(telefono));
+      });
+      if (match) {
+        leadId = match.id as string;
+      }
+    }
+
+    if (!leadId) {
+      // Sin match: se crea un lead nuevo vía la misma RPC que usa el resto de
+      // la app — fuente 'otro' porque Calendly es DÓNDE se agenda, no de dónde
+      // vino el lead (LeadSource describe canal de origen: reel/dm/referido...).
+      const { data: nuevoId, error } = await admin.rpc('api_lead_crear', {
+        p_agencia: cliente.agency_id,
+        p_client_id: declarado.clientId,
+        p_nombre: invitee.name || email || telefono || 'Sin nombre',
+        p_telefono: telefono ?? null,
+        p_email: email ?? null,
+        p_fuente: 'otro',
+        p_external_id: externalId,
+      });
+      if (error) {
+        throw error;
+      } else {
+        leadId = nuevoId as string;
+      }
+    }
+
+    if (!leadId) throw new Error('Calendly no obtuvo un lead guardado.');
+
+    // ── Crear el Meeting ─────────────────────────────────────────────────────
+    // Título y tipo salen del Event Type REAL agendado en Calendly (ej.
+    // "Sesión Estratégica de Patrocinios"), no de un genérico — cada Event
+    // Type puede ser una reunión de naturaleza distinta.
+    const nombreEvento = detalle.name?.trim() || `Llamada agendada — ${invitee.name || 'Sin nombre'}`;
+    const tipoReunion = tipoReunionDesdeNombreEvento(detalle.name ?? '') ?? 'general';
+    const duracionMin = minutosEntre(detalle.start_time, detalle.end_time);
+    const { error: errMeeting } = await admin.rpc('calendly_guardar_reserva', {
+      p_client_id: declarado.clientId, p_lead_id: leadId, p_external_id: externalId,
+      p_actor_id: closer?.id ?? null, p_actor_nombre: closer?.nombre ?? 'Calendly',
+      p_meeting: {
+        title: invitee.name ? `${nombreEvento} — ${invitee.name}` : nombreEvento,
+        type: tipoReunion,
+        scheduled_at: detalle.start_time,
+        duration_min: duracionMin,
+        participants: closer ? [{ userId: closer.id, name: closer.nombre }] : [],
+        video_call_link: detalle.location?.join_url ?? undefined,
+        // Lo que respondió el invitee en el formulario de reserva — cada Event
+        // Type trae sus propias preguntas, así que se guardan TODAS tal cual
+        // (no se adivina cuáles importan para cada caso).
+        notes: notasPreguntas,
+      },
     });
-  } else if (leadId) {
-    // Ya estaba más adelante en el embudo: no se retrocede la etapa, solo se
-    // registra la fecha de la nueva llamada.
-    await admin.from('leads').update({ fecha_agenda: detalle.start_time }).eq('id', leadId);
+    if (errMeeting) throw errMeeting;
+
+    return texto('OK', 200);
+  } catch (error) {
+    console.error('[calendly] reserva no confirmada', error);
+    return texto('No se guardó la reserva. Reintentar.', 500);
   }
-
-  // ── Crear el Meeting ─────────────────────────────────────────────────────
-  // Título y tipo salen del Event Type REAL agendado en Calendly (ej.
-  // "Sesión Estratégica de Patrocinios"), no de un genérico — cada Event
-  // Type puede ser una reunión de naturaleza distinta.
-  const nombreEvento = detalle.name?.trim() || `Llamada agendada — ${invitee.name || 'Sin nombre'}`;
-  const tipoReunion = tipoReunionDesdeNombreEvento(detalle.name ?? '') ?? 'general';
-  const duracionMin = minutosEntre(detalle.start_time, detalle.end_time);
-  const { error: errMeeting } = await admin.from('meetings').insert({
-    client_id: declarado.clientId,
-    title: invitee.name ? `${nombreEvento} — ${invitee.name}` : nombreEvento,
-    type: tipoReunion,
-    scheduled_at: detalle.start_time,
-    duration_min: duracionMin,
-    participants: closer ? [{ userId: closer.id, name: closer.nombre }] : [],
-    video_call_link: detalle.location?.join_url ?? undefined,
-    // Lo que respondió el invitee en el formulario de reserva — cada Event
-    // Type trae sus propias preguntas, así que se guardan TODAS tal cual
-    // (no se adivina cuáles importan para cada caso).
-    notes: notasPreguntas,
-    origen: 'calendly',
-    external_id: externalId,
-    lead_id: leadId ?? null,
-  });
-  if (errMeeting) console.error('[calendly] no se pudo crear el meeting', externalId, errMeeting);
-
-  return texto('OK', 200);
 }
 
 interface CalendlyQA {
@@ -275,7 +249,7 @@ async function traerDetalleEvento(eventoId: string, accessToken: string): Promis
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   });
   if (!res.ok) {
-    console.error('[calendly] scheduled_events respondió', res.status, await res.text().catch(() => ''));
+    console.error('[calendly] scheduled_events respondió', res.status);
     return null;
   }
   const data = (await res.json()) as { resource?: DetalleEvento };
@@ -291,16 +265,17 @@ async function firmaValida(cuerpoCrudo: string, signingKey: string, cabecera: st
   const partes = Object.fromEntries(cabecera.split(',').map((p) => p.split('=') as [string, string]));
   const ts = partes.t;
   const v1 = partes.v1;
-  if (!ts || !v1) return false;
+  if (!ts || !v1 || !/^\d+$/.test(ts) || !/^[a-f0-9]{64}$/i.test(v1)) return false;
 
   const ahora = Math.floor(Date.now() / 1000);
+  if (!Number.isSafeInteger(Number(ts))) return false;
   if (Math.abs(ahora - Number(ts)) > REPLAY_MAX_SEGUNDOS) return false;
 
   const clave = await crypto.subtle.importKey('raw', new TextEncoder().encode(signingKey), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const firma = await crypto.subtle.sign('HMAC', clave, new TextEncoder().encode(`${ts}.${cuerpoCrudo}`));
   const calculada = Array.from(new Uint8Array(firma)).map((b) => b.toString(16).padStart(2, '0')).join('');
 
-  return igualSeguro(calculada, v1);
+  return igualSeguro(calculada, v1.toLowerCase());
 }
 
 /** Comparación en tiempo constante — mismo motivo que en Meta/Paralelo. */

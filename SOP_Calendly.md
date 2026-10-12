@@ -44,6 +44,18 @@ Ahora: al agendar, se crea sola la reunión (con el link de la llamada), aparece
    - En **"Mi Espacio"** del closer — si su email está cargado en Equipo. Si no, la reunión igual existe y se ve en la agenda del cliente, pero no en el espacio personal del closer hasta que se corrija su email a mano.
 5. El lead pasa a **"Cita agendada"** — solo si no había avanzado ya más adelante en el embudo (un lead en "Ganado" que reagenda una llamada no retrocede).
 
+## Guardado y reintentos
+
+La migración `calendly_reserva_atomica` añade `calendly_guardar_reserva`, una operación exclusiva del backend. Debe aplicarse antes de publicar el webhook que la usa.
+
+- Reunión, fecha del lead y avance de etapa con historial se confirman en una sola transacción. Si falla una parte, se revierte toda esta operación. La resolución o creación inicial del lead sigue siendo un paso previo separado.
+- La misma reserva se identifica por su URI de invitee de Calendly y por el cliente habilitado. La función serializa entregas simultáneas de esa reserva; una reentrega devuelve la reunión existente y no repite el historial.
+- Si falla Calendly o Supabase, el webhook responde con error, en vez de confirmar una reserva que no se guardó. Calendly reintenta las entregas fallidas durante hasta 24 horas; tras fallos persistentes puede deshabilitar la suscripción. Un error de configuración requiere corregirlo, los reintentos no lo resuelven solos.
+- Una cita nueva no retrocede etapas avanzadas como "Ganado". Las búsquedas de lead y closer siguen limitadas al cliente habilitado.
+- El código exige exactamente un cliente configurado. Agregar otra fila sin implementar la resolución de cuenta/cliente devuelve error; no asigna todas las reservas al primer cliente.
+
+Referencia: https://developer.calendly.com/api-docs/overview/webhooks/webhook-errors
+
 ## Gaps conocidos de v1 (aceptados a propósito, no bloqueantes)
 
 - **Cancelar o reprogramar en Calendly no se refleja solo.** La reunión se queda marcada como agendada aunque el lead cancele; hay que corregirla a mano (borrar o editar la reunión, y el lead si hace falta). Es un gap aceptado por la founder el 08-oct-2026 para no demorar el lanzamiento — se puede cerrar después procesando también el evento `invitee.canceled` de Calendly.

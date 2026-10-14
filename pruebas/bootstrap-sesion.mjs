@@ -55,13 +55,17 @@ try {
   });
   const { bootstrapFromRemote, resetBootstrapCache } = await import(pathToFileURL(join(dir, 'bootstrap.mjs')));
   stores.useAuthStore.setState({ user: {id:'A'}, agencyId:'agency-A' });
-  rows = {clients:{data:[{id:'client-A'}],error:null},tasks:{data:[{id:'task-A'}],error:null}};
+  rows = {clients:{data:[{id:'client-A'}],error:null},tasks:{data:[{id:'task-A'}],error:null},
+    meetings:{data:[{id:'active-meeting'},{id:'cancelled-meeting',cancelledAt:'2026-10-14'}],error:null}};
   repoRows = [{id:'lead-A'}];
   await bootstrapFromRemote();
   assert.equal(stores.useLeadsStore.getState().data[0].id,'lead-A');
+  assert.deepEqual(stores.useClientStore.getState().meetings.map(m=>m.id),['active-meeting'],'agendas solo reciben reuniones activas');
+  assert.deepEqual(stores.useClientStore.getState().cancelledMeetings.map(m=>m.id),['cancelled-meeting'],'histórico cancelado se conserva separado');
   resetBootstrapCache();
   assert.deepEqual(stores.useClientStore.getState().clients,[],'logout elimina clientes previos');
   assert.deepEqual(stores.useLeadsStore.getState().data,[],'logout elimina ventas previas');
+  assert.deepEqual(stores.useClientStore.getState().cancelledMeetings,[],'logout elimina histórico cancelado previo');
 
   let release;
   deferredClients = new Promise(resolve => { release = resolve; });

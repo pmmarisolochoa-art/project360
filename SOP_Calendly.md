@@ -19,12 +19,13 @@ Ahora: al agendar, se crea sola la reunión (con el link de la llamada), aparece
 
    {
      "url": "https://project360-pearl.vercel.app/api/calendly/webhook",
-     "events": ["invitee.created"],
+     "events": ["invitee.created", "invitee.canceled"],
      "organization": "<uri de tu organización>",
-     "scope": "organization"
+     "scope": "organization",
+     "signing_key": "<secreto compartido con el webhook>"
    }
    ```
-   La respuesta trae un campo `signing_key` — guardarlo, es el secreto que verifica que los webhooks de verdad vienen de Calendly.
+   `signing_key` es el secreto compartido para verificar las firmas. Debe coincidir con `CALENDLY_SIGNING_KEY` en Vercel; no se copia en el repositorio ni se comparte por chat. No asumir que aparece en la respuesta: la API permite proporcionarlo al crear la suscripción.
 3. En Vercel (Settings → Environment Variables del proyecto), agregar:
    - `CALENDLY_PERSONAL_ACCESS_TOKEN` — el del paso 1.
    - `CALENDLY_SIGNING_KEY` — el del paso 2.
@@ -56,9 +57,28 @@ La migración `calendly_reserva_atomica` añade `calendly_guardar_reserva`, una 
 
 Referencia: https://developer.calendly.com/api-docs/overview/webhooks/webhook-errors
 
-## Gaps conocidos de v1 (aceptados a propósito, no bloqueantes)
+## Cancelaciones y reprogramaciones
 
-- **Cancelar o reprogramar en Calendly no se refleja solo.** La reunión se queda marcada como agendada aunque el lead cancele; hay que corregirla a mano (borrar o editar la reunión, y el lead si hace falta). Es un gap aceptado por la founder el 08-oct-2026 para no demorar el lanzamiento — se puede cerrar después procesando también el evento `invitee.canceled` de Calendly.
+La migración `calendly_cancelaciones_reprogramaciones` debe aplicarse antes de publicar este bloque.
+
+- Al recibir `invitee.canceled`, se conserva la reunión con su fecha de cancelación y motivo. Una reprogramación también conserva la reunión vieja, marcada como reprogramada, y registra la nueva por su propia URI.
+- La agenda global, el espacio del closer y los contadores de próximas reuniones solo reciben citas activas. El historial de canceladas y reprogramadas está disponible en el filtro de la Agenda del cliente, con consulta sin botones de completar o eliminar.
+- El lead mantiene su etapa comercial: cancelar una llamada no significa perder una venta. Se agrega la actividad al historial. Si su fecha de agenda corresponde a la llamada cancelada, se reemplaza por otra cita activa futura o queda vacía. Una cancelación antigua no borra la fecha de una reserva nueva.
+- Las URI `old_invitee` y `new_invitee` enlazan las reprogramaciones. Si existe la reunión anterior se conserva el mismo lead, incluso si cambió el correo. Cuando una cancelación llega antes que la reserva, un registro exclusivo de backend impide que un aviso de creación retrasado la reactive.
+- Tanto las cancelaciones como las reservas son idempotentes y se guardan con transacciones. Los errores siguen devolviendo un estado de fallo para permitir reintentos.
+- El cambio no reconstruye cancelaciones históricas que Calendly nunca envió. La suscripción debe incluir los dos eventos anteriores; publicar código no cambia la suscripción real de Calendly.
+
+### Activación y prueba operativa
+
+1. Comprobar la suscripción real: URL del proyecto, organización/cuenta correcta, estado activo y ambos eventos (`invitee.created`, `invitee.canceled`). El código solo habilita el cliente declarado en `src/config/calendly.ts`.
+2. Si hay que reemplazar una suscripción, conservar la misma signing key de forma segura y verificar el callback antes de retirar la anterior. Una clave distinta exige actualizar Vercel y desplegar; no crear suscripciones con claves incompatibles sin coordinar ese cambio.
+3. Con un registro de prueba, reservar, recargar Project360 y verificar la cita y el lead. Reprogramar, recargar y comprobar que solo la cita nueva queda pendiente; la vieja aparece en el historial.
+4. Cancelar la cita nueva y recargar. Confirmar que ya no aparece en agendas activas y que el lead conserva su etapa comercial y los cobros.
+
+Referencias oficiales: https://developer.calendly.com/docs/api-guides/see-how-webhook-payloads-change-when-invitees-reschedule-events y https://developer.calendly.com/api-docs/calendly-api/webhooks/create-webhook-subscription
+
+## Limitaciones operativas
+
 - **Hoy solo hay un cliente y un closer habilitados.** Si Alejo suma un segundo closer agendando por Calendly, basta con cargar su email en Equipo — no hace falta tocar código. Si se conecta un cliente nuevo (no solo Alejo), hay que agregar su fila en `src/config/calendly.ts` (y probablemente sus propias credenciales de Calendly, si es una cuenta distinta).
 - **Si el closer no tiene su email cargado**, la reunión se crea igual pero sin nadie asignado como participante — queda visible, se corrige a mano agregándolo.
 

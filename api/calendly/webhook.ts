@@ -2,9 +2,8 @@
  * Webhook de Calendly — cuando un lead agenda una llamada, crea (o enlaza) el
  * `Meeting` con el link de la reunión y avanza al lead a "Cita agendada".
  *
- * SOLO procesa `invitee.created` (v1). `invitee.canceled` es un gap conocido
- * y aceptado a propósito (founder, 08-oct-2026): una cancelación/reprograma-
- * ción no se refleja sola todavía — se corrige a mano. Ver `SOP_Calendly.md`.
+ * Procesa reservas, cancelaciones y reprogramaciones, conservando el histórico.
+ * Requiere ambos eventos en la suscripción de Calendly. Ver `SOP_Calendly.md`.
  *
  * Runtime EDGE a propósito, y es correcto aquí (a diferencia de Fathom, que
  * tuvo que salir de edge): esto es UNA invocación por reserva, con UN GET a
@@ -56,7 +55,6 @@ export default async function handler(req: Request): Promise<Response> {
 
   if (!supaUrl || !serviceKey) return texto('Falta config Supabase.', 500);
   if (!signingKey) return texto('Falta CALENDLY_SIGNING_KEY.', 503);
-  if (!accessToken) return texto('Falta CALENDLY_PERSONAL_ACCESS_TOKEN.', 503);
 
   const crudo = await req.text();
   const cabecera = req.headers.get('calendly-webhook-signature') ?? '';
@@ -69,25 +67,51 @@ export default async function handler(req: Request): Promise<Response> {
     return texto('Body no es JSON válido.', 400);
   }
 
-  // invitee.canceled y cualquier otro evento: gap de v1, aceptado a propósito.
-  if (body.event !== 'invitee.created') return texto('OK (evento ignorado)', 200);
+  if (!body || typeof body !== 'object') return texto('Payload inválido.', 400);
+  if (body.event !== 'invitee.created' && body.event !== 'invitee.canceled') return texto('OK (evento ignorado)', 200);
 
   const invitee = body.payload;
   if (!invitee?.uri || !invitee.event) return texto('Payload sin uri/event.', 400);
   if (!/^https:\/\/api\.calendly\.com\/scheduled_events\/[a-f0-9-]{36}$/i.test(invitee.event) ||
-      !invitee.uri.startsWith(invitee.event + '/invitees/')) return texto('URI de Calendly inválida.', 400);
+      !uriInviteeValida(invitee.uri) || !invitee.uri.startsWith(invitee.event + '/invitees/')) return texto('URI de Calendly inválida.', 400);
+  if ((invitee.old_invitee && !uriInviteeValida(invitee.old_invitee)) ||
+      (invitee.new_invitee && !uriInviteeValida(invitee.new_invitee))) return texto('Referencia de reprogramación inválida.', 400);
 
   try {
     const admin = createClient(supaUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const externalId = externalIdInviteeCalendly(invitee.uri);
     if (CALENDLY_CLIENTES.length !== 1) return texto('Configuración de cliente Calendly incompleta o ambigua.', 503);
+    const declarado = CALENDLY_CLIENTES[0];
+    if (body.event === 'invitee.canceled' || invitee.status === 'canceled') {
+      const { error } = await admin.rpc('calendly_cancelar_reserva', {
+        p_client_id: declarado.clientId, p_external_id: externalId,
+        p_reason: invitee.cancellation?.reason ?? null,
+        p_replacement_external_id: invitee.new_invitee ? externalIdInviteeCalendly(invitee.new_invitee) : null,
+        p_rescheduled: invitee.rescheduled === true,
+      });
+      if (error) throw error;
+      return texto('OK (cancelación guardada)', 200);
+    }
+    const oldExternalId = invitee.old_invitee ? externalIdInviteeCalendly(invitee.old_invitee) : null;
+    if (oldExternalId && oldExternalId !== externalId) {
+      // La nueva reserva prueba que la vieja fue reprogramada, aunque su aviso llegue después.
+      const { error } = await admin.rpc('calendly_cancelar_reserva', {
+        p_client_id: declarado.clientId, p_external_id: oldExternalId,
+        p_reason: 'Reprogramada en Calendly', p_replacement_external_id: externalId, p_rescheduled: true,
+      });
+      if (error) throw error;
+    }
+    const { data: canceled, error: cancellationLookupError } = await admin.from('calendly_cancelaciones')
+      .select('external_id').eq('client_id', declarado.clientId).eq('external_id', externalId).maybeSingle();
+    if (cancellationLookupError) throw cancellationLookupError;
+    if (canceled) return texto('OK (reserva ya cancelada)', 200);
 
     // Idempotencia: Calendly puede reintentar la misma entrega.
     const { data: existente, error: lookupError } = await admin.from('meetings').select('id').eq('external_id', externalId).eq('client_id', CALENDLY_CLIENTES[0].clientId).eq('origen', 'calendly').maybeSingle();
     if (lookupError) throw lookupError;
     if (existente) return texto('OK (ya procesado)', 200);
 
-    const declarado = CALENDLY_CLIENTES[0];
+    if (!accessToken) return texto('Falta CALENDLY_PERSONAL_ACCESS_TOKEN.', 503);
 
     const { data: cliente, error: clientError } = await admin.from('clients').select('agency_id').eq('id', declarado.clientId).maybeSingle();
     if (clientError) throw clientError;
@@ -123,8 +147,14 @@ export default async function handler(req: Request): Promise<Response> {
     const telefono = invitee.text_reminder_number?.trim() || telefonoDesdePreguntas(invitee.questions_and_answers);
     const notasPreguntas = formatearPreguntas(invitee.questions_and_answers);
     let leadId: string | undefined;
+    if (oldExternalId) {
+      const { data: previous, error } = await admin.from('meetings').select('lead_id')
+        .eq('client_id', declarado.clientId).eq('external_id', oldExternalId).eq('origen', 'calendly').maybeSingle();
+      if (error) throw error;
+      leadId = previous?.lead_id ?? undefined;
+    }
 
-    if (email || telefono) {
+    if (!leadId && (email || telefono)) {
       const { data: candidatos, error: leadsError } = await admin
         .from('leads')
         .select('id, etapa, email, telefono')
@@ -174,6 +204,7 @@ export default async function handler(req: Request): Promise<Response> {
       p_client_id: declarado.clientId, p_lead_id: leadId, p_external_id: externalId,
       p_actor_id: closer?.id ?? null, p_actor_nombre: closer?.nombre ?? 'Calendly',
       p_meeting: {
+        old_external_id: oldExternalId,
         title: invitee.name ? `${nombreEvento} — ${invitee.name}` : nombreEvento,
         type: tipoReunion,
         scheduled_at: detalle.start_time,
@@ -208,11 +239,19 @@ interface CalendlyInvitee {
   text_reminder_number?: string;
   event: string; // URI del scheduled event
   status?: 'active' | 'canceled';
+  old_invitee?: string | null;
+  new_invitee?: string | null;
+  rescheduled?: boolean;
+  cancellation?: { reason?: string | null };
   // Respuestas al formulario de reserva — cada Event Type de Calendly trae
   // las suyas (acá no se adivina cuáles son: se guardan TODAS en las notas
   // de la reunión, y solo se intenta sacar un teléfono si hay una pregunta
   // que claramente pregunta por eso).
   questions_and_answers?: CalendlyQA[];
+}
+
+function uriInviteeValida(uri: string): boolean {
+  return /^https:\/\/api\.calendly\.com\/scheduled_events\/[a-f0-9-]{36}\/invitees\/[a-f0-9-]{36}$/i.test(uri);
 }
 
 /** Formatea las preguntas/respuestas del formulario de reserva para Notas. */

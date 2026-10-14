@@ -30,7 +30,7 @@ let sessionVersion = 0;
 
 /** No conservar datos de otra sesión ni datos demo en modo remoto. */
 function clearRemoteData(): void {
-  useClientStore.setState({ clients: [], tasks: [], meetings: [], hydrated: false });
+  useClientStore.setState({ clients: [], tasks: [], meetings: [], cancelledMeetings: [], hydrated: false });
   useContentStore.setState({ pieces: [] });
   useProjectionStore.setState({ states: {} });
   useRopreStore.setState({ items: [] });
@@ -156,9 +156,11 @@ async function runBootstrap(version: number): Promise<BootstrapResult> {
         return true;
       })
       .map(rowToTask);
-    const meetings: Meeting[] = (meetingsRes.data ?? []).map(rowToMeeting);
+    const loadedMeetings: Meeting[] = (meetingsRes.data ?? []).map(rowToMeeting);
+    const meetings = loadedMeetings.filter((m) => !m.cancelledAt);
+    const cancelledMeetings = loadedMeetings.filter((m) => !!m.cancelledAt);
 
-    useClientStore.setState({ clients, tasks, meetings });
+    useClientStore.setState({ clients, tasks, meetings, cancelledMeetings });
     if (clients.length > 0) {
 
       // Hidratar content_pieces y projections en paralelo

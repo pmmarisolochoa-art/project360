@@ -95,9 +95,10 @@ export const isInternalMeeting = (client: { isAgency?: boolean } | undefined | n
 
 export function MeetingsModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const allMeetings = useClientStore((s) => s.meetings);
+  const archivedMeetings = useClientStore((s) => s.cancelledMeetings);
   const meetings = useMemo(
-    () => allMeetings.filter((m) => m.clientId === client.id).sort((a, b) => +parseISO(b.scheduledAt) - +parseISO(a.scheduledAt)),
-    [allMeetings, client.id],
+    () => [...allMeetings, ...archivedMeetings].filter((m) => m.clientId === client.id).sort((a, b) => +parseISO(b.scheduledAt) - +parseISO(a.scheduledAt)),
+    [allMeetings, archivedMeetings, client.id],
   );
   const addMeeting = useClientStore((s) => s.addMeeting);
   const deleteMeeting = useClientStore((s) => s.deleteMeeting);
@@ -108,7 +109,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
 
   const [view, setView] = useState<'list' | 'week'>('list');
   const [fType, setFType] = useState<string>('');
-  const [fStatus, setFStatus] = useState<'all' | 'upcoming' | 'past' | 'completed' | 'pending'>('all');
+  const [fStatus, setFStatus] = useState<'all' | 'upcoming' | 'past' | 'completed' | 'pending' | 'cancelled'>('all');
   const [creating, setCreating] = useState(false);
   const [defaultType, setDefaultType] = useState<MeetingType>('weekly_metrics');
 
@@ -155,6 +156,8 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
       // "Mi agenda privada" de la Agenda Global (S5).
       if (m.esPrivada) return false;
       if (fType && m.type !== fType) return false;
+      if (fStatus === 'cancelled') return !!m.cancelledAt;
+      if (m.cancelledAt) return fStatus === 'all';
       const d = parseISO(m.scheduledAt);
       if (fStatus === 'upcoming' && !isAfter(d, now)) return false;
       if (fStatus === 'past' && !isBefore(d, now)) return false;
@@ -165,19 +168,20 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
   }, [meetings, fType, fStatus]);
 
   const stats = useMemo(() => {
+    const active = meetings.filter((m) => !m.cancelledAt);
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-    const thisWeek = meetings.filter((m) => isWithinInterval(parseISO(m.scheduledAt), { start: weekStart, end: weekEnd }));
-    const upcoming = meetings.filter((m) => isAfter(parseISO(m.scheduledAt), now) && !m.completed);
-    const completed = meetings.filter((m) => m.completed);
-    const totalMin = meetings.reduce((acc, m) => acc + (m.durationMin ?? 0), 0);
-    return { total: meetings.length, thisWeek: thisWeek.length, upcoming: upcoming.length, completed: completed.length, totalHours: Math.round(totalMin / 60) };
+    const thisWeek = active.filter((m) => isWithinInterval(parseISO(m.scheduledAt), { start: weekStart, end: weekEnd }));
+    const upcoming = active.filter((m) => isAfter(parseISO(m.scheduledAt), now) && !m.completed);
+    const completed = active.filter((m) => m.completed);
+    const totalMin = active.reduce((acc, m) => acc + (m.durationMin ?? 0), 0);
+    return { total: active.length, thisWeek: thisWeek.length, upcoming: upcoming.length, completed: completed.length, totalHours: Math.round(totalMin / 60) };
   }, [meetings]);
 
   const byType = useMemo(() => {
     const map: Record<string, number> = {};
-    meetings.forEach((m) => { map[m.type] = (map[m.type] ?? 0) + 1; });
+    meetings.filter((m) => !m.cancelledAt).forEach((m) => { map[m.type] = (map[m.type] ?? 0) + 1; });
     return map;
   }, [meetings]);
 
@@ -256,7 +260,10 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
         />
         <Select
           value={fStatus}
-          onChange={(e) => setFStatus(e.target.value as typeof fStatus)}
+          onChange={(e) => {
+            setFStatus(e.target.value as typeof fStatus);
+            if (e.target.value === 'cancelled') setView('list');
+          }}
           className="min-w-[160px]"
           options={[
             { value: 'all', label: 'Todas' },
@@ -264,6 +271,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
             { value: 'past', label: 'Pasadas' },
             { value: 'pending', label: 'Pendientes' },
             { value: 'completed', label: 'Realizadas' },
+            { value: 'cancelled', label: 'Canceladas / reprogramadas' },
           ]}
         />
         <div className="text-xs text-text-muted ml-auto">
@@ -279,7 +287,7 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
           }
         }} />
       ) : (
-        <WeekView meetings={filtered} accent={accent} anchor={anchor} setAnchor={setAnchor} onOpen={openMeeting} />
+        <WeekView meetings={filtered.filter((m) => !m.cancelledAt)} accent={accent} anchor={anchor} setAnchor={setAnchor} onOpen={openMeeting} />
       )}
 
       {creating && (
@@ -301,8 +309,16 @@ export function MeetingsModule({ client, readOnly = false }: { client: Client; r
 
 
       <AnimatePresence>
-        {activeMeeting && <MeetingDrawer meeting={activeMeeting} onClose={closeMeeting} readOnly={readOnly} />}
+        {activeMeeting && !activeMeeting.cancelledAt && <MeetingDrawer meeting={activeMeeting} onClose={closeMeeting} readOnly={readOnly} />}
       </AnimatePresence>
+      {activeMeeting?.cancelledAt && (
+        <Modal open onClose={closeMeeting} title={activeMeeting.rescheduled ? 'Cita reprogramada' : 'Cita cancelada'}>
+          <p className="font-semibold">{activeMeeting.title}</p>
+          <p className="text-sm text-text-secondary mt-2">Horario anterior: {format(parseISO(activeMeeting.scheduledAt), "d MMM yyyy · HH:mm", { locale: es })}</p>
+          {activeMeeting.cancellationReason && <p className="text-sm mt-2">Motivo: {activeMeeting.cancellationReason}</p>}
+          <p className="text-sm text-text-muted mt-3">Esta cita se conserva como historial y ya no cuenta como pendiente.</p>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -369,7 +385,8 @@ function ListView({ meetings, accent, onOpen, onDelete, readOnly = false, esInte
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-text-primary truncate">{m.title}</span>
                       {m.completed && <Badge tone="success">✓ Realizada</Badge>}
-                      {!m.completed && past && <Badge tone="warning">Pasada</Badge>}
+                      {m.cancelledAt && <Badge tone="warning">{m.rescheduled ? 'Reprogramada' : 'Cancelada'}</Badge>}
+                      {!m.cancelledAt && !m.completed && past && <Badge tone="warning">Pasada</Badge>}
                       {m.videoCallLink && <Video className="h-3 w-3 text-text-muted" />}
                       {m.agenda && <Sparkles className="h-3 w-3 text-text-muted" />}
                     </div>
@@ -389,7 +406,7 @@ function ListView({ meetings, accent, onOpen, onDelete, readOnly = false, esInte
                     </div>
                   </div>
                 </button>
-                {!readOnly && (
+                {!readOnly && !m.cancelledAt && (
                   <button
                     onClick={() => onDelete(m)}
                     title="Eliminar"

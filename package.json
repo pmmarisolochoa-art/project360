@@ -10,7 +10,7 @@
     "typecheck": "tsc -b && tsc -p tsconfig.api.json",
     "lint": "eslint .",
     "check": "npm run typecheck && npm run lint && npm run test:api && npm run test:csv && npm run test:alias && npm run test:daily && npm run test:pendientes && npm run test:periodos && npm run test:texto && npm run test:paginar && npm run test:seguimiento && npm run test:cobros && npm run test:sesion && npm run test:etapas && npm run test:calendly",
-    "test:calendly": "node pruebas/calendly-reservas.mjs",
+    "test:calendly": "node pruebas/calendly-reservas.mjs && node pruebas/calendly-cancelaciones-db.mjs",
     "test:etapas": "node pruebas/lead-etapa-atomica.mjs",
     "test:sesion": "node pruebas/bootstrap-sesion.mjs",
     "test:cobros": "node pruebas/cobros.mjs",
@@ -46,6 +46,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.9",
     "@eslint/js": "^9.39.5",
     "@types/node": "^25.9.1",
     "@types/react": "^18.3.12",

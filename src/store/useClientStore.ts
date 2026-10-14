@@ -20,6 +20,7 @@ import { altaOptimista, cambioOptimista, bajaOptimista } from './escrituraOptimi
 interface ClientState {
   clients: Client[];
   meetings: Meeting[];
+  cancelledMeetings: Meeting[];
   tasks: Task[];
   /** true cuando el bootstrap ya cargó (o falló). Antes de eso `clients` es el
    *  seed, así que buscar un cliente real fallaría — hay que esperar. */
@@ -64,6 +65,7 @@ interface ClientState {
 export const useClientStore = create<ClientState>((set, get) => ({
   clients: seedClients,
   meetings: seedMeetings,
+  cancelledMeetings: [],
   tasks: seedTasks,
   // NOTA: todas las escrituras de abajo son optimistas — la UI pinta el cambio
   // antes de que Supabase confirme. Por eso un fallo NUNCA puede quedarse solo
@@ -110,12 +112,13 @@ export const useClientStore = create<ClientState>((set, get) => ({
      * nadie ha podido editar sus tareas, porque acaban de desaparecer de la
      * pantalla.
      */
-    const antes = { clients: get().clients, tasks: get().tasks, meetings: get().meetings };
+    const antes = { clients: get().clients, tasks: get().tasks, meetings: get().meetings, cancelledMeetings: get().cancelledMeetings };
     // Limpia también todo lo relacionado en memoria (Supabase cascadeará por FK).
     set((s) => ({
       clients: s.clients.filter((c) => c.id !== id),
       tasks: s.tasks.filter((t) => t.clientId !== id),
       meetings: s.meetings.filter((m) => m.clientId !== id),
+      cancelledMeetings: s.cancelledMeetings.filter((m) => m.clientId !== id),
       currentClientId: s.currentClientId === id ? null : s.currentClientId,
     }));
     const revertir = () => set(antes);

@@ -47,6 +47,10 @@ export interface Meeting {
   /* ── Calendly (migración 062) ───────────────────────────────────────────── */
   /** Lead que agendó esta reunión. Nulo = sin lead asociado. */
   leadId?: string;
+  /** Cancelación externa: se conserva para consulta, fuera de agendas activas. */
+  cancelledAt?: string;
+  cancellationReason?: string;
+  rescheduled?: boolean;
 
   /* ── Reporte guardado (migración 042) ──────────────────────────────────── */
   /** El reporte ya generado. Se genera una vez y se reusa. */

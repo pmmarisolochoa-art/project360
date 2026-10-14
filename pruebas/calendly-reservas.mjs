@@ -12,7 +12,7 @@ const key='test-signing-key';
 const eventUri='https://api.calendly.com/scheduled_events/00000000-0000-0000-0000-000000000001';
 const payload={event:'invitee.created',payload:{uri:eventUri+'/invitees/00000000-0000-0000-0000-000000000002',event:eventUri,email:'prueba@example.test',name:'Prueba'}};
 let db={},rpcErrors={},calls=[];
-globalThis.__calendly={query(table,filters){calls.push({table,filters});return db[table]??{data:null,error:null};},rpc(name,args){calls.push({name,args});return Promise.resolve({data:name==='api_lead_crear'?'new-lead':'meeting-id',error:rpcErrors[name]??null});}};
+globalThis.__calendly={query(table,filters){calls.push({table,filters});return typeof db[table]==='function'?db[table](filters):db[table]??{data:null,error:null};},rpc(name,args){calls.push({name,args});return Promise.resolve({data:name==='api_lead_crear'?'new-lead':'meeting-id',error:rpcErrors[name]??null});}};
 const now=()=>String(Math.floor(Date.now()/1000));
 const request=(body=payload,timestamp=now())=>{
   const raw=JSON.stringify(body),sig=createHmac('sha256',key).update(timestamp+'.'+raw).digest('hex');
@@ -44,6 +44,23 @@ try {
   reset();globalThis.fetch=async()=>{throw Error('network failed')};assert.equal((await handler(request())).status,500);
   reset();assert.equal((await handler(request(payload,'NaN'))).status,401);assert.equal((await handler(request(payload,String(Number(now())-181)))).status,401);assert.equal(calls.length,0);
   reset();assert.equal((await handler(request({...payload,payload:{...payload.payload,event:'https://attacker.example/secret'}}))).status,400);assert.equal(calls.length,0);
+  const cancel={...payload,event:'invitee.canceled',payload:{...payload.payload,status:'canceled',cancellation:{reason:'No puede asistir'}}};
+  reset();delete process.env.CALENDLY_PERSONAL_ACCESS_TOKEN;
+  globalThis.fetch=async()=>{throw Error('cancelación no debe consultar API')};
+  assert.equal((await handler(request(cancel))).status,200);
+  assert.equal(calls.find(c=>c.name==='calendly_cancelar_reserva').args.p_reason,'No puede asistir');
+  assert.ok(!calls.some(c=>c.name==='api_lead_crear'||c.name==='calendly_guardar_reserva'||c.table==='leads'));
+  process.env.CALENDLY_PERSONAL_ACCESS_TOKEN='test-calendly-token';
+  reset();rpcErrors.calendly_cancelar_reserva=Error('cancelación no guardada');assert.equal((await handler(request(cancel))).status,500);
+  reset();db.calendly_cancelaciones={data:{external_id:'cancelled'},error:null};assert.equal((await handler(request())).status,200);assert.ok(!calls.some(c=>c.name==='calendly_guardar_reserva'||c.name==='api_lead_crear'));
+  const oldUri=eventUri+'/invitees/00000000-0000-0000-0000-000000000003';
+  const rebook={...payload,payload:{...payload.payload,old_invitee:oldUri,email:'changed@example.test'}};
+  reset();db.meetings=filters=>({data:filters.external_id==='calendly:'+oldUri?{lead_id:'original-lead'}:null,error:null});
+  assert.equal((await handler(request(rebook))).status,200);
+  assert.equal(calls.find(c=>c.name==='calendly_guardar_reserva').args.p_lead_id,'original-lead','reprogramación conserva lead aunque cambie email');
+  assert.equal(calls.find(c=>c.name==='calendly_cancelar_reserva').args.p_external_id,'calendly:'+oldUri);
+  reset();db.calendly_cancelaciones={data:{external_id:'already-cancelled'},error:null};assert.equal((await handler(request(rebook))).status,200);assert.ok(calls.some(c=>c.name==='calendly_cancelar_reserva'),'cadena fuera de orden cancela la cita anterior aunque la intermedia ya esté cancelada');
+  reset();assert.equal((await handler(request({...payload,payload:{...payload.payload,old_invitee:'https://invalid.example'}}))).status,400);assert.equal(calls.length,0);
   console.log('✓ Calendly: reserva completa, reentrega, fallos reintentables, firma y cliente aislado');
 } finally {
   globalThis.fetch=previousFetch;delete globalThis.__calendly;

@@ -4,7 +4,7 @@
  * eliminar, pero NO borra nada sin que alguien lo confirme aquí.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -30,10 +30,22 @@ export function LeadsDuplicadosModal({
   // quiere el 99% de las veces. Los de confianza 'nombre' (sin teléfono en
   // ninguno) NO se premarcan: hay más riesgo de ser dos personas distintas
   // con el mismo nombre, así que toca confirmar cada uno a mano.
-  const [marcados, setMarcados] = useState<Set<string>>(
-    () => new Set(grupos.filter((g) => g.confianza === 'fuerte').flatMap((g) => g.eliminar.map((l) => l.id))),
-  );
+  const [marcados, setMarcados] = useState<Set<string>>(() => new Set());
   const [eliminando, setEliminando] = useState(false);
+
+  // Este modal vive SIEMPRE montado (solo se oculta/muestra con `open`), así
+  // que un useState inicial con lazy initializer corre UNA vez, al montar
+  // VentasModule — casi siempre ANTES de que los leads terminen de
+  // hidratarse, con `grupos` todavía vacío. El resultado: la premarca de
+  // duplicados 'fuerte' nunca se aplicaba en la práctica (encontrado
+  // probando con datos reales). Se premarca en cuanto los grupos existen,
+  // UNA sola vez (el ref evita pisar lo que la persona vaya desmarcando).
+  const yaPremarcado = useRef(false);
+  useEffect(() => {
+    if (yaPremarcado.current || grupos.length === 0) return;
+    yaPremarcado.current = true;
+    setMarcados(new Set(grupos.filter((g) => g.confianza === 'fuerte').flatMap((g) => g.eliminar.map((l) => l.id))));
+  }, [grupos]);
 
   const alternar = (id: string) =>
     setMarcados((prev) => {

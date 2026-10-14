@@ -138,8 +138,16 @@ export const LeadsRepo = {
   },
   async remove(id: string): Promise<void> {
     if (!usingRemote || !supabase) return;
-    const { error } = await supabase.from('leads').delete().eq('id', id);
+    // Pide la fila borrada de vuelta: un DELETE que RLS filtra no da error
+    // (la consulta es válida, solo afecta 0 filas), así que sin este chequeo
+    // "tiene éxito" sin borrar nada — exactamente lo que pasó con la 047/060
+    // (sin policy de DELETE para miembros, corregido en la 064). Si vuelve a
+    // faltar un permiso, esto falla fuerte en vez de fallar en silencio.
+    const { data, error } = await supabase.from('leads').delete().eq('id', id).select('id');
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error('No se pudo eliminar el lead: sin permiso o ya no existe.');
+    }
   },
   async moveStage(lead: Lead, event: LeadEvent): Promise<{ lead: Lead; event: LeadEvent }> {
     if (!usingRemote || !supabase) return {

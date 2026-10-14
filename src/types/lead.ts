@@ -12,12 +12,14 @@ export type LeadStage =
   | 'propuesta'
   | 'ganado'
   | 'perdido'
-  /** Agregada al final a propósito (founder, 02-oct-2026) — migración 053. */
+  /** Agregada originalmente al final (founder, 02-oct-2026) — migración 053.
+   *  Reubicada justo después de 'nuevo' en el Kanban (founder, 14-oct-2026):
+   *  es más útil descartar temprano que revisarla hasta el final. */
   | 'no_calificado';
 
 export const LEAD_STAGES: LeadStage[] = [
-  'nuevo', 'contactado', 'calificado', 'cita_agendada',
-  'cita_realizada', 'propuesta', 'ganado', 'perdido', 'no_calificado',
+  'nuevo', 'no_calificado', 'contactado', 'calificado', 'cita_agendada',
+  'cita_realizada', 'propuesta', 'ganado', 'perdido',
 ];
 
 export const LEAD_STAGE_LABELS: Record<LeadStage, string> = {

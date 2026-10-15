@@ -21,6 +21,22 @@ Encargo de la founder: las reuniones no tenían estructura — cada quien hablab
 
 ---
 
+## 2026-10-14/15 — Leads duplicados: borrado que no persistía + orden del Kanban
+
+Dos pedidos puntuales de la founder, ambos resueltos, probados en navegador y desplegados.
+
+**(1) "Elimino un duplicado y al recargar vuelve a aparecer"** — dos causas reales, no una:
+- **RLS sin policy de DELETE para miembros del equipo.** La 047 solo dejaba borrar leads al dueño de la agencia; la 060 arregló lectura/inserción/edición para editores pero se le olvidó DELETE. Un Setter/Closer editor "borraba con éxito" (Supabase no da error — la consulta es válida, solo afecta 0 filas bajo RLS) sin que nada se borrara de verdad. Migración nueva (`to authenticated`, mismo criterio que dejó `restaurar_acceso_y_privacidad` del 10-oct en el resto de policies de `leads`), corrida y verificada en prod.
+- **`LeadsRepo.remove()` nunca comprobaba cuántas filas afectó el DELETE**, solo si hubo `error` — y un DELETE bloqueado por RLS no da error. Ahora pide la fila de vuelta y lanza si no vino ninguna, para que un problema de permisos futuro falle fuerte en vez de en silencio.
+- **Bonus encontrado al probar (no reportado, pero del mismo flujo):** la premarca de duplicados "fuerte" (nombre+teléfono) nunca se aplicaba en la práctica — el modal vive siempre montado y su `useState` inicial corría antes de que los leads terminaran de hidratarse. Corregido con un efecto que premarca en cuanto los grupos existen.
+- Verificado de punta a punta con un par de leads de prueba creados y borrados por SQL directo: premarcó, se eliminó desde la UI, sobrevivió a un recargo real de la página, confirmado contra la base y limpiado después.
+
+**(2) Orden del Kanban de Ventas** — "No calificado" estaba al final de la fila; la founder lo quiere justo después de "Nuevo" (más útil descartar temprano). Un solo array (`LEAD_STAGES`) gobierna el orden del Kanban Y de la lista "Leads por etapa" — reordenarlo bastó, sin tocar cálculos (nada en el código asume progreso lineal entre etapas adyacentes).
+
+**Nota operativa:** esta sesión convergió con otra que trabajó en paralelo sobre Calendly, cuotas y etapa atómica de leads (commits `10210b0`…`2c2aa76`) — se integró por rebase sin conflictos, typecheck limpio sobre el árbol completo.
+
+---
+
 ## 2026-10-10 — Modo Reunión probado en navegador real: 3 bugs encontrados y corregidos
 
 Pedido explícito: "pruébalo tú en la app". Se abrió Playwright contra local, se entró a la reunión real de Alejo Luengas (Sprint de cierre de semana) y se recorrieron las 3 plantillas con sus datos reales — no con datos de ejemplo. Salieron 3 fallos que ninguna prueba automática ni el typecheck hubieran visto:

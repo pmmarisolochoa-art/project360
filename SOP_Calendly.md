@@ -85,3 +85,11 @@ Referencias oficiales: https://developer.calendly.com/docs/api-guides/see-how-we
 ## Para una fase futura (no construido todavía)
 
 El payload de Calendly ya trae `utm_campaign`, `utm_source`, `utm_medium` y las respuestas a las preguntas del formulario de reserva (`questions_and_answers`) — si más adelante se decide construir atribución de campaña o costos de adquisición (como el tablero de referencia que compartió la founder), esos datos ya están disponibles en este mismo webhook, sin pedirle nada nuevo a Calendly.
+
+## Anfitrión con varios roles (19-oct-2026)
+
+- El correo de Calendly se busca solamente dentro del cliente habilitado. Si coincide con varias fichas de una misma persona, se prefiere su única ficha de Closer. No se eliminan las fichas de PM o Estratega.
+- Si solo existe una ficha coincidente y tiene otro rol (por ejemplo, el experto), se conserva esa asignación. Sin coincidencia se mantiene la reserva visible sin participante.
+- Dos fichas de Closer con el mismo correo, o varias fichas sin un Closer único, requieren revisar Equipo: el webhook devuelve error para permitir el reintento y evita asignar una persona al azar.
+- El correo del anfitrión y el de inicio de sesión pueden ser distintos. `team_members.user_id` enlaza la ficha con la cuenta verificada; no se cambia el correo de Calendly para resolver el acceso. La dueña conserva su acceso global; Mi Espacio usa los accesos de miembro y no se habilita automáticamente por este ajuste.
+- Comprobar con una reserva real de Marisol que el participante corresponde a su ficha de Closer. Esta corrección afecta nuevas reservas; no reasigna reuniones históricas ni modifica comisiones o etapas comerciales.

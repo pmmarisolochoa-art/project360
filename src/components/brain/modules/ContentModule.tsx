@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutGrid, CalendarDays, Plus, X, Sparkles, Trash2, Save,
-  ChevronLeft, ChevronRight, Magnet, Upload,
+  ChevronLeft, ChevronRight, Magnet, Upload, ArrowRight, ChevronDown, Check,
 } from 'lucide-react';
 import { ImportarContenidoCSVModal } from './ImportarContenidoCSVModal';
 import {
@@ -52,6 +52,33 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
   const [editing, setEditing] = useState<ContentPiece | null>(null);
   const [creating, setCreating] = useState<{ date: Date } | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const update = useContentStore((s) => s.update);
+  const remove = useContentStore((s) => s.remove);
+
+  // Selección múltiple — mismo patrón que TasksModule: checkbox por tarjeta,
+  // barra flotante con "Mover a" / "Eliminar". Vive en el padre para que la
+  // selección sobreviva al cambio entre Kanban y Calendario.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const selectedCount = selectedIds.size;
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+  const bulkMove = (status: ContentStatus) => {
+    for (const id of selectedIds) update(id, { status });
+    toast.success(`${selectedCount} pieza${selectedCount === 1 ? '' : 's'} movida${selectedCount === 1 ? '' : 's'}`);
+    clearSelection();
+  };
+  const bulkDelete = () => {
+    if (!confirm(`¿Eliminar ${selectedCount} pieza${selectedCount === 1 ? '' : 's'}? Esta acción no se puede deshacer.`)) return;
+    for (const id of selectedIds) remove(id);
+    toast.success(`${selectedCount} pieza${selectedCount === 1 ? '' : 's'} eliminada${selectedCount === 1 ? '' : 's'}`);
+    clearSelection();
+  };
 
   // Filtros del Pipeline — acotan Kanban y Calendario a la vez; a diferencia
   // de Ventas, Contenido no tiene fechas de cierre vs. creación que justifiquen
@@ -160,7 +187,14 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
           </div>
 
           {view === 'kanban' ? (
-            <ContentKanban pieces={piecesFiltradas} accent={accent} onOpen={setEditing} readOnly={readOnly} />
+            <ContentKanban
+              pieces={piecesFiltradas}
+              accent={accent}
+              onOpen={setEditing}
+              readOnly={readOnly}
+              selectedIds={selectedIds}
+              onToggleSelected={readOnly ? undefined : toggleSelected}
+            />
           ) : (
             <ContentCalendar
               pieces={piecesFiltradas}
@@ -168,6 +202,8 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
               onOpen={setEditing}
               onCreateAt={(date) => setCreating({ date })}
               readOnly={readOnly}
+              selectedIds={selectedIds}
+              onToggleSelected={readOnly ? undefined : toggleSelected}
             />
           )}
         </>
@@ -189,6 +225,12 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
       </AnimatePresence>
 
       <ImportarContenidoCSVModal open={importOpen} clientId={client.id} onClose={() => setImportOpen(false)} />
+
+      <AnimatePresence>
+        {selectedCount > 0 && (
+          <BulkActionsBar count={selectedCount} accent={accent} onMove={bulkMove} onDelete={bulkDelete} onCancel={clearSelection} />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -356,12 +398,14 @@ const KANBAN_COLS: Array<{ status: ContentStatus; label: string }> = [
 ];
 
 function ContentKanban({
-  pieces, accent, onOpen, readOnly = false,
+  pieces, accent, onOpen, readOnly = false, selectedIds, onToggleSelected,
 }: {
   pieces: ContentPiece[];
   accent: string;
   onOpen: (p: ContentPiece) => void;
   readOnly?: boolean;
+  selectedIds: Set<string>;
+  onToggleSelected?: (id: string) => void;
 }) {
   const update = useContentStore((s) => s.update);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -419,7 +463,13 @@ function ContentKanban({
                   index={i}
                   readOnly={readOnly}
                   dragging={draggedId === p.id}
-                  onClick={() => onOpen(p)}
+                  isSelected={selectedIds.has(p.id)}
+                  anySelected={selectedIds.size > 0}
+                  onToggleSelected={onToggleSelected ? () => onToggleSelected(p.id) : undefined}
+                  onClick={() => {
+                    if (onToggleSelected && selectedIds.size > 0) { onToggleSelected(p.id); return; }
+                    onOpen(p);
+                  }}
                   onDragStart={() => setDraggedId(p.id)}
                   onDragEnd={() => { setDraggedId(null); setDragOverStatus(null); }}
                 />
@@ -438,13 +488,16 @@ function ContentKanban({
 }
 
 function KanbanCard({
-  piece, accent, index, readOnly, dragging, onClick, onDragStart, onDragEnd,
+  piece, accent, index, readOnly, dragging, isSelected, anySelected, onToggleSelected, onClick, onDragStart, onDragEnd,
 }: {
   piece: ContentPiece;
   accent: string;
   index: number;
   readOnly: boolean;
   dragging: boolean;
+  isSelected: boolean;
+  anySelected: boolean;
+  onToggleSelected?: () => void;
   onClick: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -458,17 +511,21 @@ function KanbanCard({
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
+      className="relative group"
     >
+      {onToggleSelected && <SelectCheckbox isSelected={isSelected} anySelected={anySelected} onToggle={onToggleSelected} />}
       <button
         onClick={onClick}
         draggable={!readOnly}
         onDragStart={(e) => { e.dataTransfer.setData('text/plain', piece.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
         onDragEnd={onDragEnd}
         className={cn(
-          'w-full text-left rounded-md border border-border-subtle bg-bg-base/40 p-2 transition focus-ring',
-          dragging ? 'opacity-50' : 'hover:bg-bg-elevated',
+          'w-full text-left rounded-md border p-2 transition focus-ring',
+          isSelected ? 'border-transparent' : 'border-border-subtle bg-bg-base/40',
+          dragging ? 'opacity-50' : !isSelected && 'hover:bg-bg-elevated',
           !readOnly && 'cursor-grab active:cursor-grabbing',
         )}
+        style={isSelected ? { boxShadow: `0 0 0 2px ${accent}`, background: withAlpha(accent, 0.1) } : undefined}
       >
         <div className="flex items-center justify-between text-[10px] mb-1">
           <span className="text-text-muted">{platform.emoji} {FORMAT_LABEL[piece.format]}</span>
@@ -497,13 +554,15 @@ function KanbanCard({
 /* ───────────────────────── CALENDARIO ───────────────────────── */
 
 function ContentCalendar({
-  pieces, accent, onOpen, onCreateAt, readOnly = false,
+  pieces, accent, onOpen, onCreateAt, readOnly = false, selectedIds, onToggleSelected,
 }: {
   pieces: ContentPiece[];
   accent: string;
   onOpen: (p: ContentPiece) => void;
   onCreateAt: (date: Date) => void;
   readOnly?: boolean;
+  selectedIds: Set<string>;
+  onToggleSelected?: (id: string) => void;
 }) {
   const [cursor, setCursor] = useState<Date>(new Date());
   const [dateField, setDateField] = useState<DateField>('publishDate');
@@ -670,7 +729,13 @@ function ContentCalendar({
                     accent={accent}
                     readOnly={readOnly}
                     dragging={draggedId === p.id}
-                    onClick={() => onOpen(p)}
+                    isSelected={selectedIds.has(p.id)}
+                    anySelected={selectedIds.size > 0}
+                    onToggleSelected={onToggleSelected ? () => onToggleSelected(p.id) : undefined}
+                    onClick={() => {
+                      if (onToggleSelected && selectedIds.size > 0) { onToggleSelected(p.id); return; }
+                      onOpen(p);
+                    }}
                     onDragStart={() => setDraggedId(p.id)}
                     onDragEnd={() => { setDraggedId(null); setDragOverDay(null); }}
                   />
@@ -699,12 +764,15 @@ function ContentCalendar({
 }
 
 function CalendarPieceCard({
-  piece, accent, readOnly, dragging, onClick, onDragStart, onDragEnd,
+  piece, accent, readOnly, dragging, isSelected, anySelected, onToggleSelected, onClick, onDragStart, onDragEnd,
 }: {
   piece: ContentPiece;
   accent: string;
   readOnly: boolean;
   dragging: boolean;
+  isSelected: boolean;
+  anySelected: boolean;
+  onToggleSelected?: () => void;
   onClick: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -712,26 +780,43 @@ function CalendarPieceCard({
   const meta = CONTENT_STATUS_META[piece.status];
   const platform = PLATFORM_META[piece.platform];
   return (
-    <button
-      onClick={onClick}
-      draggable={!readOnly}
-      onDragStart={(e) => { e.dataTransfer.setData('text/plain', piece.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-      onDragEnd={onDragEnd}
-      className={cn(
-        'w-full text-left rounded-[6px] border bg-bg-surface px-1.5 py-1 transition focus-ring',
-        dragging ? 'opacity-50' : 'hover:brightness-125',
-        !readOnly && 'cursor-grab active:cursor-grabbing',
+    <div className="relative group">
+      {onToggleSelected && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelected(); }}
+          aria-label={isSelected ? 'Deseleccionar pieza' : 'Seleccionar pieza'}
+          title={isSelected ? 'Deseleccionar' : 'Seleccionar para acción masiva'}
+          className={cn(
+            'absolute top-0.5 right-0.5 h-3 w-3 rounded-sm border flex items-center justify-center transition z-10',
+            (isSelected || anySelected) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            isSelected ? 'border-transparent text-white' : 'border-border-default bg-bg-base/90 text-transparent hover:border-accent-violet',
+          )}
+          style={isSelected ? { background: 'var(--accent)' } : undefined}
+        >
+          <Check className="h-2 w-2" strokeWidth={3.5} />
+        </button>
       )}
-      style={{ borderColor: meta.ring }}
-      title={piece.title}
-    >
-      <div className="flex items-center justify-between gap-1">
-        <span className="text-[9px]" style={{ color: meta.text }}>● {platform.emoji}</span>
-        {piece.hasLeadMagnet && <Magnet className="h-2.5 w-2.5 shrink-0" style={{ color: accent }} />}
-      </div>
-      <div className="text-[10px] text-text-primary leading-tight truncate mt-0.5">{piece.title}</div>
-      <div className="text-[9px] mt-0.5 truncate" style={{ color: meta.text }}>{meta.label}</div>
-    </button>
+      <button
+        onClick={onClick}
+        draggable={!readOnly}
+        onDragStart={(e) => { e.dataTransfer.setData('text/plain', piece.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+        onDragEnd={onDragEnd}
+        className={cn(
+          'w-full text-left rounded-[6px] border bg-bg-surface px-1.5 py-1 transition focus-ring',
+          dragging ? 'opacity-50' : !isSelected && 'hover:brightness-125',
+          !readOnly && 'cursor-grab active:cursor-grabbing',
+        )}
+        style={isSelected ? { borderColor: accent, boxShadow: `inset 0 0 0 1px ${accent}` } : { borderColor: meta.ring }}
+        title={piece.title}
+      >
+        <div className="flex items-center justify-between gap-1">
+          <span className="text-[9px]" style={{ color: meta.text }}>● {platform.emoji}</span>
+          {piece.hasLeadMagnet && <Magnet className="h-2.5 w-2.5 shrink-0" style={{ color: accent }} />}
+        </div>
+        <div className="text-[10px] text-text-primary leading-tight truncate mt-0.5">{piece.title}</div>
+        <div className="text-[9px] mt-0.5 truncate" style={{ color: meta.text }}>{meta.label}</div>
+      </button>
+    </div>
   );
 }
 
@@ -1167,4 +1252,87 @@ function buildEmpty(clientId: string, when: Date): ContentPiece {
     hasLeadMagnet: false,
     createdAt: new Date().toISOString(),
   };
+}
+
+/* ───────────────────────── Selección múltiple ───────────────────────── */
+
+/** Checkbox de selección — mismo patrón visual que TasksModule. */
+function SelectCheckbox({ isSelected, anySelected, onToggle }: { isSelected: boolean; anySelected: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      aria-label={isSelected ? 'Deseleccionar pieza' : 'Seleccionar pieza'}
+      title={isSelected ? 'Deseleccionar' : 'Seleccionar para acción masiva'}
+      className={cn(
+        'absolute top-1.5 left-1.5 h-4 w-4 rounded border flex items-center justify-center transition z-10',
+        (isSelected || anySelected) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+        isSelected ? 'border-transparent text-white' : 'border-border-default bg-bg-base/80 text-transparent hover:border-accent-violet',
+      )}
+      style={isSelected ? { background: 'var(--accent)' } : undefined}
+    >
+      <Check className="h-2.5 w-2.5" strokeWidth={3} />
+    </button>
+  );
+}
+
+function BulkActionsBar({
+  count, accent, onMove, onDelete, onCancel,
+}: {
+  count: number;
+  accent: string;
+  onMove: (status: ContentStatus) => void;
+  onDelete: () => void;
+  onCancel: () => void;
+}) {
+  const [moveOpen, setMoveOpen] = useState(false);
+  return (
+    <motion.div
+      initial={{ y: 80, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 80, opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 surface shadow-2xl border border-border-default rounded-[14px] px-3 py-2 flex items-center gap-2"
+      style={{ boxShadow: `0 24px 60px -20px ${withAlpha(accent, 0.55)}` }}
+    >
+      <div className="flex items-center gap-2 pr-2 border-r border-border-subtle">
+        <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: withAlpha(accent, 0.18), color: accent }}>
+          {count} seleccionada{count === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <div className="relative">
+        <button
+          onClick={() => setMoveOpen((v) => !v)}
+          className="text-xs px-3 py-1.5 rounded-md hover:bg-bg-elevated transition inline-flex items-center gap-1.5 text-text-primary"
+        >
+          <ArrowRight className="h-3.5 w-3.5" /> Mover a
+          <ChevronDown className="h-3 w-3" />
+        </button>
+        {moveOpen && (
+          <div className="absolute bottom-full mb-2 left-0 surface rounded-[10px] border border-border-default shadow-xl py-1 min-w-[180px]">
+            {KANBAN_COLS.map((c) => (
+              <button
+                key={c.status}
+                onClick={() => { onMove(c.status); setMoveOpen(false); }}
+                className="w-full text-left text-xs px-3 py-1.5 hover:bg-bg-elevated transition"
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={onDelete}
+        className="text-xs px-3 py-1.5 rounded-md hover:bg-status-danger/10 text-status-danger transition inline-flex items-center gap-1.5"
+      >
+        <Trash2 className="h-3.5 w-3.5" /> Eliminar
+      </button>
+
+      <button onClick={onCancel} className="text-xs px-2.5 py-1.5 rounded-md hover:bg-bg-elevated text-text-muted transition">
+        Cancelar
+      </button>
+    </motion.div>
+  );
 }

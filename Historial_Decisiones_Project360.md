@@ -34,6 +34,14 @@ Tras reactivar Contenidos, revisión UX completa pedida por la founder. **2 bugs
 
 ---
 
+## 2026-10-21 — Cuotas en pesos enteros + seguimiento de cobros en Ventas + traducción de Fathom por lotes
+
+Tres pedidos encadenados de la misma sesión. **(1) Bug real reportado con captura:** "Sprint 1:1" a $4.997 repartido en 2 cuotas mostraba "$24.985" en vez de "$2.499". Causa: `calcularPlanCuotas` repartía en centavos (`precio*100`, luego `/100`), y `MoneyInput` descarta cualquier punto al formatear — un monto con decimal (2498.5) perdía el punto y se leía como 24985. Arreglo: reparte en pesos enteros desde el origen, el resto va a la última cuota. **(2) Seguimiento visual de cuotas:** nueva `cuotasConEstado()` en `utils/ventas.ts` — pagada/vencida/pendiente por cuota con días de atraso, usada tanto en la ficha del lead como en el panel nuevo "Cuotas por cobrar" (todas las ventas ganadas, no solo la abierta, clic abre el lead). Dos bugs propios corregidos en el camino: zona horaria en el parseo de fechas (mismo patrón que `fechaLocal()` ya resolvía en otro lugar) y el campo de fecha del lead viene como ISO completo, no como "YYYY-MM-DD" simple. **(3) Banda manual:** antes solo los leads de Meta Ads traían banda (de un formulario externo); ahora cualquier lead la puede recibir a mano (Verde/Amarillo/Rojo) sin perder el valor importado si ya traía uno no-estándar. **(4) Fathom en inglés:** la traducción al español de reuniones importadas (ya existía, llama a Claude Haiku) fallaba en silencio con lotes grandes — una sola llamada con límite de 4000 tokens de salida se truncaba con 11 reuniones y 56 tareas. Se trocea en lotes de ~6000 caracteres en paralelo; un lote que falla no tumba a los demás. El diagnóstico técnico del modal (si la traducción funcionó) ya no se esconde cuando sí hay reuniones listadas.
+
+**Verificado en navegador** (antes de que el Chrome de automatización quedara sin responder): cuotas repartidas correctamente con datos reales, colores/fechas del seguimiento, banda manual asignada y persistida, lead de prueba creado/borrado sin dejar rastro. **No verificado:** la traducción de Fathom en sí — este entorno no tiene `ANTHROPIC_API_KEY` ni `FATHOM_API_KEY` locales; pendiente confirmar en producción que el campo `traducido` del diagnóstico diga `true`.
+
+---
+
 ## 2026-10-21 — Módulo Contenidos reactivado (salía de beta, no se construyó de cero)
 
 El cajón **Contenido** llevaba apagado desde el 24-sep ("oculto en beta, reactivar en v2"), pero el módulo nunca dejó de existir: `ContentModule.tsx`, `useContentStore`, tabla `content_pieces` (migración 011) y el routing en `ClientBrainPage.tsx` siguieron vivos y funcionando por navegación directa todo este tiempo — solo faltaba destaparlo del nav. `departments.ts` ya tenía el departamento "Content Manager" preparado con el comentario explícito de que se activaría solo con esto.

@@ -274,12 +274,19 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const valorContratado = ganados
     .filter((l) => enRangoDinero(l.closedAt))
     .reduce((s, l) => s + (l.programValue ?? 0), 0);
+  // El campo "Fecha" de cada pago es opcional en el formulario — nada obliga
+  // a llenarlo al marcar un cobro. Exigirlo para "cae en el período" hacía
+  // que un pago cobrado HOY, sin esa fecha puesta, desapareciera de TODO
+  // período, incluido "Hoy" (founder, 21-oct-2026: "entró un pago y no se
+  // refleja"). Si falta la fecha propia del pago, se usa `updatedAt` del
+  // lead como respaldo — el guardado que marcó el cobro es, casi siempre,
+  // el mismo guardado que movió esa fecha.
   const cashCollected = ganados.reduce((sum, l) => {
     let total = 0;
-    if ((l.cashCollected ?? 0) > 0 && enRangoDinero(l.pago1Fecha)) total += l.cashCollected ?? 0;
-    if (l.pago2Pagado && enRangoDinero(l.pago2Fecha)) total += l.pago2Monto ?? 0;
-    if (l.pago3Pagado && enRangoDinero(l.pago3Fecha)) total += l.pago3Monto ?? 0;
-    if (l.pago4Pagado && enRangoDinero(l.pago4Fecha)) total += l.pago4Monto ?? 0;
+    if ((l.cashCollected ?? 0) > 0 && enRangoDinero(l.pago1Fecha ?? l.updatedAt)) total += l.cashCollected ?? 0;
+    if (l.pago2Pagado && enRangoDinero(l.pago2Fecha ?? l.updatedAt)) total += l.pago2Monto ?? 0;
+    if (l.pago3Pagado && enRangoDinero(l.pago3Fecha ?? l.updatedAt)) total += l.pago3Monto ?? 0;
+    if (l.pago4Pagado && enRangoDinero(l.pago4Fecha ?? l.updatedAt)) total += l.pago4Monto ?? 0;
     return sum + total;
   }, 0);
   const pendienteCobro = ganados.reduce((s, l) => s + saldoPendienteLead(l), 0);

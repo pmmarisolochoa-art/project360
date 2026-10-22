@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-21/22 — Cash collected desaparecía cuando el pago no tenía fecha propia
+
+Reportado en caliente por la founder: "hoy entró un pago y no se refleja en Cash collected" (filtro "Hoy" en $0). Causa: el fix del 21-oct ("Cash collected filtra por la fecha correcta") exigía que CADA pago tuviera su campo "Fecha" lleno para contar en cualquier período — y ese campo es opcional en el formulario, nada obliga a llenarlo al marcar un cobro. Un pago cobrado hoy mismo, sin esa fecha puesta, desaparecía de TODOS los períodos, incluido "Hoy" — el fix de ayer arregló un falso-negativo y creó otro.
+
+**Arreglo:** si falta la fecha propia del pago (`pago1Fecha`...`pago4Fecha`), se usa `updatedAt` del lead como respaldo — el guardado que marca el cobro es, casi siempre, el mismo guardado que debería haber movido esa fecha. `valorContratado` no tiene este problema: `closedAt` lo pone el sistema automáticamente al mover a Ganado, no es un campo manual opcional.
+
+**Sin verificar en navegador:** el Chrome de automatización sigue sin responder (otro proceso tiene el mismo perfil en uso) — verificado por typecheck limpio y `pruebas/cobros.mjs`. Pendiente confirmar en pantalla en cuanto el navegador de pruebas quede libre.
+
+---
+
 ## 2026-10-21/22 — Filtro "Sin respuesta" clicable en Ventas + panel de cuotas contraíble
 
 Dos pedidos puntuales sobre el Pipeline de Ventas. **(1) "Sin respuesta" como columna del Kanban** se descartó tal cual se pidió: las etapas del embudo son fijas a propósito (founder, 27/28-sep-2026) para poder comparar clientes entre sí, y "sin respuesta" es una heurística por tiempo, no un estado que alguien declare. Se ofrecieron las dos rutas y se eligió la recomendada: **filtro clicable** sobre las 4 cajitas de seguimiento (Sin contactar / Sin dueño / No-show / Sin respuesta) — clic filtra el Kanban a esos leads exactos, clic de nuevo lo quita, sin tocar la base de datos ni el embudo fijo. Para que el filtro use la MISMA regla que ya cuenta (no una copia que se pueda desalinear), `calcularContadoresSeguimiento` se refactorizó para delegar en una nueva `flagsDeSeguimiento(lead, eventos, …)` por-lead — las 9 pruebas de `pruebas/lead-seguimiento.mjs` pasan sin cambios, confirmando que el refactor no alteró ningún resultado. **(2) El panel "Cuotas por cobrar"** (agregado la sesión anterior) ahora es contraíble — ocupaba espacio fijo aunque no hiciera falta verlo.

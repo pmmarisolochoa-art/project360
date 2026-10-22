@@ -3,8 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutGrid, CalendarDays, Plus, X, Sparkles, Trash2, Save,
-  ChevronLeft, ChevronRight, Magnet,
+  ChevronLeft, ChevronRight, Magnet, Upload,
 } from 'lucide-react';
+import { ImportarContenidoCSVModal } from './ImportarContenidoCSVModal';
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, differenceInDays,
   format, parseISO, isSameMonth, isToday, addMonths, subMonths,
@@ -50,6 +51,7 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
   const [view, setView] = useState<'kanban' | 'calendar'>('calendar');
   const [editing, setEditing] = useState<ContentPiece | null>(null);
   const [creating, setCreating] = useState<{ date: Date } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Filtros del Pipeline — acotan Kanban y Calendario a la vez; a diferencia
   // de Ventas, Contenido no tiene fechas de cierre vs. creación que justifiquen
@@ -101,9 +103,14 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
           ))}
         </div>
         {!readOnly && (
-          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreating({ date: new Date() })}>
-            Nueva pieza
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" leftIcon={<Upload className="h-4 w-4" />} onClick={() => setImportOpen(true)}>
+              Importar CSV
+            </Button>
+            <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreating({ date: new Date() })}>
+              Nueva pieza
+            </Button>
+          </div>
         )}
       </div>
 
@@ -180,6 +187,8 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
           />
         )}
       </AnimatePresence>
+
+      <ImportarContenidoCSVModal open={importOpen} clientId={client.id} onClose={() => setImportOpen(false)} />
     </div>
   );
 }

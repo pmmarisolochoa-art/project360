@@ -7,6 +7,8 @@ import { ContentRepo } from '@/services/repositories';
 interface ContentState {
   pieces: ContentPiece[];
   add: (piece: ContentPiece) => void;
+  /** Agrega piezas ya guardadas en Supabase (p. ej. desde un importador de CSV) — solo sincroniza el estado local, no vuelve a escribir. */
+  addMany: (pieces: ContentPiece[]) => void;
   update: (id: string, patch: Partial<ContentPiece>) => void;
   remove: (id: string) => void;
   byClient: (clientId: string) => ContentPiece[];
@@ -18,6 +20,14 @@ export const useContentStore = create<ContentState>((set, get) => ({
   add: (piece) => {
     const revertir = altaOptimista(() => get().pieces, (pieces) => set({ pieces }), piece);
     void ContentRepo.create(piece).catch(onWriteError('content.create', 'No se pudo guardar la pieza. Se quitó de la lista: vuelve a intentarlo.', revertir));
+  },
+  addMany: (piezas) => {
+    if (piezas.length === 0) return;
+    set((s) => {
+      const existentes = new Set(s.pieces.map((p) => p.id));
+      const nuevas = piezas.filter((p) => !existentes.has(p.id));
+      return nuevas.length === 0 ? s : { pieces: [...s.pieces, ...nuevas] };
+    });
   },
   update: (id, patch) => {
     const revertir = cambioOptimista(() => get().pieces, (pieces) => set({ pieces }), id, patch);

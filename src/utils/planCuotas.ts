@@ -1,12 +1,21 @@
 import type { Lead } from '../types/lead';
 
-/** Reparte el precio final acordado, sin recargos automáticos ni cobros. */
+/**
+ * Reparte el precio final acordado, sin recargos automáticos ni cobros.
+ *
+ * Pesos enteros, no centavos: MoneyInput solo acepta dígitos (descarta
+ * cualquier `.` o `,` al escribir), así que un monto con decimales (ej.
+ * 2498.5 al repartir $4.997 entre 2 cuotas) se desformateaba mal al
+ * mostrarse — "2498.5" perdía el punto y se leía como "24985" → "$24.985"
+ * en vez de "$2.499" (bug reportado 20-oct-2026). Se reparte en enteros
+ * desde el origen; la última cuota absorbe el resto del redondeo.
+ */
 export function calcularPlanCuotas(precio: number, cantidad: number): number[] {
   if (!Number.isFinite(precio) || precio <= 0) return [];
   const n = Number.isFinite(cantidad) ? Math.max(1, Math.min(4, Math.trunc(cantidad))) : 1;
-  const total = Math.round(precio * 100);
+  const total = Math.round(precio);
   const base = Math.floor(total / n);
-  return Array.from({ length: n }, (_, i) => (i === n - 1 ? total - base * (n - 1) : base) / 100);
+  return Array.from({ length: n }, (_, i) => (i === n - 1 ? total - base * (n - 1) : base));
 }
 
 /** No altera importes de cuotas confirmadas ni el primer cobro registrado. */

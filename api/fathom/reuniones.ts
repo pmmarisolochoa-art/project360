@@ -319,9 +319,20 @@ interface ReunionTraducible {
 
 /**
  * Traduce título, resumen y títulos de tareas al español, EN SITIO (muta los
- * objetos). Un solo llamado a Anthropic con todos los textos de todas las
- * reuniones, en vez de uno por campo: más rápido y no se queda sin tiempo el
- * edge function con varias reuniones.
+ * objetos).
+ *
+ * Trocea en lotes en vez de mandar TODO en una sola llamada: con varias
+ * reuniones (resúmenes largos en markdown + varias tareas cada una) el total
+ * de texto a traducir podía pasar fácil de los 4000 tokens de salida que
+ * tenía la llamada única — la respuesta de Claude se truncaba a medio JSON,
+ * `JSON.parse` fallaba (o el largo no coincidía) y la traducción ENTERA se
+ * descartaba: las 11 reuniones se veían en inglés, sin ningún aviso en
+ * pantalla (founder, 21-oct-2026 — "por qué se están transcribiendo en
+ * inglés"). Un lote por cada ~6000 caracteres de texto ORIGINAL acota la
+ * salida de cada llamada sin tener que adivinar cuántos textos caben.
+ *
+ * Los lotes van en paralelo y uno que falle NO tumba a los demás — mejor que
+ * 10 de 11 reuniones salgan traducidas a que ninguna lo esté.
  */
 async function traducirAlEspanol(apiKey: string, reuniones: ReunionTraducible[]): Promise<void> {
   // Aplana todos los textos a traducir en un solo array, con su ruta de vuelta.
@@ -342,6 +353,34 @@ async function traducirAlEspanol(apiKey: string, reuniones: ReunionTraducible[])
   }
   if (textos.length === 0) return;
 
+  const LOTE_MAX_CHARS = 6000;
+  const LOTE_MAX_ITEMS = 30;
+  const lotes: Array<{ textos: string[]; rutas: Array<(n: string) => void> }> = [];
+  let actual: { textos: string[]; rutas: Array<(n: string) => void> } = { textos: [], rutas: [] };
+  let chars = 0;
+  for (let i = 0; i < textos.length; i++) {
+    if (actual.textos.length > 0 && (chars + textos[i].length > LOTE_MAX_CHARS || actual.textos.length >= LOTE_MAX_ITEMS)) {
+      lotes.push(actual);
+      actual = { textos: [], rutas: [] };
+      chars = 0;
+    }
+    actual.textos.push(textos[i]);
+    actual.rutas.push(rutas[i]);
+    chars += textos[i].length;
+  }
+  if (actual.textos.length > 0) lotes.push(actual);
+
+  const resultados = await Promise.allSettled(lotes.map((l) => traducirLote(apiKey, l.textos, l.rutas)));
+  const fallos = resultados.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (fallos.length > 0) {
+    throw new Error(
+      `${fallos.length}/${lotes.length} lotes fallaron: ${fallos.map((f) => (f.reason as Error).message).join('; ')}`,
+    );
+  }
+}
+
+/** Una llamada a Anthropic por lote — ver `traducirAlEspanol`. */
+async function traducirLote(apiKey: string, textos: string[], rutas: Array<(n: string) => void>): Promise<void> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -351,7 +390,7 @@ async function traducirAlEspanol(apiKey: string, reuniones: ReunionTraducible[])
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: 'Traduces textos cortos de reuniones de trabajo (títulos de tareas, resúmenes) '
         + 'del idioma que vengan al ESPAÑOL. Si un texto ya está en español, lo devuelves tal '
         + 'cual. Devuelve SOLO un array JSON de strings, en el MISMO ORDEN y con la MISMA '

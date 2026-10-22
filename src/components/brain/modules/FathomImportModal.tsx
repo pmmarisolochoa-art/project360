@@ -150,29 +150,34 @@ export function FathomImportModal({ open, onClose, clientId, clienteNombre }: Pr
             <div className="text-text-muted text-xs mt-1">
               Solo entran las que mencionan a este cliente en el título.
             </div>
-            {diagnostico && (
-              <div className="mt-4 text-left">
-                <button
-                  type="button"
-                  onClick={() => setVerDiag((v) => !v)}
-                  className="text-xs text-text-secondary hover:text-text-primary inline-flex items-center gap-1"
-                >
-                  Detalle técnico
-                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${verDiag ? 'rotate-180' : ''}`} />
-                </button>
-                {verDiag && (
-                  <dl className="mt-2 rounded-[8px] border border-border-subtle p-3 space-y-1">
-                    {Object.entries(diagnostico).map(([k, v]) => (
-                      <div key={k} className="flex gap-3 text-xs">
-                        <dt className="text-text-muted min-w-[11rem]">{k}</dt>
-                        <dd className="text-text-primary break-all">
-                          {Array.isArray(v) ? v.join(', ') || '—' : String(v)}
-                        </dd>
-                      </div>
-                    ))}
-                  </dl>
-                )}
-              </div>
+          </div>
+        )}
+
+        {/* Independiente de si hay o no reuniones — antes solo se veía con la
+            bandeja vacía, así que un fallo de traducción silencioso (ej. la
+            reunión SÍ entra, pero quedó en inglés) no tenía forma de
+            diagnosticarse desde aquí (founder, 21-oct-2026). */}
+        {!cargando && diagnostico && (
+          <div className="text-left">
+            <button
+              type="button"
+              onClick={() => setVerDiag((v) => !v)}
+              className="text-xs text-text-secondary hover:text-text-primary inline-flex items-center gap-1"
+            >
+              Detalle técnico
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${verDiag ? 'rotate-180' : ''}`} />
+            </button>
+            {verDiag && (
+              <dl className="mt-2 rounded-[8px] border border-border-subtle p-3 space-y-1">
+                {Object.entries(diagnostico).map(([k, v]) => (
+                  <div key={k} className="flex gap-3 text-xs">
+                    <dt className="text-text-muted min-w-[11rem]">{k}</dt>
+                    <dd className="text-text-primary break-all">
+                      {Array.isArray(v) ? v.join(', ') || '—' : String(v)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             )}
           </div>
         )}

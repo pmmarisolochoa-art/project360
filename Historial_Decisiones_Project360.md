@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-21 — Módulo Contenidos reactivado (salía de beta, no se construyó de cero)
+
+El cajón **Contenido** llevaba apagado desde el 24-sep ("oculto en beta, reactivar en v2"), pero el módulo nunca dejó de existir: `ContentModule.tsx`, `useContentStore`, tabla `content_pieces` (migración 011) y el routing en `ClientBrainPage.tsx` siguieron vivos y funcionando por navegación directa todo este tiempo — solo faltaba destaparlo del nav. `departments.ts` ya tenía el departamento "Content Manager" preparado con el comentario explícito de que se activaría solo con esto.
+
+**Cambio real:** descomentar la entrada `content` en `BRAIN_MODULES` y agregar el cajón `content` a `CAJONES` en `BrainNav.tsx` (+ limpieza del comentario obsoleto en `departments.ts`). Nada de backend que tocar.
+
+**Verificado en navegador contra Alejo Luengas (cliente real, no maqueta):** el cajón "Contenido" aparece en el nav del cerebro, el Kanban Pipeline y el Calendario de Contenidos cargan sin errores de consola, se creó una pieza de prueba, **sobrevivió a una recarga completa de página** (confirma que persiste en `content_pieces` vía Supabase y no solo en memoria), se editó y se eliminó sin rastro. Pieza de prueba borrada al cerrar la verificación — no queda dato falso en el cliente real.
+
+**Pendiente:** el módulo no se ha vuelto a tocar desde sep-26 — falta decidir si su diseño/flujo necesita el mismo tipo de revisión que recibieron Ventas y Finanzas antes de darlo por "terminado", o si se usa tal cual quedó.
+
+---
+
 ## 2026-10-09 — Modo Reunión: presentación guiada para reuniones, con cierre que crea tareas reales
 
 Encargo de la founder: las reuniones no tenían estructura — cada quien hablaba de lo que se le ocurría. Se construyó un **Modo Reunión**: vista a pantalla completa, diapositiva por diapositiva, con 3 plantillas (Sprint/Planeación/Retro) definidas como **datos editables** en `src/config/meetingTemplates.ts` — agregar/quitar/reordenar un paso es editar ese archivo, no tocar componentes. Construido en 4 fases, cada una probada en navegador antes de seguir:

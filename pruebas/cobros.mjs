@@ -33,7 +33,12 @@ try {
   assert.equal(ventasForClient([...seleccion, lead({ clientId: 'otro' })], 'c1').cashCollected, 850, 'aísla cliente');
   assert.deepEqual(resumenVentas([]), { salesCount: 0, revenueAccumulated: 0, cashCollected: 0, pendingCollection: 0 });
   assert.deepEqual(calcularPlanCuotas(5000, 2), [2500, 2500], 'dos cuotas automáticas sin recargo');
-  assert.deepEqual(calcularPlanCuotas(100, 3), [33.33, 33.33, 33.34], 'resto en centavos se asigna a última cuota');
+  // Pesos enteros, no centavos: MoneyInput solo acepta dígitos y descarta
+  // cualquier punto al escribir, así que una cuota con decimales se
+  // desformateaba mal al mostrarse (bug real visto 20-oct-2026 con $4.997
+  // entre 2 cuotas → se leía "$24.985" en vez de "$2.499"). El resto se
+  // asigna entero a la última cuota.
+  assert.deepEqual(calcularPlanCuotas(100, 3), [33, 33, 34], 'resto se asigna entero a la última cuota');
   assert.deepEqual(calcularPlanCuotas(100, 1), [100]);
   assert.equal(calcularPlanCuotas(4997, 4).reduce((a, b) => a + b, 0), 4997);
   assert.deepEqual(calcularPlanCuotas(0, 2), []);

@@ -58,8 +58,6 @@ export const DEPARTMENTS: DepartmentDef[] = [
     id: 'content',
     label: 'Content Manager',
     hint: 'contenido y marca',
-    // 'content' está oculto en beta (comentado en BRAIN_MODULES); cuando se
-    // reactive el módulo, este departamento lo muestra sin cambios aquí.
     modules: ['content', 'profile', 'tasks', 'team'],
   },
 ];

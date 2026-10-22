@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import {
   User, TrendingUp, BarChart2, CheckSquare,
-  Calendar, Users, Rocket, Compass, LayoutGrid, DollarSign, Wallet,
+  Calendar, Users, Rocket, Compass, LayoutGrid, DollarSign, Wallet, Film,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorGenerator';
@@ -33,9 +33,7 @@ export const BRAIN_MODULES: ModuleDef[] = [
   { slug: 'ventas',      label: 'Ventas',      fullLabel: 'Pipeline de Ventas',     icon: DollarSign,    index: 7 },
   { slug: 'metrics',     label: 'Métricas',    fullLabel: 'Métricas & Campañas',    icon: BarChart2,     index: 8 },
   { slug: 'finanzas',    label: 'Finanzas',    fullLabel: 'Finanzas del cliente',   icon: Wallet,        index: 9 },
-  // OCULTO BETA — reactivar en v2. El módulo Contenido sigue existiendo (ContentModule.tsx)
-  // y su ruta funciona por navegación directa; solo se quita del nav durante el beta.
-  // { slug: 'content',     label: 'Contenido',   fullLabel: 'Contenido & Redes',      icon: Film,          index: 10 },
+  { slug: 'content',     label: 'Contenido',   fullLabel: 'Contenido & Redes',      icon: Film,          index: 10 },
 ];
 
 /**
@@ -57,7 +55,7 @@ export const CAJONES: CajonDef[] = [
   { id: 'ventas',      label: 'Ventas',      icon: DollarSign, slugs: ['ventas'] },
   { id: 'metricas',    label: 'Métricas',    icon: BarChart2,  slugs: ['metrics'] },
   { id: 'finanzas',    label: 'Finanzas',    icon: Wallet,     slugs: ['finanzas'] },
-  // 'content' oculto en beta — mismo criterio que en BRAIN_MODULES.
+  { id: 'content',     label: 'Contenido',   icon: Film,       slugs: ['content'] },
 ];
 
 /** Fila de pestañas — reusada para los cajones (nivel 1) y los sub-módulos (nivel 2). */

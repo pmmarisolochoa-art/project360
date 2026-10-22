@@ -6,7 +6,7 @@ import { LeadsDuplicadosModal } from './LeadsDuplicadosModal';
 import { LeadsCSVLimpiarModal } from './LeadsCSVLimpiarModal';
 import { detectarLeadsDuplicados } from '@/utils/leadDedup';
 import { calcularContadoresSeguimiento } from '@/utils/leadSeguimiento';
-import { resumenVentas, totalCobradoLead, saldoPendienteLead, comisionLead } from '@/utils/ventas';
+import { resumenVentas, totalCobradoLead, saldoPendienteLead, comisionLead, cuotasConEstado, parseFechaLocal } from '@/utils/ventas';
 import { patchPlanCuotas } from '@/utils/planCuotas';
 import type { Client } from '@/types/client';
 import type { Lead, LeadStage, LeadSource } from '@/types/lead';
@@ -49,6 +49,25 @@ const BANDA_COLOR: Record<string, string> = {
 function normalizarBanda(b: string): string {
   return b.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 }
+
+/**
+ * Opciones manuales del semáforo — cualquier lead, no solo los que traen
+ * calificación de un formulario externo (founder, 20-oct-2026: la banda solo
+ * se veía en los leads de Meta Ads porque solo esos la traían importada; el
+ * resto del equipo no tenía forma de ponerla a mano).
+ */
+const BANDA_OPCIONES: Array<{ value: 'verde' | 'amarillo' | 'rojo'; label: string }> = [
+  { value: 'verde', label: '🟢 Verde' },
+  { value: 'amarillo', label: '🟡 Amarillo' },
+  { value: 'rojo', label: '🔴 Rojo' },
+];
+/** Centinela para "el valor que ya traía del formulario externo, distinto del semáforo estándar". */
+const BANDA_EXTERNA = '__externo__';
+
+const CUOTA_ESTADO_COLOR: Record<'pagada' | 'vencida' | 'pendiente', string> = {
+  pagada: '#0CA30C', vencida: '#D03B3B', pendiente: '#D08A00',
+};
+const formatoCuotaFecha = (fecha: string) => parseFechaLocal(fecha).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
 
 type Period = 'hoy' | '7d' | '15d' | '30d' | '60d' | 'rango';
 const PERIOD_LABELS: Record<Period, string> = {
@@ -194,7 +213,48 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
     .map((fuente) => ({ fuente, n: leadsPeriodo.filter((l) => l.fuente === fuente).length }))
     .filter((f) => f.n > 0);
   const totalFuente = porFuente.reduce((s, f) => s + f.n, 0) || 1;
-  const { revenueAccumulated: valorContratado, cashCollected, pendingCollection: pendienteCobro } = resumenVentas(leadsPeriodo);
+
+  /**
+   * Las cifras de dinero NO comparten el filtro de `leadsPeriodo` (por
+   * `createdAt`) — cada una usa la fecha que de verdad le corresponde. Bug
+   * real visto con datos (founder, 21-oct-2026): "Ariel Blanco" entró el
+   * 11-oct y se ganó el 20-oct; con el período "7 días" (corta en el 14-oct)
+   * quedaba fuera de TODO, incluido el cobro de ese mismo cierre — las
+   * cajitas de dinero mentían "no pasó nada" cuando sí había pasado.
+   *
+   * - Valor contratado: ventas GANADAS cuyo cierre (`closedAt`) cae en el
+   *   período — "cuánto se vendió" en esos días.
+   * - Cash collected: pagos CONFIRMADOS cuya fecha cae en el período — una
+   *   cuota se puede cobrar semanas después de cerrado el trato, y ese cobro
+   *   sí es "de esta semana" aunque la venta sea vieja.
+   * - Pendiente de cobro: NO se filtra por período — es lo que se debe HOY,
+   *   no "lo que se debía hace una semana". Mismo criterio que el panel
+   *   "Cuotas por cobrar" de abajo.
+   */
+  const rangoDinero = period === 'rango'
+    ? { start: rangeStart ? fechaLocal(rangeStart, false) : null, end: rangeEnd ? fechaLocal(rangeEnd, true) : null }
+    : { start: periodStart(period), end: null as Date | null };
+  const sinFiltroDinero = period === 'rango' && !rangoDinero.start && !rangoDinero.end;
+  const enRangoDinero = (fecha?: string) => {
+    if (sinFiltroDinero) return true;
+    if (!fecha) return false;
+    const t = new Date(fecha);
+    return (!rangoDinero.start || t >= rangoDinero.start) && (!rangoDinero.end || t <= rangoDinero.end);
+  };
+
+  const ganados = leads.filter((l) => l.etapa === 'ganado');
+  const valorContratado = ganados
+    .filter((l) => enRangoDinero(l.closedAt))
+    .reduce((s, l) => s + (l.programValue ?? 0), 0);
+  const cashCollected = ganados.reduce((sum, l) => {
+    let total = 0;
+    if ((l.cashCollected ?? 0) > 0 && enRangoDinero(l.pago1Fecha)) total += l.cashCollected ?? 0;
+    if (l.pago2Pagado && enRangoDinero(l.pago2Fecha)) total += l.pago2Monto ?? 0;
+    if (l.pago3Pagado && enRangoDinero(l.pago3Fecha)) total += l.pago3Monto ?? 0;
+    if (l.pago4Pagado && enRangoDinero(l.pago4Fecha)) total += l.pago4Monto ?? 0;
+    return sum + total;
+  }, 0);
+  const pendienteCobro = ganados.reduce((s, l) => s + saldoPendienteLead(l), 0);
 
   // Contadores de seguimiento — sobre el universo VIVO (`leads`), no el
   // período: son alertas operativas ("a quién hay que empujar hoy"), no
@@ -207,6 +267,26 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
     () => calcularContadoresSeguimiento(leads, eventosDelCliente),
     [leads, eventosDelCliente],
   );
+
+  /**
+   * Cuotas pendientes de cobro de TODAS las ventas ganadas, no solo la que
+   * se tenga abierta — es la vista que pidió la founder al entrar a Ventas:
+   * "qué se debe cobrar" de un vistazo, sin abrir lead por lead (20-oct-2026).
+   * Vencidas primero (las más atrasadas arriba), luego pendientes por fecha
+   * más próxima. Las pagadas no se listan — ya no requieren seguimiento.
+   */
+  const cuotasPorCobrar = useMemo(() => {
+    return leads
+      .filter((l) => l.etapa === 'ganado')
+      .flatMap((l) => cuotasConEstado(l)
+        .filter((c) => c.estado !== 'pagada')
+        .map((c) => ({ ...c, leadId: l.id, leadNombre: l.nombre })))
+      .sort((a, b) => {
+        if (a.estado !== b.estado) return a.estado === 'vencida' ? -1 : 1;
+        if (a.estado === 'vencida') return (b.diasTarde ?? 0) - (a.diasTarde ?? 0);
+        return (a.fecha ?? '').localeCompare(b.fecha ?? '');
+      });
+  }, [leads]);
 
   async function handleDrop(stage: LeadStage) {
     if (readOnly || !draggedId) return;
@@ -256,6 +336,39 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
         <KpiTile label="Sin dueño" value={String(contadores.sinDueño)} tone={contadores.sinDueño > 0 ? 'warn' : undefined} />
         <KpiTile label="No-show" value={String(contadores.noShow)} tone={contadores.noShow > 0 ? 'warn' : undefined} />
         <KpiTile label="Sin respuesta (+5d)" value={String(contadores.sinRespuesta)} tone={contadores.sinRespuesta > 0 ? 'warn' : undefined} />
+      </div>
+
+      {/* Cuotas por cobrar — de todas las ventas ganadas, no solo la abierta. Clic en una fila abre el lead. */}
+      <div className="rounded-[12px] border border-border-default bg-bg-surface p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">💰 Cuotas por cobrar</h4>
+          {cuotasPorCobrar.length > 0 && (
+            <span className="text-[11px] font-mono text-text-muted">{cuotasPorCobrar.length}</span>
+          )}
+        </div>
+        {cuotasPorCobrar.length === 0 ? (
+          <p className="text-[11px] text-text-muted">Sin cuotas pendientes — todo al día.</p>
+        ) : (
+          <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-0.5">
+            {cuotasPorCobrar.map((c) => (
+              <button
+                key={`${c.leadId}:${c.numero}`}
+                onClick={() => setSelectedId(c.leadId)}
+                className="w-full flex items-center justify-between gap-2 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-left hover:border-border-strong"
+              >
+                <div className="flex items-center gap-2 text-[12px] min-w-0">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: CUOTA_ESTADO_COLOR[c.estado] }} />
+                  <span className="font-medium text-text-primary truncate">{c.leadNombre}</span>
+                  <span className="text-text-muted shrink-0">· Cuota {c.numero} de {c.total} · ${c.monto.toLocaleString('es-CO')}</span>
+                </div>
+                <span className="text-[11px] font-mono shrink-0" style={{ color: CUOTA_ESTADO_COLOR[c.estado] }}>
+                  {c.estado === 'vencida' && c.fecha ? `venció ${formatoCuotaFecha(c.fecha)} — ${c.diasTarde}d tarde` : ''}
+                  {c.estado === 'pendiente' && (c.fecha ? `vence ${formatoCuotaFecha(c.fecha)}` : 'sin fecha')}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {tab === 'pipeline' ? (
@@ -849,10 +962,14 @@ function LeadDrawer({
     }
   };
 
+  const bandaNormalizada = lead.banda ? normalizarBanda(lead.banda) : '';
+  const bandaEsEstandar = (BANDA_OPCIONES as Array<{ value: string }>).some((o) => o.value === bandaNormalizada);
+
   // Calculado, no editable — guardarlo sería mantener dos fuentes de verdad
   // que se pueden desincronizar (founder, 02-oct-2026).
   const totalCobrado = totalCobradoLead(lead);
   const saldoPendiente = saldoPendienteLead(lead);
+  const cuotas = cuotasConEstado(lead);
   const proximoPago = [
     { monto: lead.pago2Monto, fecha: lead.pago2Fecha, pagado: lead.pago2Pagado },
     { monto: lead.pago3Monto, fecha: lead.pago3Fecha, pagado: lead.pago3Pagado },
@@ -972,21 +1089,30 @@ function LeadDrawer({
                 className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
               />
             </label>
+            <label className="block">
+              <span className="text-[10px] text-text-muted uppercase tracking-wide">Banda</span>
+              <select
+                disabled={readOnly}
+                value={bandaEsEstandar ? bandaNormalizada : lead.banda ? BANDA_EXTERNA : ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onUpdate({ banda: v === '' ? undefined : v === BANDA_EXTERNA ? lead.banda : v });
+                }}
+                className="w-full mt-1 rounded-lg border border-border-default bg-bg-base px-2 py-1.5 text-[12px]"
+              >
+                <option value="">— Sin banda —</option>
+                {BANDA_OPCIONES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {lead.banda && !bandaEsEstandar && (
+                  <option value={BANDA_EXTERNA}>{lead.banda} (del formulario)</option>
+                )}
+              </select>
+            </label>
           </div>
 
-          {(lead.banda || lead.score !== undefined || lead.ruta) && (
+          {(lead.score !== undefined || lead.ruta) && (
             <div className="rounded-[10px] border border-border-default p-3">
               <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide mb-2">Calificación del formulario</div>
               <div className="grid grid-cols-3 gap-2 text-[12px]">
-                {lead.banda && (
-                  <div>
-                    <div className="text-[10px] text-text-muted">Banda</div>
-                    <div className="font-medium flex items-center gap-1.5 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: BANDA_COLOR[normalizarBanda(lead.banda)] ?? '#8A8F98' }} />
-                      {lead.banda}
-                    </div>
-                  </div>
-                )}
                 {lead.score !== undefined && (
                   <div>
                     <div className="text-[10px] text-text-muted">Score</div>
@@ -1157,6 +1283,28 @@ function LeadDrawer({
                 })}
                 <p className="col-span-2 text-[10px] text-text-muted">Se calcula sobre lo cobrado y confirmado de esta venta.</p>
               </div>
+
+              {cuotas.length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-border-subtle">
+                  <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wide">Seguimiento de cuotas</div>
+                  {cuotas.map((c) => (
+                    <div
+                      key={c.numero}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5"
+                    >
+                      <div className="flex items-center gap-2 text-[12px]">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: CUOTA_ESTADO_COLOR[c.estado] }} />
+                        <span>Cuota {c.numero} de {c.total} · ${c.monto.toLocaleString('es-CO')}</span>
+                      </div>
+                      <span className="text-[11px] font-mono" style={{ color: CUOTA_ESTADO_COLOR[c.estado] }}>
+                        {c.estado === 'pagada' && (c.fecha ? `pagada ${formatoCuotaFecha(c.fecha)}` : 'pagada')}
+                        {c.estado === 'vencida' && c.fecha && `venció ${formatoCuotaFecha(c.fecha)} — ${c.diasTarde}d tarde`}
+                        {c.estado === 'pendiente' && (c.fecha ? `vence ${formatoCuotaFecha(c.fecha)}` : 'sin fecha')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="space-y-2 pt-1 border-t border-border-subtle">
                 <div className="flex items-center justify-between gap-2 pt-2 flex-wrap">

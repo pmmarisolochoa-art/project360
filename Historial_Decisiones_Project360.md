@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-10-21/22 — Filtro "Sin respuesta" clicable en Ventas + panel de cuotas contraíble
+
+Dos pedidos puntuales sobre el Pipeline de Ventas. **(1) "Sin respuesta" como columna del Kanban** se descartó tal cual se pidió: las etapas del embudo son fijas a propósito (founder, 27/28-sep-2026) para poder comparar clientes entre sí, y "sin respuesta" es una heurística por tiempo, no un estado que alguien declare. Se ofrecieron las dos rutas y se eligió la recomendada: **filtro clicable** sobre las 4 cajitas de seguimiento (Sin contactar / Sin dueño / No-show / Sin respuesta) — clic filtra el Kanban a esos leads exactos, clic de nuevo lo quita, sin tocar la base de datos ni el embudo fijo. Para que el filtro use la MISMA regla que ya cuenta (no una copia que se pueda desalinear), `calcularContadoresSeguimiento` se refactorizó para delegar en una nueva `flagsDeSeguimiento(lead, eventos, …)` por-lead — las 9 pruebas de `pruebas/lead-seguimiento.mjs` pasan sin cambios, confirmando que el refactor no alteró ningún resultado. **(2) El panel "Cuotas por cobrar"** (agregado la sesión anterior) ahora es contraíble — ocupaba espacio fijo aunque no hiciera falta verlo.
+
+**Sin verificar en navegador esta vez:** el Chrome de automatización (perfil de Playwright MCP) quedó colgado a mitad de sesión — se mató el proceso y se limpiaron los locks, pero la conexión del lado del MCP server no se recuperó. Queda verificado por typecheck limpio + las pruebas unitarias existentes + que reutiliza exactamente el mismo patrón de filtro clicable (`filtroSetter`/`filtroCloser`/`filtroFuente`) que ya se había probado en vivo en la sesión anterior.
+
+---
+
 ## 2026-10-21/22 — Rediseño UX del módulo Contenidos (2 bugs reales + paridad con Ventas)
 
 Tras reactivar Contenidos, revisión UX completa pedida por la founder. **2 bugs encontrados leyendo el código, no por síntoma reportado:** (1) "Rechazado" existía en el tipo, en los colores del Kanban y en el campo de notas del drawer, pero `STATUS_FLOW` —lo que llena el `<Select>` de Estado y las columnas del Kanban— nunca lo incluía: nadie podía llegar a ese estado desde la UI. (2) El botón "Subir" del campo de archivo no tenía `onClick` — el mismo patrón de interruptor de mentira ya corregido antes en Configuración y la campana.

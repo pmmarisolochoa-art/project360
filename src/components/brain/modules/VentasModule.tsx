@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Upload, Search, Trash2, Copy } from 'lucide-react';
+import { X, Plus, Upload, Search, Trash2, Copy, ChevronDown } from 'lucide-react';
 import { ImportarLeadsCSVModal } from './ImportarLeadsCSVModal';
 import { LeadsDuplicadosModal } from './LeadsDuplicadosModal';
 import { LeadsCSVLimpiarModal } from './LeadsCSVLimpiarModal';
 import { detectarLeadsDuplicados } from '@/utils/leadDedup';
-import { calcularContadoresSeguimiento } from '@/utils/leadSeguimiento';
+import { calcularContadoresSeguimiento, flagsDeSeguimiento, type SeguimientoFlag } from '@/utils/leadSeguimiento';
 import { resumenVentas, totalCobradoLead, saldoPendienteLead, comisionLead, cuotasConEstado, parseFechaLocal } from '@/utils/ventas';
 import { patchPlanCuotas } from '@/utils/planCuotas';
 import type { Client } from '@/types/client';
-import type { Lead, LeadStage, LeadSource } from '@/types/lead';
+import type { Lead, LeadEvent, LeadStage, LeadSource } from '@/types/lead';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCES, LEAD_SOURCE_LABELS } from '@/types/lead';
 import { useLeadsStore } from '@/store/useLeadsStore';
 import { useTeamMembersStore } from '@/store/useTeamMembersStore';
@@ -137,6 +137,12 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const [filtroSetter, setFiltroSetter] = useState('');
   const [filtroCloser, setFiltroCloser] = useState('');
   const [filtroFuente, setFiltroFuente] = useState<LeadSource | ''>('');
+  /** Clic en una cajita de seguimiento (Sin contactar/Sin dueño/No-show/Sin
+   * respuesta) filtra el Kanban a esos leads — no es una etapa nueva, es la
+   * misma heurística que ya cuenta, ahora con forma de llegar a los leads
+   * (founder, 21-oct-2026; las etapas del Kanban son fijas a propósito, ver
+   * types/lead.ts). Clic de nuevo lo quita. */
+  const [filtroSeguimiento, setFiltroSeguimiento] = useState<SeguimientoFlag | null>(null);
   // Qué fecha del lead usa el rango de abajo — creación (cuándo entró) o
   // cierre (cuándo se ganó/perdió, `closedAt`). Un lead sin cerrar no tiene
   // `closedAt`, así que filtrar por "Cierre" naturalmente solo muestra
@@ -146,6 +152,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   const [filtroHasta, setFiltroHasta] = useState('');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cuotasAbierto, setCuotasAbierto] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [duplicadosOpen, setDuplicadosOpen] = useState(false);
@@ -165,7 +172,24 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   // Búsqueda del Pipeline — filtra las tarjetas del Kanban sin tocar los
   // KPIs/gráficas, que siguen sobre el universo completo del período.
   const termino = busqueda.trim().toLowerCase();
-  const hayFiltrosPipeline = !!(filtroSetter || filtroCloser || filtroFuente || filtroDesde || filtroHasta);
+  const hayFiltrosPipeline = !!(filtroSetter || filtroCloser || filtroFuente || filtroDesde || filtroHasta || filtroSeguimiento);
+
+  // Usado por el filtro de seguimiento del Kanban (abajo) y por los
+  // contadores (más abajo) — una sola fuente para ambos.
+  const eventosDelCliente = useMemo(() => {
+    const ids = new Set(leads.map((l) => l.id));
+    return allEvents.filter((e) => ids.has(e.leadId));
+  }, [allEvents, leads]);
+  const eventosPorLead = useMemo(() => {
+    const m = new Map<string, LeadEvent[]>();
+    for (const e of eventosDelCliente) {
+      const lista = m.get(e.leadId) ?? [];
+      lista.push(e);
+      m.set(e.leadId, lista);
+    }
+    return m;
+  }, [eventosDelCliente]);
+
   const leadsKanban = useMemo(() => {
     let out = leads;
     if (termino) {
@@ -187,8 +211,12 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
         out = out.filter((l) => { const v = l[campo]; return !!v && new Date(v) <= h; });
       }
     }
+    if (filtroSeguimiento) {
+      const ahora = Date.now();
+      out = out.filter((l) => flagsDeSeguimiento(l, eventosPorLead.get(l.id) ?? [], ahora, 5).has(filtroSeguimiento));
+    }
     return out;
-  }, [leads, termino, filtroSetter, filtroCloser, filtroFuente, filtroCampoFecha, filtroDesde, filtroHasta]);
+  }, [leads, termino, filtroSetter, filtroCloser, filtroFuente, filtroCampoFecha, filtroDesde, filtroHasta, filtroSeguimiento, eventosPorLead]);
 
   // El Pipeline (Kanban) siempre muestra el estado VIVO — el filtro de período
   // solo acota qué leads entran a los KPIs y las gráficas, no esconde tarjetas.
@@ -259,10 +287,6 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
   // Contadores de seguimiento — sobre el universo VIVO (`leads`), no el
   // período: son alertas operativas ("a quién hay que empujar hoy"), no
   // estadística histórica.
-  const eventosDelCliente = useMemo(() => {
-    const ids = new Set(leads.map((l) => l.id));
-    return allEvents.filter((e) => ids.has(e.leadId));
-  }, [allEvents, leads]);
   const contadores = useMemo(
     () => calcularContadoresSeguimiento(leads, eventosDelCliente),
     [leads, eventosDelCliente],
@@ -330,44 +354,74 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
         <KpiTile label="Pendiente de cobro" value={`$${pendienteCobro.toLocaleString('es-CO')}`} tone={pendienteCobro > 0 ? 'warn' : undefined} />
       </div>
 
-      {/* Seguimiento — alertas operativas sobre el Pipeline vivo, no el período */}
+      {/* Seguimiento — alertas operativas sobre el Pipeline vivo, no el período.
+          Clic filtra el Kanban a esos leads; clic de nuevo lo quita. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiTile label="Sin contactar" value={String(contadores.sinContactar)} tone={contadores.sinContactar > 0 ? 'warn' : undefined} />
-        <KpiTile label="Sin dueño" value={String(contadores.sinDueño)} tone={contadores.sinDueño > 0 ? 'warn' : undefined} />
-        <KpiTile label="No-show" value={String(contadores.noShow)} tone={contadores.noShow > 0 ? 'warn' : undefined} />
-        <KpiTile label="Sin respuesta (+5d)" value={String(contadores.sinRespuesta)} tone={contadores.sinRespuesta > 0 ? 'warn' : undefined} />
+        <KpiTile
+          label="Sin contactar" value={String(contadores.sinContactar)}
+          tone={contadores.sinContactar > 0 ? 'warn' : undefined}
+          active={filtroSeguimiento === 'sinContactar'}
+          onClick={() => setFiltroSeguimiento((f) => (f === 'sinContactar' ? null : 'sinContactar'))}
+        />
+        <KpiTile
+          label="Sin dueño" value={String(contadores.sinDueño)}
+          tone={contadores.sinDueño > 0 ? 'warn' : undefined}
+          active={filtroSeguimiento === 'sinDueño'}
+          onClick={() => setFiltroSeguimiento((f) => (f === 'sinDueño' ? null : 'sinDueño'))}
+        />
+        <KpiTile
+          label="No-show" value={String(contadores.noShow)}
+          tone={contadores.noShow > 0 ? 'warn' : undefined}
+          active={filtroSeguimiento === 'noShow'}
+          onClick={() => setFiltroSeguimiento((f) => (f === 'noShow' ? null : 'noShow'))}
+        />
+        <KpiTile
+          label="Sin respuesta (+5d)" value={String(contadores.sinRespuesta)}
+          tone={contadores.sinRespuesta > 0 ? 'warn' : undefined}
+          active={filtroSeguimiento === 'sinRespuesta'}
+          onClick={() => setFiltroSeguimiento((f) => (f === 'sinRespuesta' ? null : 'sinRespuesta'))}
+        />
       </div>
 
       {/* Cuotas por cobrar — de todas las ventas ganadas, no solo la abierta. Clic en una fila abre el lead. */}
       <div className="rounded-[12px] border border-border-default bg-bg-surface p-4">
-        <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={() => setCuotasAbierto((v) => !v)}
+          className="w-full flex items-center justify-between gap-2"
+        >
           <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">💰 Cuotas por cobrar</h4>
-          {cuotasPorCobrar.length > 0 && (
-            <span className="text-[11px] font-mono text-text-muted">{cuotasPorCobrar.length}</span>
-          )}
-        </div>
-        {cuotasPorCobrar.length === 0 ? (
-          <p className="text-[11px] text-text-muted">Sin cuotas pendientes — todo al día.</p>
-        ) : (
-          <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-0.5">
-            {cuotasPorCobrar.map((c) => (
-              <button
-                key={`${c.leadId}:${c.numero}`}
-                onClick={() => setSelectedId(c.leadId)}
-                className="w-full flex items-center justify-between gap-2 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-left hover:border-border-strong"
-              >
-                <div className="flex items-center gap-2 text-[12px] min-w-0">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: CUOTA_ESTADO_COLOR[c.estado] }} />
-                  <span className="font-medium text-text-primary truncate">{c.leadNombre}</span>
-                  <span className="text-text-muted shrink-0">· Cuota {c.numero} de {c.total} · ${c.monto.toLocaleString('es-CO')}</span>
-                </div>
-                <span className="text-[11px] font-mono shrink-0" style={{ color: CUOTA_ESTADO_COLOR[c.estado] }}>
-                  {c.estado === 'vencida' && c.fecha ? `venció ${formatoCuotaFecha(c.fecha)} — ${c.diasTarde}d tarde` : ''}
-                  {c.estado === 'pendiente' && (c.fecha ? `vence ${formatoCuotaFecha(c.fecha)}` : 'sin fecha')}
-                </span>
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {cuotasPorCobrar.length > 0 && (
+              <span className="text-[11px] font-mono text-text-muted">{cuotasPorCobrar.length}</span>
+            )}
+            <ChevronDown className={cn('h-3.5 w-3.5 text-text-muted transition-transform', cuotasAbierto && 'rotate-180')} />
           </div>
+        </button>
+        {cuotasAbierto && (
+          cuotasPorCobrar.length === 0 ? (
+            <p className="text-[11px] text-text-muted mt-3">Sin cuotas pendientes — todo al día.</p>
+          ) : (
+            <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-0.5 mt-3">
+              {cuotasPorCobrar.map((c) => (
+                <button
+                  key={`${c.leadId}:${c.numero}`}
+                  onClick={() => setSelectedId(c.leadId)}
+                  className="w-full flex items-center justify-between gap-2 rounded-lg border border-border-default bg-bg-base px-2.5 py-1.5 text-left hover:border-border-strong"
+                >
+                  <div className="flex items-center gap-2 text-[12px] min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: CUOTA_ESTADO_COLOR[c.estado] }} />
+                    <span className="font-medium text-text-primary truncate">{c.leadNombre}</span>
+                    <span className="text-text-muted shrink-0">· Cuota {c.numero} de {c.total} · ${c.monto.toLocaleString('es-CO')}</span>
+                  </div>
+                  <span className="text-[11px] font-mono shrink-0" style={{ color: CUOTA_ESTADO_COLOR[c.estado] }}>
+                    {c.estado === 'vencida' && c.fecha ? `venció ${formatoCuotaFecha(c.fecha)} — ${c.diasTarde}d tarde` : ''}
+                    {c.estado === 'pendiente' && (c.fecha ? `vence ${formatoCuotaFecha(c.fecha)}` : 'sin fecha')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )
         )}
       </div>
 
@@ -477,7 +531,7 @@ export function VentasModule({ client, readOnly = false }: { client: Client; rea
             />
             {hayFiltrosPipeline && (
               <button
-                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); setFiltroFuente(''); setFiltroCampoFecha('creado'); setFiltroDesde(''); setFiltroHasta(''); }}
+                onClick={() => { setFiltroSetter(''); setFiltroCloser(''); setFiltroFuente(''); setFiltroCampoFecha('creado'); setFiltroDesde(''); setFiltroHasta(''); setFiltroSeguimiento(null); }}
                 className="text-text-secondary hover:text-text-primary underline"
               >
                 Quitar filtros
@@ -804,14 +858,25 @@ function PersonKpiCard({ nombre, leads, accent, rolLabel }: { nombre: string; le
   );
 }
 
-function KpiTile({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'warn' }) {
+function KpiTile({
+  label, value, tone, onClick, active,
+}: { label: string; value: string; tone?: 'good' | 'warn'; onClick?: () => void; active?: boolean }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="rounded-[10px] border border-border-default bg-bg-surface p-3">
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={cn(
+        'rounded-[10px] border p-3 text-left w-full',
+        active ? 'border-accent-violet/60 bg-accent-violet/5' : 'border-border-default bg-bg-surface',
+        onClick && !active && 'hover:border-border-strong cursor-pointer',
+      )}
+    >
       <div className="text-[9.5px] uppercase tracking-wide text-text-muted font-semibold">{label}</div>
       <div className={cn('text-lg font-bold mt-1 font-mono', tone === 'good' && 'text-green-500', tone === 'warn' && 'text-amber-500')}>
         {value}
       </div>
-    </div>
+    </Tag>
   );
 }
 

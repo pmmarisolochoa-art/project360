@@ -40,6 +40,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { CALENDLY_CLIENTES, externalIdInviteeCalendly, tipoReunionDesdeNombreEvento } from '../../src/config/calendly';
 import { normalizar, normalizarTelefono } from '../../src/utils/csvLeads';
+import { patronCorreoCalendly, resolverAnfitrionCalendly } from '../../src/utils/calendlyAnfitrion';
 
 export const config = { runtime: 'edge' };
 
@@ -131,12 +132,11 @@ export default async function handler(req: Request): Promise<Response> {
     if (hostEmail) {
       const { data: tm, error: closerError } = await admin
         .from('team_members')
-        .select('id, nombre')
+        .select('id, nombre, email, rol')
         .eq('client_id', declarado.clientId)
-        .ilike('email', hostEmail)
-        .maybeSingle();
+        .ilike('email', patronCorreoCalendly(hostEmail));
       if (closerError) throw closerError;
-      if (tm) closer = { id: tm.id as string, nombre: tm.nombre as string };
+      closer = resolverAnfitrionCalendly(tm ?? [], hostEmail);
     }
 
     // ── Resolver o crear el lead ─────────────────────────────────────────────

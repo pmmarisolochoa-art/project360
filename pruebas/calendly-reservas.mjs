@@ -25,7 +25,7 @@ const reset=()=>{
 try {
   await build({entryPoints:['api/calendly/webhook.ts'],outfile:join(dir,'webhook.mjs'),bundle:true,format:'esm',platform:'node',logLevel:'error',plugins:[{name:'controlled-db',setup(b){
     b.onResolve({filter:/^@supabase\/supabase-js$/},({path})=>({path,namespace:'test'}));
-    b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const createClient=()=>({rpc:(name,args)=>globalThis.__calendly.rpc(name,args),from(table){const filters={};const q={select:()=>q,eq:(key,value)=>{filters[key]=value;return q},ilike:()=>q,maybeSingle:()=>Promise.resolve(globalThis.__calendly.query(table,filters)),then:(yes,no)=>Promise.resolve(globalThis.__calendly.query(table,filters)).then(yes,no)};return q;}});`}));
+    b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const createClient=()=>({rpc:(name,args)=>globalThis.__calendly.rpc(name,args),from(table){const filters={};const q={select:()=>q,eq:(key,value)=>{filters[key]=value;return q},ilike:(key,value)=>{filters[key]=value;return q},maybeSingle:()=>Promise.resolve(globalThis.__calendly.query(table,filters)),then:(yes,no)=>Promise.resolve(globalThis.__calendly.query(table,filters)).then(yes,no)};return q;}});`}));
   }}]});
   const {default:handler}=await import(pathToFileURL(join(dir,'webhook.mjs')));
   Object.assign(process.env,{VITE_SUPABASE_URL:'https://example.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'test-service-key',CALENDLY_SIGNING_KEY:key,CALENDLY_PERSONAL_ACCESS_TOKEN:'test-calendly-token'});
@@ -61,6 +61,40 @@ try {
   assert.equal(calls.find(c=>c.name==='calendly_cancelar_reserva').args.p_external_id,'calendly:'+oldUri);
   reset();db.calendly_cancelaciones={data:{external_id:'already-cancelled'},error:null};assert.equal((await handler(request(rebook))).status,200);assert.ok(calls.some(c=>c.name==='calendly_cancelar_reserva'),'cadena fuera de orden cancela la cita anterior aunque la intermedia ya esté cancelada');
   reset();assert.equal((await handler(request({...payload,payload:{...payload.payload,old_invitee:'https://invalid.example'}}))).status,400);assert.equal(calls.length,0);
+  const hostEmail='MaRiSol_Prueba@example.test';
+  const hostFixture=(fichas)=>{
+    reset();db.team_members={data:fichas,error:null};
+    globalThis.fetch=async()=>new Response(JSON.stringify({resource:{
+      start_time:'2026-10-19T15:00:00Z',end_time:'2026-10-19T15:30:00Z',
+      name:'Sesión estratégica de patrocinios',event_memberships:[{user_email:hostEmail}],
+    }}),{status:200});
+  };
+  const host={id:'closer-M',nombre:'Marisol',rol:'closer',email:'marisol_prueba@example.test'};
+  const pm={...host,id:'pm-M',rol:'project_manager'};
+  const strategist={...host,id:'strategy-M',rol:'strategist'};
+  for (const fichas of [[pm,strategist,host],[host,pm,strategist]]) {
+    hostFixture(fichas);
+    assert.equal((await handler(request())).status,200,'varios roles no bloquean reserva');
+    const booking=calls.find(c=>c.name==='calendly_guardar_reserva');
+    assert.equal(booking.args.p_actor_id,host.id,'prefiere ficha closer independientemente del orden');
+    assert.deepEqual(booking.args.p_meeting.participants,[{userId:host.id,name:host.nombre}]);
+    const lookup=calls.find(c=>c.table==='team_members');
+    assert.equal(lookup.filters.client_id,booking.args.p_client_id,'no busca roles de otro cliente');
+    assert.equal(lookup.filters.email,'MaRiSol\\_Prueba@example.test','correo no permite comodines ILIKE');
+  }
+  hostFixture([{...host,rol:'expert'}]);
+  assert.equal((await handler(request())).status,200,'conserva anfitrión único sin rol closer (Alejo)');
+  hostFixture([]);assert.equal((await handler(request())).status,200);
+  assert.deepEqual(calls.find(c=>c.name==='calendly_guardar_reserva').args.p_meeting.participants,[]);
+  hostFixture([{...host,email:'marisolXprueba@example.test'}]);
+  assert.equal((await handler(request())).status,200);
+  assert.deepEqual(calls.find(c=>c.name==='calendly_guardar_reserva').args.p_meeting.participants,[],'no confunde correos parecidos');
+  hostFixture([host,{...host,id:'closer-duplicado'}]);
+  assert.equal((await handler(request())).status,500,'ambigüedad real requiere revisión y permite reintento');
+  assert.ok(!calls.some(c=>c.name==='api_lead_crear'||c.name==='calendly_guardar_reserva'),'no escribe una asignación arbitraria');
+  hostFixture([pm,strategist]);assert.equal((await handler(request())).status,500);
+  hostFixture([]);db.team_members={data:null,error:Error('equipo no disponible')};
+  assert.equal((await handler(request())).status,500);
   console.log('✓ Calendly: reserva completa, reentrega, fallos reintentables, firma y cliente aislado');
 } finally {
   globalThis.fetch=previousFetch;delete globalThis.__calendly;

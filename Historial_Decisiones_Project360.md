@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-10-22 — Contenidos: bug de producción real + drag-and-drop + automatización vía Cerebro Alejo + selección múltiple
+
+Sesión larga de seguimiento al rediseño del 21-oct, con un bug de producción real en el medio.
+
+**(1) Bug real en producción, encontrado por la founder al primer uso:** crear una pieza daba `PGRST204 — Could not find the 'caption' column of 'content_pieces' in the schema cache`. No era caché de PostgREST desactualizada — la **migración 011 nunca se había corrido en producción** (el módulo estuvo oculto desde septiembre, así que nadie escribió esos campos hasta ahora). Confirmado con `supabase db dump --linked` contra la tabla real: faltaban `cta_type`, `script`, `caption`, `role_slug`, `assigned_to`. Corrida manualmente vía SQL Editor de Supabase (el CLI quedó bloqueado por el clasificador de seguridad de la terminal al intentar escribir directo en prod — se le explicó el motivo a la founder y lo corrió ella). Verificado: las 5 columnas ya existen en prod.
+
+**(2) Drag-and-drop en Kanban y Calendario**, mismo patrón nativo que ya usaba Ventas — mover una tarjeta entre columnas cambia el estado; arrastrarla a otro día mueve la fecha que esté activa en "Ver por" (grabación/edición/aprobación/publicación), no siempre publicación. `motion.button` no admite drag nativo (choca con su propio sistema de gestos) — se separó en `motion.div` (animación) + `button` nativo (click+drag).
+
+**(3) Automatización de producción de contenido vía "Cerebro Alejo"** (terminal externa de la founder que genera guion+caption+formato+fecha): se definió el contrato — CSV con `titulo,formato,fecha_publicacion,guion,caption`, plataforma fija Instagram, guion y caption obligatorios. Nuevo importador (`ImportarContenidoCSVModal` + `utils/csvContenido.ts`) que, a diferencia de los importadores de leads/clientes, **entra directo al Kanban sin bandeja de revisión** (decisión explícita de la founder: el contenido ya viene listo para producción). Fila mal formada se rechaza con motivo; idempotente por título+fecha. **Probado con el archivo real de Cerebro Alejo** (`Cronograma_Plataforma.csv`, 99 filas): las 99 pasaron validación sin error y se importaron a petición explícita de la founder — confirmado en Kanban (100 piezas totales con "R4" preexistente).
+
+**(4) Selección múltiple en las tarjetas** (Kanban y Calendario), mismo patrón que ya tiene Tareas: checkbox por tarjeta, barra flotante "Mover a" / "Eliminar" / "Cancelar", selección persistida en el componente padre para sobrevivir el cambio de vista.
+
+**Todo verificado en navegador y pusheado a `main`** (commits `afbd608`, `c31405a`, `fb25d2a`, `9d8834e`). Typecheck y build limpios en cada paso. Sin pendientes de esta sesión.
+
+---
+
 ## 2026-10-21/22 — Cash collected desaparecía cuando el pago no tenía fecha propia
 
 Reportado en caliente por la founder: "hoy entró un pago y no se refleja en Cash collected" (filtro "Hoy" en $0). Causa: el fix del 21-oct ("Cash collected filtra por la fecha correcta") exigía que CADA pago tuviera su campo "Fecha" lleno para contar en cualquier período — y ese campo es opcional en el formulario, nada obliga a llenarlo al marcar un cobro. Un pago cobrado hoy mismo, sin esa fecha puesta, desaparecía de TODOS los períodos, incluido "Hoy" — el fix de ayer arregló un falso-negativo y creó otro.

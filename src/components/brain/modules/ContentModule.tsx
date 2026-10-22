@@ -153,7 +153,7 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
           </div>
 
           {view === 'kanban' ? (
-            <ContentKanban pieces={piecesFiltradas} accent={accent} onOpen={setEditing} />
+            <ContentKanban pieces={piecesFiltradas} accent={accent} onOpen={setEditing} readOnly={readOnly} />
           ) : (
             <ContentCalendar
               pieces={piecesFiltradas}
@@ -347,19 +347,51 @@ const KANBAN_COLS: Array<{ status: ContentStatus; label: string }> = [
 ];
 
 function ContentKanban({
-  pieces, accent, onOpen,
+  pieces, accent, onOpen, readOnly = false,
 }: {
   pieces: ContentPiece[];
   accent: string;
   onOpen: (p: ContentPiece) => void;
+  readOnly?: boolean;
 }) {
+  const update = useContentStore((s) => s.update);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<ContentStatus | null>(null);
+
+  function handleDrop(status: ContentStatus) {
+    if (readOnly || !draggedId) return;
+    const id = draggedId;
+    setDraggedId(null);
+    setDragOverStatus(null);
+    const piece = pieces.find((p) => p.id === id);
+    if (!piece || piece.status === status) return;
+    update(id, { status });
+    toast.success(`Movida a ${CONTENT_STATUS_META[status].label}`);
+  }
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-2">
       {KANBAN_COLS.map((col) => {
         const colItems = pieces.filter((p) => p.status === col.status);
         const meta = CONTENT_STATUS_META[col.status];
+        const isDropTarget = dragOverStatus === col.status;
         return (
-          <div key={col.status} className="surface p-2.5 min-h-[300px] flex flex-col">
+          <div
+            key={col.status}
+            className="surface p-2.5 min-h-[300px] flex flex-col transition-colors"
+            style={isDropTarget ? { boxShadow: `inset 0 0 0 1px ${accent}` } : undefined}
+            onDragOver={(e) => {
+              if (readOnly || !draggedId) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              if (dragOverStatus !== col.status) setDragOverStatus(col.status);
+            }}
+            onDragLeave={(e) => {
+              if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+              if (dragOverStatus === col.status) setDragOverStatus(null);
+            }}
+            onDrop={(e) => { e.preventDefault(); handleDrop(col.status); }}
+          >
             <header className="flex items-center justify-between mb-2">
               <span
                 className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
@@ -371,10 +403,22 @@ function ContentKanban({
             </header>
             <div className="space-y-1.5 flex-1">
               {colItems.map((p, i) => (
-                <KanbanCard key={p.id} piece={p} accent={accent} index={i} onClick={() => onOpen(p)} />
+                <KanbanCard
+                  key={p.id}
+                  piece={p}
+                  accent={accent}
+                  index={i}
+                  readOnly={readOnly}
+                  dragging={draggedId === p.id}
+                  onClick={() => onOpen(p)}
+                  onDragStart={() => setDraggedId(p.id)}
+                  onDragEnd={() => { setDraggedId(null); setDragOverStatus(null); }}
+                />
               ))}
               {colItems.length === 0 && (
-                <div className="text-[10px] text-text-muted text-center py-4 italic">Vacío</div>
+                <div className="text-[10px] text-text-muted text-center py-4 italic">
+                  {isDropTarget ? 'Soltar aquí' : 'Vacío'}
+                </div>
               )}
             </div>
           </div>
@@ -385,45 +429,59 @@ function ContentKanban({
 }
 
 function KanbanCard({
-  piece, accent, index, onClick,
+  piece, accent, index, readOnly, dragging, onClick, onDragStart, onDragEnd,
 }: {
   piece: ContentPiece;
   accent: string;
   index: number;
+  readOnly: boolean;
+  dragging: boolean;
   onClick: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) {
   const platform = PLATFORM_META[piece.platform];
   const mostrarDias = ESTADOS_ABIERTOS.includes(piece.status);
   const dias = mostrarDias ? diasEnPipeline(piece) : 0;
   const colorDias = dias >= DIAS_ATASCADA ? '#D03B3B' : dias >= 3 ? '#D08A00' : 'var(--text-muted)';
   return (
-    <motion.button
+    <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
-      onClick={onClick}
-      className="w-full text-left rounded-md border border-border-subtle bg-bg-base/40 p-2 hover:bg-bg-elevated transition focus-ring"
     >
-      <div className="flex items-center justify-between text-[10px] mb-1">
-        <span className="text-text-muted">{platform.emoji} {FORMAT_LABEL[piece.format]}</span>
-        <div className="flex items-center gap-1">
-          {piece.hasLeadMagnet && (
-            <Magnet className="h-3 w-3" style={{ color: accent }} aria-label="Lleva lead magnet" />
-          )}
-          {mostrarDias && dias >= 3 && (
-            <span className="font-mono" style={{ color: colorDias }} title={`${dias} días sin publicar/programar`}>
-              {dias}d
-            </span>
-          )}
+      <button
+        onClick={onClick}
+        draggable={!readOnly}
+        onDragStart={(e) => { e.dataTransfer.setData('text/plain', piece.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+        onDragEnd={onDragEnd}
+        className={cn(
+          'w-full text-left rounded-md border border-border-subtle bg-bg-base/40 p-2 transition focus-ring',
+          dragging ? 'opacity-50' : 'hover:bg-bg-elevated',
+          !readOnly && 'cursor-grab active:cursor-grabbing',
+        )}
+      >
+        <div className="flex items-center justify-between text-[10px] mb-1">
+          <span className="text-text-muted">{platform.emoji} {FORMAT_LABEL[piece.format]}</span>
+          <div className="flex items-center gap-1">
+            {piece.hasLeadMagnet && (
+              <Magnet className="h-3 w-3" style={{ color: accent }} aria-label="Lleva lead magnet" />
+            )}
+            {mostrarDias && dias >= 3 && (
+              <span className="font-mono" style={{ color: colorDias }} title={`${dias} días sin publicar/programar`}>
+                {dias}d
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="text-[12px] text-text-primary leading-snug line-clamp-2">{piece.title}</div>
-      {piece.publishDate && (
-        <div className="text-[10px] text-text-muted mt-1.5">
-          📅 {format(parseISO(piece.publishDate), 'd MMM', { locale: es })}
-        </div>
-      )}
-    </motion.button>
+        <div className="text-[12px] text-text-primary leading-snug line-clamp-2">{piece.title}</div>
+        {piece.publishDate && (
+          <div className="text-[10px] text-text-muted mt-1.5">
+            📅 {format(parseISO(piece.publishDate), 'd MMM', { locale: es })}
+          </div>
+        )}
+      </button>
+    </motion.div>
   );
 }
 
@@ -440,6 +498,25 @@ function ContentCalendar({
 }) {
   const [cursor, setCursor] = useState<Date>(new Date());
   const [dateField, setDateField] = useState<DateField>('publishDate');
+  const update = useContentStore((s) => s.update);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+
+  // Arrastrar una pieza a otro día mueve la fecha que se está viendo ahora
+  // (el selector "Ver por") — arrastrar en la vista de Publicación mueve
+  // publishDate, en la de Grabación mueve recordingDate, etc.
+  function handleDropOnDay(dayKey: string) {
+    if (readOnly || !draggedId) return;
+    const id = draggedId;
+    setDraggedId(null);
+    setDragOverDay(null);
+    const piece = pieces.find((p) => p.id === id);
+    if (!piece) return;
+    const currentKey = piece[dateField] ? format(parseISO(piece[dateField]!), 'yyyy-MM-dd') : null;
+    if (currentKey === dayKey) return;
+    update(id, { [dateField]: new Date(`${dayKey}T12:00:00`).toISOString() });
+    toast.success(`${DATE_FIELD_LABEL[dateField].label} movida al ${format(parseISO(dayKey), 'd MMM', { locale: es })}`);
+  }
 
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
@@ -526,6 +603,8 @@ function ContentCalendar({
           const visiblePieces = dayPieces.slice(0, 3);
           const overflow = dayPieces.length - visiblePieces.length;
 
+          const isDropTarget = dragOverDay === dayKey;
+
           return (
             <div
               key={dayKey}
@@ -534,7 +613,24 @@ function ContentCalendar({
                 inMonth ? 'bg-bg-base/30' : 'bg-bg-base/10 opacity-50',
                 lowWeek && inMonth && !today ? 'bg-status-warning/[0.08]' : '',
               )}
-              style={today ? { borderColor: accent, boxShadow: `inset 0 0 0 1px ${withAlpha(accent, 0.35)}` } : { borderColor: 'rgba(255,255,255,0.06)' }}
+              style={
+                isDropTarget
+                  ? { borderColor: accent, boxShadow: `inset 0 0 0 1px ${accent}` }
+                  : today
+                    ? { borderColor: accent, boxShadow: `inset 0 0 0 1px ${withAlpha(accent, 0.35)}` }
+                    : { borderColor: 'rgba(255,255,255,0.06)' }
+              }
+              onDragOver={(e) => {
+                if (readOnly || !draggedId || !inMonth) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (dragOverDay !== dayKey) setDragOverDay(dayKey);
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                if (dragOverDay === dayKey) setDragOverDay(null);
+              }}
+              onDrop={(e) => { e.preventDefault(); handleDropOnDay(dayKey); }}
             >
               <div className="flex items-center justify-between mb-1">
                 <span
@@ -559,7 +655,16 @@ function ContentCalendar({
 
               <div className="space-y-1">
                 {visiblePieces.map((p) => (
-                  <CalendarPieceCard key={p.id} piece={p} accent={accent} onClick={() => onOpen(p)} />
+                  <CalendarPieceCard
+                    key={p.id}
+                    piece={p}
+                    accent={accent}
+                    readOnly={readOnly}
+                    dragging={draggedId === p.id}
+                    onClick={() => onOpen(p)}
+                    onDragStart={() => setDraggedId(p.id)}
+                    onDragEnd={() => { setDraggedId(null); setDragOverDay(null); }}
+                  />
                 ))}
                 {overflow > 0 && (
                   <button
@@ -585,18 +690,29 @@ function ContentCalendar({
 }
 
 function CalendarPieceCard({
-  piece, accent, onClick,
+  piece, accent, readOnly, dragging, onClick, onDragStart, onDragEnd,
 }: {
   piece: ContentPiece;
   accent: string;
+  readOnly: boolean;
+  dragging: boolean;
   onClick: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) {
   const meta = CONTENT_STATUS_META[piece.status];
   const platform = PLATFORM_META[piece.platform];
   return (
     <button
       onClick={onClick}
-      className="w-full text-left rounded-[6px] border bg-bg-surface px-1.5 py-1 hover:brightness-125 transition focus-ring"
+      draggable={!readOnly}
+      onDragStart={(e) => { e.dataTransfer.setData('text/plain', piece.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+      onDragEnd={onDragEnd}
+      className={cn(
+        'w-full text-left rounded-[6px] border bg-bg-surface px-1.5 py-1 transition focus-ring',
+        dragging ? 'opacity-50' : 'hover:brightness-125',
+        !readOnly && 'cursor-grab active:cursor-grabbing',
+      )}
       style={{ borderColor: meta.ring }}
       title={piece.title}
     >

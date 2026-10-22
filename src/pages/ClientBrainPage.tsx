@@ -81,12 +81,12 @@ const MODULE_DESCRIPTIONS: Record<string, { description: string; features: strin
   },
   content: {
     description:
-      'Pipeline de contenido + calendario mensual. Copy generado con Claude usando contexto del cliente.',
+      'Pipeline de contenido en Kanban + calendario editorial. Script y caption generados con IA usando la marca y el avatar del cliente.',
     features: [
-      'Kanban: Copy → Grabación → Edición → Revisión → Programado → Publicado',
-      'Métricas por red: IG / TikTok / YT / LinkedIn / FB',
-      'Aprobación/rechazo con comentarios del cliente',
-      'Webhook listo para Buffer / Meta Business Suite',
+      'Kanban: Sin empezar → Grabación → Edición → Revisión → Cliente → Aprobado/Rechazado → Programado → Publicado',
+      'Calendario mensual por grabación / edición / aprobación / publicación',
+      'KPIs por estado, plataforma y responsable, con aviso de piezas atascadas',
+      'Seguimiento de lead magnets por pieza',
     ],
   },
   meetings: {

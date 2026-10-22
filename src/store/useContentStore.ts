@@ -40,5 +40,5 @@ export const DATE_FIELD_LABEL: Record<DateField, { icon: string; label: string }
 };
 
 export const STATUS_FLOW: ContentStatus[] = [
-  'not_started', 'recording', 'editing', 'review', 'sent_to_client', 'approved', 'scheduled', 'published',
+  'not_started', 'recording', 'editing', 'review', 'sent_to_client', 'rejected', 'approved', 'scheduled', 'published',
 ];

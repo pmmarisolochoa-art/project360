@@ -3,11 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutGrid, CalendarDays, Plus, X, Sparkles, Trash2, Save,
-  ChevronLeft, ChevronRight, Magnet, Upload, DollarSign,
+  ChevronLeft, ChevronRight, Magnet,
 } from 'lucide-react';
-import { AdsGeneratorModal } from './AdsGeneratorModal';
 import {
-  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, differenceInDays,
   format, parseISO, isSameMonth, isToday, addMonths, subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -29,16 +28,45 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { genId } from '@/utils/id';
 
+/** Piezas "vivas" — todavía no llegaron a su destino final del pipeline. */
+const ESTADOS_ABIERTOS: ContentStatus[] = ['not_started', 'recording', 'editing', 'review', 'sent_to_client', 'rejected', 'approved'];
+const DIAS_ATASCADA = 7;
+
+function diasEnPipeline(piece: ContentPiece): number {
+  return differenceInDays(new Date(), parseISO(piece.createdAt));
+}
+
+function estaAtascada(piece: ContentPiece): boolean {
+  return ESTADOS_ABIERTOS.includes(piece.status) && diasEnPipeline(piece) >= DIAS_ATASCADA;
+}
+
 export function ContentModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const allPieces = useContentStore((s) => s.pieces);
   const pieces = useMemo(
     () => allPieces.filter((p) => p.clientId === client.id),
     [allPieces, client.id],
   );
+  const [tab, setTab] = useState<'pipeline' | 'kpis'>('pipeline');
   const [view, setView] = useState<'kanban' | 'calendar'>('calendar');
   const [editing, setEditing] = useState<ContentPiece | null>(null);
   const [creating, setCreating] = useState<{ date: Date } | null>(null);
-  const [adsOpen, setAdsOpen] = useState(false);
+
+  // Filtros del Pipeline — acotan Kanban y Calendario a la vez; a diferencia
+  // de Ventas, Contenido no tiene fechas de cierre vs. creación que justifiquen
+  // separar esto del universo de las KPIs, así que es un solo set de filtros.
+  const [filtroPlataforma, setFiltroPlataforma] = useState<ContentPlatform | ''>('');
+  const [filtroResponsable, setFiltroResponsable] = useState('');
+  const responsables = useMemo(
+    () => Array.from(new Set(pieces.map((p) => p.assignedTo).filter((v): v is string => !!v?.trim()))).sort(),
+    [pieces],
+  );
+  const hayFiltros = !!(filtroPlataforma || filtroResponsable);
+  const piecesFiltradas = useMemo(() => {
+    let out = pieces;
+    if (filtroPlataforma) out = out.filter((p) => p.platform === filtroPlataforma);
+    if (filtroResponsable) out = out.filter((p) => p.assignedTo === filtroResponsable);
+    return out;
+  }, [pieces, filtroPlataforma, filtroResponsable]);
 
   // Atajo desde AlertsPanel "Resolver →" sobre content_pending_approval:
   // si la URL trae ?filter=in_review, cambiamos a kanban (donde la columna
@@ -46,6 +74,7 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     if (searchParams.get('filter') === 'in_review') {
+      setTab('pipeline');
       setView('kanban');
       toast.info('Contenidos en revisión visibles en la columna "Revisión"');
       const next = new URLSearchParams(searchParams);
@@ -54,50 +83,89 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
     }
   }, [searchParams, setSearchParams]);
 
+  const accent = client.primaryColor;
+
   return (
     <div className="space-y-4">
-      <div className="surface p-3 flex items-center justify-between gap-2 flex-wrap">
-        <div className="inline-flex rounded-[10px] border border-border-subtle bg-bg-base/40 p-0.5">
-          <ToggleButton active={view === 'kanban'} onClick={() => setView('kanban')} icon={<LayoutGrid className="h-3.5 w-3.5" />}>
-            Kanban Pipeline
-          </ToggleButton>
-          <ToggleButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={<CalendarDays className="h-3.5 w-3.5" />}>
-            Calendario de Contenidos
-          </ToggleButton>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="inline-flex rounded-[10px] border border-border-default bg-bg-surface p-1">
+          {(['pipeline', 'kpis'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className="text-[12px] font-semibold rounded-[7px] px-3.5 py-1.5 transition-colors"
+              style={tab === t ? { background: withAlpha(accent, 0.16), color: accent } : { color: 'var(--text-secondary)' }}
+            >
+              {t === 'pipeline' ? 'Pipeline' : 'KPIs'}
+            </button>
+          ))}
         </div>
-
         {!readOnly && (
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              leftIcon={<DollarSign className="h-4 w-4" />}
-              onClick={() => setAdsOpen(true)}
-              title="Generar anuncios para pauta con IA"
-            >
-              Anuncios pauta
-            </Button>
-            <Button
-              size="sm"
-              leftIcon={<Plus className="h-4 w-4" />}
-              onClick={() => setCreating({ date: new Date() })}
-            >
-              Nueva pieza
-            </Button>
-          </div>
+          <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setCreating({ date: new Date() })}>
+            Nueva pieza
+          </Button>
         )}
       </div>
 
-      {view === 'kanban' ? (
-        <ContentKanban pieces={pieces} accent={client.primaryColor} onOpen={setEditing} />
+      {tab === 'pipeline' ? (
+        <>
+          <div className="surface p-3 flex items-center justify-between gap-2 flex-wrap">
+            <div className="inline-flex rounded-[10px] border border-border-subtle bg-bg-base/40 p-0.5">
+              <ToggleButton active={view === 'kanban'} onClick={() => setView('kanban')} icon={<LayoutGrid className="h-3.5 w-3.5" />}>
+                Kanban Pipeline
+              </ToggleButton>
+              <ToggleButton active={view === 'calendar'} onClick={() => setView('calendar')} icon={<CalendarDays className="h-3.5 w-3.5" />}>
+                Calendario de Contenidos
+              </ToggleButton>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap text-[12px]">
+              <select
+                value={filtroPlataforma}
+                onChange={(e) => setFiltroPlataforma(e.target.value as ContentPlatform | '')}
+                className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+              >
+                <option value="">Todas las plataformas</option>
+                {Object.entries(PLATFORM_META).map(([v, m]) => (
+                  <option key={v} value={v}>{m.emoji} {m.label}</option>
+                ))}
+              </select>
+              <select
+                value={filtroResponsable}
+                onChange={(e) => setFiltroResponsable(e.target.value)}
+                className="rounded-[8px] border border-border-default bg-bg-base px-2 py-1.5 focus-ring"
+              >
+                <option value="">Todos los responsables</option>
+                {responsables.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              {hayFiltros && (
+                <button
+                  onClick={() => { setFiltroPlataforma(''); setFiltroResponsable(''); }}
+                  className="text-text-secondary hover:text-text-primary underline"
+                >
+                  Quitar filtros
+                </button>
+              )}
+              {hayFiltros && (
+                <span className="text-text-muted">{piecesFiltradas.length} de {pieces.length} piezas</span>
+              )}
+            </div>
+          </div>
+
+          {view === 'kanban' ? (
+            <ContentKanban pieces={piecesFiltradas} accent={accent} onOpen={setEditing} />
+          ) : (
+            <ContentCalendar
+              pieces={piecesFiltradas}
+              accent={accent}
+              onOpen={setEditing}
+              onCreateAt={(date) => setCreating({ date })}
+              readOnly={readOnly}
+            />
+          )}
+        </>
       ) : (
-        <ContentCalendar
-          pieces={pieces}
-          accent={client.primaryColor}
-          onOpen={setEditing}
-          onCreateAt={(date) => setCreating({ date })}
-          readOnly={readOnly}
-        />
+        <ContentKpisTab pieces={pieces} accent={accent} />
       )}
 
       <AnimatePresence>
@@ -112,14 +180,132 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
           />
         )}
       </AnimatePresence>
+    </div>
+  );
+}
 
-      {adsOpen && (
-        <AdsGeneratorModal
-          client={client}
-          accent={client.primaryColor}
-          onClose={() => setAdsOpen(false)}
-        />
-      )}
+/* ───────────────────────── KPIs ───────────────────────── */
+
+function ContentKpisTab({ pieces, accent }: { pieces: ContentPiece[]; accent: string }) {
+  const now = new Date();
+  const publicadasEsteMes = pieces.filter((p) => {
+    if (p.status !== 'published' || !p.publishDate) return false;
+    const d = parseISO(p.publishDate);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).length;
+  const conLeadMagnet = pieces.filter((p) => p.hasLeadMagnet).length;
+  const atascadas = pieces.filter(estaAtascada).length;
+
+  const porEstado = STATUS_FLOW.map((status) => ({ status, n: pieces.filter((p) => p.status === status).length }));
+  const maxEstado = Math.max(1, ...porEstado.map((p) => p.n));
+
+  const porPlataforma = (Object.keys(PLATFORM_META) as ContentPlatform[])
+    .map((platform) => ({ platform, n: pieces.filter((p) => p.platform === platform).length }))
+    .filter((p) => p.n > 0);
+  const maxPlataforma = Math.max(1, ...porPlataforma.map((p) => p.n));
+
+  const porResponsable = useMemo(() => {
+    const map = new Map<string, ContentPiece[]>();
+    for (const p of pieces) {
+      if (!p.assignedTo?.trim()) continue;
+      const arr = map.get(p.assignedTo) ?? [];
+      arr.push(p);
+      map.set(p.assignedTo, arr);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pieces]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiTile label="Total piezas" value={String(pieces.length)} />
+        <KpiTile label="Publicadas este mes" value={String(publicadasEsteMes)} tone="good" />
+        <KpiTile label="Con Lead Magnet" value={String(conLeadMagnet)} />
+        <KpiTile label={`Atascadas (${DIAS_ATASCADA}+ días)`} value={String(atascadas)} tone={atascadas > 0 ? 'warn' : undefined} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-[12px] border border-border-default bg-bg-surface p-4">
+          <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3">Piezas por estado</h4>
+          <div className="space-y-1.5">
+            {porEstado.map(({ status, n }) => (
+              <div key={status} className="grid grid-cols-[110px_1fr_28px] gap-2 items-center text-[11px]">
+                <span className="text-text-secondary truncate">{CONTENT_STATUS_META[status].label}</span>
+                <div className="h-3.5 rounded bg-bg-elevated overflow-hidden">
+                  <div className="h-full rounded" style={{ width: `${(n / maxEstado) * 100}%`, background: accent }} />
+                </div>
+                <span className="text-right font-mono text-text-primary">{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[12px] border border-border-default bg-bg-surface p-4">
+          <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3">Piezas por plataforma</h4>
+          {porPlataforma.length === 0 ? (
+            <p className="text-[11px] text-text-muted">Sin piezas todavía.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {porPlataforma.map(({ platform, n }) => (
+                <div key={platform} className="grid grid-cols-[100px_1fr_28px] gap-2 items-center text-[11px]">
+                  <span className="text-text-secondary">{PLATFORM_META[platform].emoji} {PLATFORM_META[platform].label}</span>
+                  <div className="h-3.5 rounded bg-bg-elevated overflow-hidden">
+                    <div className="h-full rounded" style={{ width: `${(n / maxPlataforma) * 100}%`, background: accent }} />
+                  </div>
+                  <span className="text-right font-mono text-text-primary">{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2.5">Por responsable</h4>
+        {porResponsable.length === 0 ? (
+          <p className="text-[11px] text-text-muted">Ninguna pieza tiene responsable asignado todavía.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {porResponsable.map(([nombre, piezas]) => (
+              <PersonContentCard key={nombre} nombre={nombre} pieces={piezas} accent={accent} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PersonContentCard({ nombre, pieces, accent }: { nombre: string; pieces: ContentPiece[]; accent: string }) {
+  const publicadas = pieces.filter((p) => p.status === 'published').length;
+  const atascadas = pieces.filter(estaAtascada).length;
+  return (
+    <div className="rounded-[12px] border border-border-default bg-bg-surface p-3.5">
+      <div className="text-[12.5px] font-semibold text-text-primary truncate mb-2.5">{nombre}</div>
+      <div className="grid grid-cols-3 gap-2 text-[11px]">
+        <div>
+          <div className="text-text-muted text-[9.5px] uppercase tracking-wide">Piezas</div>
+          <div className="font-mono font-semibold text-text-primary">{pieces.length}</div>
+        </div>
+        <div>
+          <div className="text-text-muted text-[9.5px] uppercase tracking-wide">Publicadas</div>
+          <div className="font-mono font-semibold" style={{ color: accent }}>{publicadas}</div>
+        </div>
+        <div>
+          <div className="text-text-muted text-[9.5px] uppercase tracking-wide">Atascadas</div>
+          <div className="font-mono font-semibold" style={{ color: atascadas > 0 ? '#D08A00' : 'var(--text-primary)' }}>{atascadas}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiTile({ label, value, tone }: { label: string; value: string; tone?: 'good' | 'warn' }) {
+  return (
+    <div className="rounded-[10px] border border-border-default bg-bg-surface p-3">
+      <div className="text-[9.5px] uppercase tracking-wide text-text-muted font-semibold">{label}</div>
+      <div className={cn('text-lg font-bold mt-1 font-mono', tone === 'good' && 'text-green-500', tone === 'warn' && 'text-amber-500')}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -154,6 +340,7 @@ const KANBAN_COLS: Array<{ status: ContentStatus; label: string }> = [
   { status: 'editing',        label: 'Edición' },
   { status: 'review',         label: 'Revisión' },
   { status: 'sent_to_client', label: 'Cliente' },
+  { status: 'rejected',       label: 'Rechazado' },
   { status: 'approved',       label: 'Aprobado' },
   { status: 'scheduled',      label: 'Programado' },
   { status: 'published',      label: 'Publicado' },
@@ -167,7 +354,7 @@ function ContentKanban({
   onOpen: (p: ContentPiece) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+    <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-9 gap-2">
       {KANBAN_COLS.map((col) => {
         const colItems = pieces.filter((p) => p.status === col.status);
         const meta = CONTENT_STATUS_META[col.status];
@@ -206,6 +393,9 @@ function KanbanCard({
   onClick: () => void;
 }) {
   const platform = PLATFORM_META[piece.platform];
+  const mostrarDias = ESTADOS_ABIERTOS.includes(piece.status);
+  const dias = mostrarDias ? diasEnPipeline(piece) : 0;
+  const colorDias = dias >= DIAS_ATASCADA ? '#D03B3B' : dias >= 3 ? '#D08A00' : 'var(--text-muted)';
   return (
     <motion.button
       initial={{ opacity: 0, y: 4 }}
@@ -216,9 +406,16 @@ function KanbanCard({
     >
       <div className="flex items-center justify-between text-[10px] mb-1">
         <span className="text-text-muted">{platform.emoji} {FORMAT_LABEL[piece.format]}</span>
-        {piece.hasLeadMagnet && (
-          <Magnet className="h-3 w-3" style={{ color: accent }} aria-label="Lleva lead magnet" />
-        )}
+        <div className="flex items-center gap-1">
+          {piece.hasLeadMagnet && (
+            <Magnet className="h-3 w-3" style={{ color: accent }} aria-label="Lleva lead magnet" />
+          )}
+          {mostrarDias && dias >= 3 && (
+            <span className="font-mono" style={{ color: colorDias }} title={`${dias} días sin publicar/programar`}>
+              {dias}d
+            </span>
+          )}
+        </div>
       </div>
       <div className="text-[12px] text-text-primary leading-snug line-clamp-2">{piece.title}</div>
       {piece.publishDate && (
@@ -335,7 +532,7 @@ function ContentCalendar({
               className={cn(
                 'group relative rounded-md border p-1.5 min-h-[110px] transition-colors',
                 inMonth ? 'bg-bg-base/30' : 'bg-bg-base/10 opacity-50',
-                lowWeek && inMonth && !today ? 'bg-status-warning/[0.03]' : '',
+                lowWeek && inMonth && !today ? 'bg-status-warning/[0.08]' : '',
               )}
               style={today ? { borderColor: accent, boxShadow: `inset 0 0 0 1px ${withAlpha(accent, 0.35)}` } : { borderColor: 'rgba(255,255,255,0.06)' }}
             >
@@ -377,6 +574,12 @@ function ContentCalendar({
           );
         })}
       </div>
+
+      {weeksWithLowCount.size > 0 && (
+        <p className="text-[10.5px] text-text-muted mt-2">
+          🟡 Semanas con menos de 2 piezas programadas — revisa el calendario completo.
+        </p>
+      )}
     </div>
   );
 }
@@ -534,6 +737,7 @@ function ContentDrawer({
         </header>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <SectionLabel first>Qué es</SectionLabel>
           <Input
             label="Título"
             required
@@ -573,6 +777,7 @@ function ContentDrawer({
             disabled={readOnly}
           />
 
+          <SectionLabel>Contenido</SectionLabel>
           {/* Botón generar IA — produce script + caption en una sola llamada */}
           {!readOnly && (
             <div className="rounded-[10px] border border-dashed border-border-default bg-bg-base/30 p-3 flex items-center justify-between gap-3">
@@ -634,6 +839,7 @@ function ContentDrawer({
             />
           </div>
 
+          <SectionLabel>Responsable y fechas</SectionLabel>
           {/* Rol + Responsable */}
           <div className="grid grid-cols-2 gap-3">
             <Select
@@ -710,6 +916,7 @@ function ContentDrawer({
             disabled={readOnly}
           />
 
+          <SectionLabel>Extras</SectionLabel>
           <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3">
             <label className="flex items-center gap-2.5 cursor-pointer">
               <input
@@ -745,19 +952,12 @@ function ContentDrawer({
             <label className="text-xs font-medium text-text-secondary mb-1.5 block">
               Archivo (imagen / video)
             </label>
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="URL del archivo o súbelo a Drive"
-                value={draft.mediaUrl ?? ''}
-                onChange={(e) => setDraft({ ...draft, mediaUrl: e.target.value })}
-                disabled={readOnly}
-              />
-              {!readOnly && (
-                <Button size="sm" variant="secondary" leftIcon={<Upload className="h-3.5 w-3.5" />}>
-                  Subir
-                </Button>
-              )}
-            </div>
+            <Input
+              placeholder="Pega el link de Drive del archivo"
+              value={draft.mediaUrl ?? ''}
+              onChange={(e) => setDraft({ ...draft, mediaUrl: e.target.value })}
+              disabled={readOnly}
+            />
           </div>
 
           {draft.status === 'rejected' && (
@@ -791,6 +991,17 @@ function ContentDrawer({
         </footer>
       </motion.aside>
     </>
+  );
+}
+
+function SectionLabel({ children, first = false }: { children: React.ReactNode; first?: boolean }) {
+  return (
+    <h4 className={cn(
+      'text-xs font-semibold text-text-secondary uppercase tracking-wide',
+      first ? '' : 'pt-2 border-t border-border-subtle',
+    )}>
+      {children}
+    </h4>
   );
 }
 

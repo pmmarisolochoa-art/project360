@@ -4,6 +4,7 @@ import {
   Link2, Sparkles, AlertTriangle, RefreshCw, CheckCircle2, XCircle,
   TrendingUp, DollarSign, Eye, MousePointerClick, FlaskConical,
 } from 'lucide-react';
+import { AdsGeneratorModal } from './AdsGeneratorModal';
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid,
 } from 'recharts';
@@ -37,6 +38,7 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
   const [period, setPeriod] = useState<number>(14);
   const [insights, setInsights] = useState<Awaited<ReturnType<typeof generateMetricsInsights>> | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  const [adsOpen, setAdsOpen] = useState(false);
 
   const connectedPlatforms = useMemo(
     () => (Object.entries(client.adsConnected) as Array<[AdPlatform, boolean]>)
@@ -273,6 +275,17 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
             </h3>
             <p className="text-[11px] text-text-muted">Activa el switch para empezar a sincronizar métricas</p>
           </div>
+          {!readOnly && (
+            <Button
+              size="sm"
+              variant="secondary"
+              leftIcon={<DollarSign className="h-4 w-4" />}
+              onClick={() => setAdsOpen(true)}
+              title="Generar anuncios para pauta con IA"
+            >
+              Anuncios pauta
+            </Button>
+          )}
         </header>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {PLATFORMS.map((p) => {
@@ -597,6 +610,14 @@ export function MetricsModule({ client, readOnly = false }: { client: Client; re
             )}
           </div>
         </>
+      )}
+
+      {adsOpen && (
+        <AdsGeneratorModal
+          client={client}
+          accent={accent}
+          onClose={() => setAdsOpen(false)}
+        />
       )}
     </div>
   );

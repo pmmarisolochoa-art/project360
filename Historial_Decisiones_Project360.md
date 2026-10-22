@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-10-21/22 — Rediseño UX del módulo Contenidos (2 bugs reales + paridad con Ventas)
+
+Tras reactivar Contenidos, revisión UX completa pedida por la founder. **2 bugs encontrados leyendo el código, no por síntoma reportado:** (1) "Rechazado" existía en el tipo, en los colores del Kanban y en el campo de notas del drawer, pero `STATUS_FLOW` —lo que llena el `<Select>` de Estado y las columnas del Kanban— nunca lo incluía: nadie podía llegar a ese estado desde la UI. (2) El botón "Subir" del campo de archivo no tenía `onClick` — el mismo patrón de interruptor de mentira ya corregido antes en Configuración y la campana.
+
+**Paridad con Ventas:** tab Pipeline/KPIs (antes solo había un toggle Kanban/Calendario, sin vista agregada); filtros por Plataforma y Responsable (antes ninguno); badge de días en cada tarjeta del Kanban cuando una pieza lleva 3+ días sin publicar/programar, mismo umbral que la KPI "Atascadas" (7+ días) — sin campo `updatedAt` en `content_pieces`, se usa `createdAt` como proxy a propósito.
+
+**Decisiones de producto:** "Anuncios pauta" (generador de ads para pauta pagada) se saca de Contenido y se muda al header de "Conexión de plataformas" en Métricas — mezclar pauta paga dentro del módulo de contenido orgánico confundía el modelo mental, y el componente (`AdsGeneratorModal`) era autocontenido, así que el movimiento no tocó su lógica. El tinte de "semana floja" del calendario pasa de 3% de opacidad (invisible) a 8% + una leyenda de texto explicando qué significa. El texto de `MODULE_DESCRIPTIONS.content` prometía "aprobación con comentarios del cliente" y "webhook a Buffer/Meta Business Suite" — ninguno existe; se reescribió para describir lo que el módulo hace de verdad. El drawer de crear/editar pieza (15 campos en una sola columna) se agrupó en 4 secciones visuales (Qué es / Contenido / Responsable y fechas / Extras) sin tocar ningún campo ni su lógica.
+
+**Verificado en navegador contra Alejo Luengas (cliente real):** columna "Rechazado" visible en Kanban y en el Select de Estado; pieza de prueba creada, con badge de días, reflejada en el tab KPIs (Piezas por estado incluye Rechazado), filtros de Plataforma/Responsable probados, editada y eliminada sin dejar rastro; "Anuncios pauta" confirmado ausente de Contenido y presente en Métricas, abre el mismo modal de siempre. `typecheck` y `build` limpios; `git diff --stat` tocó exactamente los 4 archivos previstos (`useContentStore.ts`, `ContentModule.tsx`, `MetricsModule.tsx`, `ClientBrainPage.tsx`).
+
+---
+
 ## 2026-10-21 — Módulo Contenidos reactivado (salía de beta, no se construyó de cero)
 
 El cajón **Contenido** llevaba apagado desde el 24-sep ("oculto en beta, reactivar en v2"), pero el módulo nunca dejó de existir: `ContentModule.tsx`, `useContentStore`, tabla `content_pieces` (migración 011) y el routing en `ClientBrainPage.tsx` siguieron vivos y funcionando por navegación directa todo este tiempo — solo faltaba destaparlo del nav. `departments.ts` ya tenía el departamento "Content Manager" preparado con el comentario explícito de que se activaría solo con esto.

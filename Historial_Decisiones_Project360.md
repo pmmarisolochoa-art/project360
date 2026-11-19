@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-11-16 — Project360 pasa a ser PWA instalable
+
+**Qué:** la app se puede instalar en celular y escritorio (`vite-plugin-pwa`, `registerType: 'autoUpdate'`: cada deploy actualiza el service worker solo, sin preguntarle al usuario). Sin cambios de lógica de negocio.
+
+**Decisiones:**
+- **`favicon.svg` no existía** (el `index.html` lo pedía desde siempre y daba 404). Se creó calcando el logo del sidebar (degradado `#6366F1→#8B5CF6` + ícono Sparkles); de ahí salen los PNG 192, 512, maskable 512 y apple-touch 180.
+- **`theme_color` = `#0A0A0F`** (`--bg-base` del tema oscuro, que es el de por defecto) para que la barra del sistema y la pantalla de arranque no den fogonazo blanco.
+- **Supabase:** `/auth/*` va siempre `NetworkOnly` (tokens y sesión jamás en caché). Lecturas REST/Storage (solo GET) en `NetworkFirst` — la copia guardada solo se usa sin conexión. **Al cerrar sesión se borra esa caché** (`src/pwa/limpiarCacheAlSalir.ts`), para que en un equipo compartido nadie vea sin conexión los datos de otra cuenta.
+- `/api/*` excluido del fallback del service worker (las funciones de Vercel nunca reciben el `index.html`).
+- **Costo conocido:** el service worker precarga todos los chunks (~4,7 MB, incluidos jsPDF/xlsx) en segundo plano tras la primera visita. No frena la carga inicial (sigue siendo bajo demanda), pero sí gasta datos una vez por deploy en los archivos que cambiaron.
+
+**Corregido tras la revisión de Codex en el PR #2 (19-nov):**
+- **Privacidad:** borrar la caché solo al cerrar sesión no bastaba. Si alguien entraba con otra cuenta sin cerrar la anterior, la misma URL (con filas distintas por RLS, privadas incluidas) podía devolver la copia de la cuenta anterior estando sin conexión. Ahora **la llave de caché lleva el usuario** (`sub` del token de Supabase) y sin usuario no se guarda nada. Probado con dos usuarios ficticios: sin conexión, B no recibe nunca la copia de A.
+- **Actualización:** faltaba `registerSW` (`virtual:pwa-register`). Sin él, una pestaña abierta seguía pidiendo chunks del deploy viejo, ya borrados. Ahora la pestaña se recarga sola cuando llega la versión nueva (probado simulando un deploy). Como el navegador busca versiones al abrir la app, la recarga ocurre al principio y no a mitad de una edición.
+
+**Verificación:** Lighthouse 11.7.1 (la última versión con categoría PWA — Google la eliminó en la v12) → **PWA 100%**. En navegador: service worker activo, controla la página, y `/tareas` abre sin conexión.
+
+---
+
 ## 2026-10-22 — Contenidos: bug de producción real + drag-and-drop + automatización vía Cerebro Alejo + selección múltiple
 
 Sesión larga de seguimiento al rediseño del 21-oct, con un bug de producción real en el medio.

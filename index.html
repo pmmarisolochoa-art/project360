@@ -3,8 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ikigai Agencia</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- PWA: color de la barra del sistema (= --bg-base del tema oscuro) -->
+    <meta name="theme-color" content="#0A0A0F" />
+    <meta name="description" content="Project360 — sistema operativo de agencia." />
+    <!-- iOS: Safari no lee el manifest para esto, necesita sus propias etiquetas -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" sizes="180x180" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Project360" />
+    <title>Project360</title>
     <script>
       // Aplica el theme antes del primer paint para evitar flash blanco/negro.
       try {

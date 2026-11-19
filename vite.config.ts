@@ -62,6 +62,43 @@ export default defineConfig({
               networkTimeoutSeconds: 10,
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [200] },
+              plugins: [
+                {
+                  // PRIVACIDAD: la misma URL devuelve filas distintas según
+                  // quién pregunta (RLS: privadas, asignaciones). Por eso la
+                  // copia se guarda POR USUARIO: la llave de caché lleva el
+                  // `sub` del token de Supabase. Así, aunque alguien entre con
+                  // otra cuenta sin cerrar sesión, jamás recibe la copia de
+                  // la cuenta anterior. Sin usuario identificable → no se
+                  // guarda nada.
+                  // OJO: workbox copia esta función tal cual dentro de sw.js,
+                  // así que no puede usar nada de fuera de ella.
+                  cacheKeyWillBeUsed: async ({ request }) => {
+                    let uid = '';
+                    try {
+                      const auth = request.headers.get('Authorization') || '';
+                      const payload = auth.replace(/^Bearer\s+/i, '').split('.')[1] || '';
+                      const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+                      uid = JSON.parse(json).sub || '';
+                    } catch {
+                      uid = '';
+                    }
+                    const url = new URL(request.url);
+                    url.searchParams.set('__p360_uid', uid || 'sin-usuario');
+                    return url.href;
+                  },
+                  cacheWillUpdate: async ({ request, response }) => {
+                    const auth = request.headers.get('Authorization') || '';
+                    try {
+                      const payload = auth.replace(/^Bearer\s+/i, '').split('.')[1] || '';
+                      const sub = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))).sub;
+                      return sub ? response : null;
+                    } catch {
+                      return null;
+                    }
+                  },
+                },
+              ],
             },
           },
           {

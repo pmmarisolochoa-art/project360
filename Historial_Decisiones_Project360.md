@@ -15,6 +15,10 @@
 - `/api/*` excluido del fallback del service worker (las funciones de Vercel nunca reciben el `index.html`).
 - **Costo conocido:** el service worker precarga todos los chunks (~4,7 MB, incluidos jsPDF/xlsx) en segundo plano tras la primera visita. No frena la carga inicial (sigue siendo bajo demanda), pero sí gasta datos una vez por deploy en los archivos que cambiaron.
 
+**Corregido tras la revisión de Codex en el PR #2 (19-nov):**
+- **Privacidad:** borrar la caché solo al cerrar sesión no bastaba. Si alguien entraba con otra cuenta sin cerrar la anterior, la misma URL (con filas distintas por RLS, privadas incluidas) podía devolver la copia de la cuenta anterior estando sin conexión. Ahora **la llave de caché lleva el usuario** (`sub` del token de Supabase) y sin usuario no se guarda nada. Probado con dos usuarios ficticios: sin conexión, B no recibe nunca la copia de A.
+- **Actualización:** faltaba `registerSW` (`virtual:pwa-register`). Sin él, una pestaña abierta seguía pidiendo chunks del deploy viejo, ya borrados. Ahora la pestaña se recarga sola cuando llega la versión nueva (probado simulando un deploy). Como el navegador busca versiones al abrir la app, la recarga ocurre al principio y no a mitad de una edición.
+
 **Verificación:** Lighthouse 11.7.1 (la última versión con categoría PWA — Google la eliminó en la v12) → **PWA 100%**. En navegador: service worker activo, controla la página, y `/tareas` abre sin conexión.
 
 ---

@@ -45,7 +45,7 @@ try {
           }};
         ` };
         const names = path === './taskLinks' ? ['TaskLinksRepo'] :
-          ['ContentRepo','ProjectionsRepo','RopreRepo','TeamRepo','TeamMembersRepo','ProgramsRepo','FunnelLaunchRepo','LeadsRepo','LeadEventsRepo'];
+          ['ContentRepo','ProjectionsRepo','RopreRepo','TeamRepo','TeamMembersRepo','ProgramsRepo','FunnelLaunchRepo','LeadsRepo','LeadEventsRepo','FinanzasRepo'];
         return { contents: `
           export const rowToClient = r=>r, rowToTask = r=>r, rowToMeeting = r=>r;
           ${names.map(n => `export const ${n} = {listByClientIds: async()=> ${n === 'FunnelLaunchRepo' ? '({funnels:[],phases:[]})' : n === 'ProjectionsRepo' ? '({})' : 'globalThis.__p360Test.repo()'}};`).join('\n')}

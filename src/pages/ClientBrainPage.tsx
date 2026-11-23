@@ -16,6 +16,7 @@ import { TeamModule } from '@/components/brain/modules/TeamModule';
 import { ProjectionsModule } from '@/components/brain/modules/ProjectionsModule';
 import { ProgramsModule } from '@/components/brain/modules/ProgramsModule';
 import { VentasModule } from '@/components/brain/modules/VentasModule';
+import { FinanzasModule } from '@/components/brain/modules/FinanzasModule';
 import { AgentPanel } from '@/components/agent/AgentPanel';
 import { useClientMode } from '@/hooks/useClientMode';
 
@@ -181,6 +182,8 @@ export function ClientBrainPage() {
           <MeetingsModule client={client} readOnly={isMember} />
         ) : module === 'ventas' ? (
           <VentasModule client={client} readOnly={isMember && !canEditTasks} />
+        ) : module === 'finanzas' ? (
+          <FinanzasModule client={client} readOnly={isMember && !canEditTasks} />
         ) : (
           <PlaceholderModule
             title={`${moduleDef.index.toString().padStart(2, '0')} · ${moduleDef.fullLabel}`}

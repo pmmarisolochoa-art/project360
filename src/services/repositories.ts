@@ -10,6 +10,7 @@ import type { TeamMember } from '@/types/teamMember';
 import type { TeamRoleSlug } from '@/types/team';
 import type { Program } from '@/types/program';
 import type { Lead, LeadEvent, LeadStage } from '@/types/lead';
+import type { FinanzasMensual } from '@/types/finanzas';
 import { seedClients, seedMeetings, seedTasks } from '@/data/seed';
 import { useRopreStore } from '@/store/useRopreStore';
 
@@ -1110,4 +1111,64 @@ function rowToTeam(row: Record<string, unknown>): TeamAssignmentRow {
     weeklyAchievements: r.weekly_achievements ?? '',
     kpiValues: r.kpi_values ?? {},
   };
+}
+
+/* ─────────────── FINANZAS MENSUAL ─────────────── */
+
+export const FinanzasRepo = {
+  /**
+   * Nunca lanza: vive dentro del `Promise.all` grande del bootstrap junto a
+   * clientes/tareas/reuniones — si la tabla `finanzas_mensual` todavía no
+   * existe en este entorno (migración 065 sin correr), un `throw` aquí tumba
+   * TODA la hidratación y el dashboard muestra "0 clientes" sin que se haya
+   * borrado nada (visto en vivo, 13-nov-2026). Mejor degradar: Finanzas
+   * llega vacío, el resto de la app sigue viva.
+   */
+  async listByClientIds(clientIds: string[]): Promise<FinanzasMensual[]> {
+    if (!usingRemote || !supabase || clientIds.length === 0) return [];
+    const { data, error } = await supabase.from('finanzas_mensual').select('*').in('client_id', clientIds);
+    if (error) {
+      console.warn('[FinanzasRepo] no se pudo cargar finanzas_mensual — ¿falta correr la migración 065?', error);
+      return [];
+    }
+    return (data ?? []).map(rowToFinanzas);
+  },
+  async create(f: FinanzasMensual): Promise<FinanzasMensual> {
+    if (!usingRemote || !supabase) return f;
+    const { data, error } = await supabase.from('finanzas_mensual').insert(finanzasToRow(f)).select().single();
+    if (error) throw error;
+    return rowToFinanzas(data);
+  },
+  async update(id: string, patch: Partial<FinanzasMensual>): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('finanzas_mensual').update(finanzasToRow(patch as FinanzasMensual, true)).eq('id', id);
+    if (error) throw error;
+  },
+};
+
+function rowToFinanzas(row: Record<string, unknown>): FinanzasMensual {
+  const r = row as any;
+  return {
+    id: r.id,
+    clientId: r.client_id,
+    periodo: r.periodo,
+    gastosAds: r.gastos_ads ?? 0,
+    gastosOtros: r.gastos_otros ?? 0,
+    metaIngresos: r.meta_ingresos ?? null,
+    notas: r.notas ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function finanzasToRow(f: Partial<FinanzasMensual>, partial = false): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (!partial || f.id !== undefined) row.id = f.id;
+  if (!partial || f.clientId !== undefined) row.client_id = f.clientId;
+  if (!partial || f.periodo !== undefined) row.periodo = f.periodo;
+  if (!partial || f.gastosAds !== undefined) row.gastos_ads = f.gastosAds ?? 0;
+  if (!partial || f.gastosOtros !== undefined) row.gastos_otros = f.gastosOtros ?? 0;
+  if (!partial || f.metaIngresos !== undefined) row.meta_ingresos = f.metaIngresos ?? null;
+  if (!partial || f.notas !== undefined) row.notas = f.notas ?? null;
+  return row;
 }

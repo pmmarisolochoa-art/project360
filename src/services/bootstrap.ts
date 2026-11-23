@@ -10,7 +10,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { useLinksStore } from '@/store/useLinksStore';
 import { useLeadsStore } from '@/store/useLeadsStore';
-import { rowToClient, rowToTask, rowToMeeting, ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo, LeadsRepo, LeadEventsRepo } from './repositories';
+import { useFinanzasStore } from '@/store/useFinanzasStore';
+import { rowToClient, rowToTask, rowToMeeting, ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo, LeadsRepo, LeadEventsRepo, FinanzasRepo } from './repositories';
 import { TaskLinksRepo } from './taskLinks';
 import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
@@ -40,6 +41,7 @@ function clearRemoteData(): void {
   useFunnelLaunchStore.setState({ funnels: [], phases: [] });
   useLinksStore.getState().hydrate([]);
   useLeadsStore.getState().hydrate([], []);
+  useFinanzasStore.getState().hydrate([]);
 }
 
 /**
@@ -164,7 +166,7 @@ async function runBootstrap(version: number): Promise<BootstrapResult> {
     if (clients.length > 0) {
 
       // Hidratar content_pieces y projections en paralelo
-      const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData, links, leads, leadEvents] = await Promise.all([
+      const [contentPieces, projections, ropre, teamAssignments, teamMembers, programs, funnelData, links, leads, leadEvents, finanzas] = await Promise.all([
         ContentRepo.listByClientIds(clientIds),
         ProjectionsRepo.listByClientIds(clientIds),
         RopreRepo.listByClientIds(clientIds),
@@ -175,6 +177,7 @@ async function runBootstrap(version: number): Promise<BootstrapResult> {
         TaskLinksRepo.listByClientIds(clientIds),
         LeadsRepo.listByClientIds(clientIds),
         LeadEventsRepo.listByClientIds(clientIds),
+        FinanzasRepo.listByClientIds(clientIds),
       ]);
       if (version !== sessionVersion) return { source: 'remote' };
       useContentStore.setState({ pieces: contentPieces });
@@ -186,6 +189,7 @@ async function runBootstrap(version: number): Promise<BootstrapResult> {
       useFunnelLaunchStore.setState({ funnels: funnelData.funnels, phases: funnelData.phases });
       useLinksStore.getState().hydrate(links);
       useLeadsStore.getState().hydrate(leads, leadEvents);
+      useFinanzasStore.getState().hydrate(finanzas);
       // Se detalla cuántos son Espacio de Agencia: sin ese dato, un problema
       // de "no aparece la opción Personal" obliga a adivinar si el cliente no
       // llegó o si llegó sin su marca. Con esto se distingue de un vistazo.

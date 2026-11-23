@@ -154,7 +154,14 @@ export function FinanzasModule({ client, readOnly = false }: { client: Client; r
         </header>
 
         <MesEditor
-          key={periodo}
+          // El id entra en la key a propósito: el bootstrap hidrata los
+          // registros de forma asíncrona, así que al abrir la página
+          // `registroMes` pasa de undefined a definido DESPUÉS del primer
+          // render. Si la key solo fuera `periodo`, MesEditor ya habría
+          // fijado sus inputs en vacío y nunca se enteraría de que llegó el
+          // registro real (visto en vivo, 23-nov-2026: el historial sí leía
+          // el gasto guardado pero los campos de arriba volvían en blanco).
+          key={`${periodo}:${registroMes?.id ?? 'nuevo'}`}
           client={client}
           periodo={periodo}
           registroMes={registroMes}

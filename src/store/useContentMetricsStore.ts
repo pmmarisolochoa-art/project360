@@ -10,6 +10,14 @@ interface ContentMetricsState {
   addMany: (snapshots: ContentMetricSnapshot[]) => void;
   add: (snapshot: ContentMetricSnapshot) => void;
   remove: (id: string) => void;
+  /**
+   * ⚠️ NUNCA llamar como selector de un componente —
+   * `useContentMetricsStore((s) => s.byPiece(id))` crea un arreglo nuevo en
+   * cada render y produce "Maximum update depth exceeded" (visto en vivo,
+   * 24-nov-2026). En un componente: seleccionar `s.snapshots` (referencia
+   * estable) y filtrar aparte con `useMemo`. Usar `byPiece`/`latestByFrame`
+   * solo fuera de render (imperativo, vía `getState()`).
+   */
   byPiece: (contentPieceId: string) => ContentMetricSnapshot[];
   /** Última lectura por frame de una pieza (frame 0 = post/reel/carrusel/video). */
   latestByFrame: (contentPieceId: string) => Record<number, ContentMetricSnapshot>;

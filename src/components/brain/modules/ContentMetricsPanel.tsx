@@ -72,10 +72,24 @@ export function ContentMetricsPanel({
   accent: string;
   readOnly?: boolean;
 }) {
-  const snapshots = useContentMetricsStore((s) => s.byPiece(piece.id));
+  // OJO: el selector de zustand debe devolver SIEMPRE la misma referencia
+  // mientras el store no cambie — `.byPiece()`/`.filter()` dentro del
+  // selector crean un arreglo nuevo en cada render y provocan un loop
+  // infinito ("Maximum update depth exceeded"). Se selecciona el arreglo
+  // crudo (referencia estable) y se filtra/ordena aparte, con useMemo.
+  const allSnapshots = useContentMetricsStore((s) => s.snapshots);
   const addSnapshot = useContentMetricsStore((s) => s.add);
   const removeSnapshot = useContentMetricsStore((s) => s.remove);
-  const leadsAtribuidos = useLeadsStore((s) => s.leads.filter((l) => l.originContentPieceId === piece.id));
+  const allLeads = useLeadsStore((s) => s.leads);
+
+  const snapshots = useMemo(
+    () => allSnapshots.filter((m) => m.contentPieceId === piece.id).sort((a, b) => a.capturedAt.localeCompare(b.capturedAt)),
+    [allSnapshots, piece.id],
+  );
+  const leadsAtribuidos = useMemo(
+    () => allLeads.filter((l) => l.originContentPieceId === piece.id),
+    [allLeads, piece.id],
+  );
 
   // Se mide por RESULTADOS, no por volumen (founder, 24-nov-2026):
   // - DM: TODO lo que ManyChat capturó con la palabra clave de esta pieza.

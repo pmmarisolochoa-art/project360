@@ -83,6 +83,13 @@ export interface ContentPiece {
   createdBy?: string;
   approvedBy?: string;
   createdAt: string;
+  /**
+   * Palabra clave de ManyChat (migración 067, 24-nov-2026) — cuando alguien
+   * comenta/escribe esta palabra, el webhook de ManyChat atribuye el lead a
+   * ESTA pieza automáticamente (sin selección manual). Única por cliente,
+   * sin importar mayúsculas (lo exige un índice en la base).
+   */
+  manychatKeyword?: string;
 }
 
 export const CONTENT_STATUS_META: Record<
@@ -157,6 +164,12 @@ export interface ContentMetricSnapshot {
   replies?: number;
   tapsForward?: number;
   tapsBack?: number;
+  /**
+   * Pauta invertida si esta pieza orgánica además se impulsó (boost) —
+   * manual, opcional (migración 067). ROAS se calcula en la UI, no se
+   * guarda: facturado atribuido / adSpend.
+   */
+  adSpend?: number;
   createdBy?: string;
   createdAt: string;
 }

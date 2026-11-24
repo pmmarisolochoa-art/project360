@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { TrendingUp, Plus, Trash2, Users, Gauge } from 'lucide-react';
+import { TrendingUp, Plus, Trash2, Users, Gauge, DollarSign } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { ContentPiece } from '@/types/content';
 import { RETENTION_FORMATS } from '@/types/content';
 import { useContentMetricsStore } from '@/store/useContentMetricsStore';
 import { useLeadsStore } from '@/store/useLeadsStore';
+import { totalCobradoLead } from '@/utils/ventas';
 import { withAlpha } from '@/utils/colorGenerator';
 import { genId } from '@/utils/id';
 
@@ -27,7 +28,8 @@ type FieldKey =
   | 'reach' | 'impressions' | 'likes' | 'comments' | 'shares' | 'saves'
   | 'profileVisits' | 'bioLinkClicks' | 'follows'
   | 'videoDurationSeconds' | 'avgWatchTimeSeconds'
-  | 'exits' | 'replies' | 'tapsForward' | 'tapsBack';
+  | 'exits' | 'replies' | 'tapsForward' | 'tapsBack'
+  | 'adSpend';
 
 const COMMON_FIELDS: { key: FieldKey; label: string }[] = [
   { key: 'reach', label: 'Alcance' },
@@ -39,6 +41,7 @@ const COMMON_FIELDS: { key: FieldKey; label: string }[] = [
   { key: 'profileVisits', label: 'Visitas al perfil' },
   { key: 'bioLinkClicks', label: 'Toques al link' },
   { key: 'follows', label: 'Seguidores nuevos' },
+  { key: 'adSpend', label: 'Pauta invertida (si se impulsó)' },
 ];
 
 const VIDEO_FIELDS: { key: FieldKey; label: string }[] = [
@@ -72,7 +75,25 @@ export function ContentMetricsPanel({
   const snapshots = useContentMetricsStore((s) => s.byPiece(piece.id));
   const addSnapshot = useContentMetricsStore((s) => s.add);
   const removeSnapshot = useContentMetricsStore((s) => s.remove);
-  const leadsCount = useLeadsStore((s) => s.leads.filter((l) => l.originContentPieceId === piece.id).length);
+  const leadsAtribuidos = useLeadsStore((s) => s.leads.filter((l) => l.originContentPieceId === piece.id));
+
+  // Se mide por RESULTADOS, no por volumen (founder, 24-nov-2026):
+  // - DM: TODO lo que ManyChat capturó con la palabra clave de esta pieza.
+  // - Leads calificados: de esos, los que avanzaron más allá de "nuevo" sin
+  //   descartarse — un filtro intencionalmente más estricto que "DM".
+  // - Ventas / Facturado: leads en etapa 'ganado' atribuidos a esta pieza.
+  const dmCount = leadsAtribuidos.length;
+  const leadsCalificados = leadsAtribuidos.filter((l) => l.etapa !== 'nuevo' && l.etapa !== 'no_calificado');
+  const ventas = leadsAtribuidos.filter((l) => l.etapa === 'ganado');
+  const facturado = ventas.reduce((sum, l) => sum + totalCobradoLead(l), 0);
+  const conScore = leadsAtribuidos.filter((l) => typeof l.score === 'number');
+  const scorePromedio = conScore.length > 0
+    ? Math.round(conScore.reduce((sum, l) => sum + (l.score ?? 0), 0) / conScore.length)
+    : null;
+  const calidadLabel = scorePromedio === null ? null : scorePromedio >= 70 ? 'Alta' : scorePromedio >= 40 ? 'Media' : 'Baja';
+
+  const adSpend = [...snapshots].reverse().find((s) => s.frameIndex === 0 && s.adSpend)?.adSpend;
+  const roas = adSpend && adSpend > 0 ? facturado / adSpend : null;
 
   const isStory = piece.format === 'story';
   const isVideo = RETENTION_FORMATS.includes(piece.format);
@@ -94,12 +115,32 @@ export function ContentMetricsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-[10px] border border-border-subtle bg-bg-base/30 px-3 py-2.5">
-        <div className="flex items-center gap-2 text-sm text-text-secondary">
+      <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3">
+        <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2.5">
           <Users className="h-4 w-4" style={{ color: accent }} />
-          Leads atribuidos a esta pieza
+          Resultados (no cantidad)
         </div>
-        <span className="font-bold text-text-primary">{leadsCount}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <ResultTile label="DM (ManyChat)" value={String(dmCount)} />
+          <ResultTile label="Leads calificados" value={String(leadsCalificados.length)} />
+          <ResultTile label="Ventas" value={String(ventas.length)} tone={ventas.length > 0 ? 'good' : undefined} />
+          <ResultTile label="Facturado" value={facturado > 0 ? `$${facturado.toLocaleString('es-CO')}` : '—'} tone={facturado > 0 ? 'good' : undefined} />
+        </div>
+        {(calidadLabel || roas !== null) && (
+          <div className="flex items-center gap-4 mt-2.5 pt-2.5 border-t border-border-subtle text-[11px] text-text-secondary">
+            {calidadLabel && <span>Calidad: <strong className="text-text-primary">{calidadLabel} · {scorePromedio}</strong></span>}
+            {roas !== null && (
+              <span className="inline-flex items-center gap-1">
+                <DollarSign className="h-3 w-3" /> ROAS: <strong className="text-text-primary">{roas.toFixed(1)}x</strong>
+              </span>
+            )}
+          </div>
+        )}
+        {!piece.manychatKeyword && (
+          <div className="text-[11px] text-status-warning mt-2.5">
+            Sin palabra de ManyChat asignada — el DM/Lead solo se atribuirá si alguien lo marca a mano en Ventas.
+          </div>
+        )}
       </div>
 
       {allFrames.map((frameIndex) => (
@@ -125,6 +166,17 @@ export function ContentMetricsPanel({
           <Plus className="h-3.5 w-3.5" /> Agregar frame de la historia
         </button>
       )}
+    </div>
+  );
+}
+
+function ResultTile({ label, value, tone }: { label: string; value: string; tone?: 'good' }) {
+  return (
+    <div className="rounded-[8px] bg-bg-surface px-2.5 py-2">
+      <div className="text-[10px] text-text-muted mb-0.5">{label}</div>
+      <div className={tone === 'good' ? 'text-sm font-bold text-status-success' : 'text-sm font-bold text-text-primary'}>
+        {value}
+      </div>
     </div>
   );
 }

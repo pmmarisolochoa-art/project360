@@ -7,8 +7,10 @@ import {
 } from 'lucide-react';
 import { ImportarContenidoCSVModal } from './ImportarContenidoCSVModal';
 import { ContentMetricsPanel } from './ContentMetricsPanel';
+import { ContentResultsTab } from './ContentResultsTab';
+import { DIAS_ATASCADA, ESTADOS_ABIERTOS, diasEnPipeline, estaAtascada } from '@/utils/contentPipeline';
 import {
-  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, differenceInDays,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
   format, parseISO, isSameMonth, isToday, addMonths, subMonths,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -30,25 +32,13 @@ import { withAlpha } from '@/utils/colorGenerator';
 import { cn } from '@/utils/cn';
 import { genId } from '@/utils/id';
 
-/** Piezas "vivas" — todavía no llegaron a su destino final del pipeline. */
-const ESTADOS_ABIERTOS: ContentStatus[] = ['not_started', 'recording', 'editing', 'review', 'sent_to_client', 'rejected', 'approved'];
-const DIAS_ATASCADA = 7;
-
-function diasEnPipeline(piece: ContentPiece): number {
-  return differenceInDays(new Date(), parseISO(piece.createdAt));
-}
-
-function estaAtascada(piece: ContentPiece): boolean {
-  return ESTADOS_ABIERTOS.includes(piece.status) && diasEnPipeline(piece) >= DIAS_ATASCADA;
-}
-
 export function ContentModule({ client, readOnly = false }: { client: Client; readOnly?: boolean }) {
   const allPieces = useContentStore((s) => s.pieces);
   const pieces = useMemo(
     () => allPieces.filter((p) => p.clientId === client.id),
     [allPieces, client.id],
   );
-  const [tab, setTab] = useState<'pipeline' | 'kpis'>('pipeline');
+  const [tab, setTab] = useState<'pipeline' | 'resultados' | 'kpis'>('resultados');
   const [view, setView] = useState<'kanban' | 'calendar'>('calendar');
   const [editing, setEditing] = useState<ContentPiece | null>(null);
   const [creating, setCreating] = useState<{ date: Date } | null>(null);
@@ -119,14 +109,14 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="inline-flex rounded-[10px] border border-border-default bg-bg-surface p-1">
-          {(['pipeline', 'kpis'] as const).map((t) => (
+          {(['resultados', 'pipeline', 'kpis'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className="text-[12px] font-semibold rounded-[7px] px-3.5 py-1.5 transition-colors"
               style={tab === t ? { background: withAlpha(accent, 0.16), color: accent } : { color: 'var(--text-secondary)' }}
             >
-              {t === 'pipeline' ? 'Pipeline' : 'KPIs'}
+              {t === 'resultados' ? 'Resultados' : t === 'pipeline' ? 'Pipeline' : 'KPIs'}
             </button>
           ))}
         </div>
@@ -208,6 +198,8 @@ export function ContentModule({ client, readOnly = false }: { client: Client; re
             />
           )}
         </>
+      ) : tab === 'resultados' ? (
+        <ContentResultsTab pieces={pieces} accent={accent} onOpen={setEditing} />
       ) : (
         <ContentKpisTab pieces={pieces} accent={accent} />
       )}
@@ -842,11 +834,22 @@ function ContentDrawer({
     piece ?? buildEmpty(client.id, createAt ?? new Date()),
   );
   const [loading, setLoading] = useState(false);
+  const allPiecesForKeywordCheck = useContentStore((s) => s.pieces);
 
   const save = () => {
     if (!draft.title.trim()) {
       toast.error('El título es requerido.');
       return;
+    }
+    const keyword = draft.manychatKeyword?.trim().toLowerCase();
+    if (keyword) {
+      const duplicada = allPiecesForKeywordCheck.find(
+        (p) => p.id !== draft.id && p.clientId === client.id && p.manychatKeyword?.trim().toLowerCase() === keyword,
+      );
+      if (duplicada) {
+        toast.error(`La palabra "${draft.manychatKeyword}" ya está asignada a "${duplicada.title}". Usa una distinta.`);
+        return;
+      }
     }
     if (isNew) {
       add(draft);
@@ -987,6 +990,17 @@ function ContentDrawer({
             ]}
             disabled={readOnly}
           />
+
+          {(draft.ctaType === 'comment_info' || draft.ctaType === 'dm_keyword') && (
+            <Input
+              label="Palabra clave de ManyChat"
+              value={draft.manychatKeyword ?? ''}
+              onChange={(e) => setDraft({ ...draft, manychatKeyword: e.target.value || undefined })}
+              placeholder="Ej: TRADING"
+              hint="Cuando alguien escriba esta palabra en ManyChat, el lead se atribuye solo a esta pieza. Única por cliente."
+              disabled={readOnly}
+            />
+          )}
 
           <SectionLabel>Contenido</SectionLabel>
           {/* Botón generar IA — produce script + caption en una sola llamada */}

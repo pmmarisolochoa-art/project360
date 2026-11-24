@@ -1070,6 +1070,7 @@ function rowToContent(row: Record<string, unknown>): ContentPiece {
     createdBy: r.created_by ?? undefined,
     approvedBy: r.approved_by ?? undefined,
     createdAt: r.created_at,
+    manychatKeyword: r.manychat_keyword ?? undefined,
   };
 }
 
@@ -1100,6 +1101,7 @@ function contentToRow(c: Partial<ContentPiece>, partial = false): Record<string,
     createdBy: 'created_by',
     approvedBy: 'approved_by',
     createdAt: 'created_at',
+    manychatKeyword: 'manychat_keyword',
   };
   const row: Record<string, unknown> = {};
   for (const key of Object.keys(c) as Array<keyof ContentPiece>) {
@@ -1132,6 +1134,7 @@ function rowToContentMetric(row: Record<string, unknown>): ContentMetricSnapshot
     replies: r.replies ?? undefined,
     tapsForward: r.taps_forward ?? undefined,
     tapsBack: r.taps_back ?? undefined,
+    adSpend: r.ad_spend ?? undefined,
     createdBy: r.created_by ?? undefined,
     createdAt: r.created_at,
   };
@@ -1159,6 +1162,7 @@ function contentMetricToRow(s: Partial<ContentMetricSnapshot>, partial = false):
     replies: 'replies',
     tapsForward: 'taps_forward',
     tapsBack: 'taps_back',
+    adSpend: 'ad_spend',
     createdBy: 'created_by',
     createdAt: 'created_at',
   };

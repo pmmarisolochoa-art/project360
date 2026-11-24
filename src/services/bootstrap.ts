@@ -11,7 +11,8 @@ import { useFunnelLaunchStore } from '@/store/useFunnelLaunchStore';
 import { useLinksStore } from '@/store/useLinksStore';
 import { useLeadsStore } from '@/store/useLeadsStore';
 import { useFinanzasStore } from '@/store/useFinanzasStore';
-import { rowToClient, rowToTask, rowToMeeting, ContentRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo, LeadsRepo, LeadEventsRepo, FinanzasRepo } from './repositories';
+import { useContentMetricsStore } from '@/store/useContentMetricsStore';
+import { rowToClient, rowToTask, rowToMeeting, ContentRepo, ContentMetricsRepo, ProjectionsRepo, RopreRepo, TeamRepo, TeamMembersRepo, ProgramsRepo, FunnelLaunchRepo, LeadsRepo, LeadEventsRepo, FinanzasRepo } from './repositories';
 import { TaskLinksRepo } from './taskLinks';
 import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
@@ -181,6 +182,15 @@ async function runBootstrap(version: number): Promise<BootstrapResult> {
       ]);
       if (version !== sessionVersion) return { source: 'remote' };
       useContentStore.setState({ pieces: contentPieces });
+      // Métricas de contenido: no bloquean la hidratación principal — se
+      // cargan aparte y se sincronizan cuando lleguen.
+      if (contentPieces.length > 0) {
+        void ContentMetricsRepo.listByPieceIds(contentPieces.map((p) => p.id))
+          .then((snapshots) => {
+            if (version === sessionVersion) useContentMetricsStore.setState({ snapshots });
+          })
+          .catch((err) => console.warn('[bootstrap] No se pudieron cargar métricas de contenido:', err));
+      }
       useProjectionStore.setState({ states: projections });
       useRopreStore.setState({ items: ropre });
       useTeamStore.setState({ assignments: teamAssignments as never });

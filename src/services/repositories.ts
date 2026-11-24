@@ -3,7 +3,7 @@ import type { Client } from '@/types/client';
 import type { Task } from '@/types/task';
 import type { Meeting } from '@/types/meeting';
 import type { RopreItem } from '@/types/ropre';
-import type { ContentPiece } from '@/types/content';
+import type { ContentPiece, ContentMetricSnapshot } from '@/types/content';
 import type { ProjectionState } from '@/types/projection';
 import type { Funnel, FunnelPhase } from '@/types/funnel';
 import type { TeamMember } from '@/types/teamMember';
@@ -220,6 +220,7 @@ function rowToLead(row: Record<string, unknown>): Lead {
     closerComisionPct: r.closer_comision_pct ?? undefined,
     lostReason: r.lost_reason ?? undefined,
     externalId: r.external_id ?? undefined,
+    originContentPieceId: r.origin_content_piece_id ?? undefined,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     closedAt: r.closed_at ?? undefined,
@@ -268,6 +269,7 @@ function leadToRow(l: Partial<Lead>, partial = false): Record<string, unknown> {
     closerComisionPct: 'closer_comision_pct',
     lostReason: 'lost_reason',
     externalId: 'external_id',
+    originContentPieceId: 'origin_content_piece_id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     closedAt: 'closed_at',
@@ -545,6 +547,46 @@ export const ContentRepo = {
   async remove(id: string): Promise<void> {
     if (!usingRemote || !supabase) return;
     const { error } = await supabase.from('content_pieces').delete().eq('id', id);
+    if (error) throw error;
+  },
+};
+
+/* ─────────────── CONTENT PIECE METRICS (serie de tiempo) ─────────────── */
+
+export const ContentMetricsRepo = {
+  async listByPiece(contentPieceId: string): Promise<ContentMetricSnapshot[]> {
+    if (!usingRemote || !supabase) return [];
+    const { data, error } = await supabase
+      .from('content_piece_metrics')
+      .select('*')
+      .eq('content_piece_id', contentPieceId)
+      .order('captured_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map(rowToContentMetric);
+  },
+  async listByPieceIds(contentPieceIds: string[]): Promise<ContentMetricSnapshot[]> {
+    if (!usingRemote || !supabase || contentPieceIds.length === 0) return [];
+    const { data, error } = await supabase
+      .from('content_piece_metrics')
+      .select('*')
+      .in('content_piece_id', contentPieceIds)
+      .order('captured_at', { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map(rowToContentMetric);
+  },
+  async create(snapshot: ContentMetricSnapshot): Promise<ContentMetricSnapshot> {
+    if (!usingRemote || !supabase) return snapshot;
+    const { data, error } = await supabase
+      .from('content_piece_metrics')
+      .insert(contentMetricToRow(snapshot))
+      .select()
+      .single();
+    if (error) throw error;
+    return rowToContentMetric(data);
+  },
+  async remove(id: string): Promise<void> {
+    if (!usingRemote || !supabase) return;
+    const { error } = await supabase.from('content_piece_metrics').delete().eq('id', id);
     if (error) throw error;
   },
 };
@@ -1063,6 +1105,67 @@ function contentToRow(c: Partial<ContentPiece>, partial = false): Record<string,
   for (const key of Object.keys(c) as Array<keyof ContentPiece>) {
     if (partial && c[key] === undefined) continue;
     row[map[key]] = c[key];
+  }
+  return row;
+}
+
+function rowToContentMetric(row: Record<string, unknown>): ContentMetricSnapshot {
+  const r = row as any;
+  return {
+    id: r.id,
+    contentPieceId: r.content_piece_id,
+    frameIndex: r.frame_index ?? 0,
+    capturedAt: r.captured_at,
+    source: r.source,
+    reach: r.reach ?? undefined,
+    impressions: r.impressions ?? undefined,
+    likes: r.likes ?? undefined,
+    comments: r.comments ?? undefined,
+    shares: r.shares ?? undefined,
+    saves: r.saves ?? undefined,
+    profileVisits: r.profile_visits ?? undefined,
+    bioLinkClicks: r.bio_link_clicks ?? undefined,
+    follows: r.follows ?? undefined,
+    videoDurationSeconds: r.video_duration_seconds ?? undefined,
+    avgWatchTimeSeconds: r.avg_watch_time_seconds ?? undefined,
+    exits: r.exits ?? undefined,
+    replies: r.replies ?? undefined,
+    tapsForward: r.taps_forward ?? undefined,
+    tapsBack: r.taps_back ?? undefined,
+    createdBy: r.created_by ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+function contentMetricToRow(s: Partial<ContentMetricSnapshot>, partial = false): Record<string, unknown> {
+  const map: Record<keyof ContentMetricSnapshot, string> = {
+    id: 'id',
+    contentPieceId: 'content_piece_id',
+    frameIndex: 'frame_index',
+    capturedAt: 'captured_at',
+    source: 'source',
+    reach: 'reach',
+    impressions: 'impressions',
+    likes: 'likes',
+    comments: 'comments',
+    shares: 'shares',
+    saves: 'saves',
+    profileVisits: 'profile_visits',
+    bioLinkClicks: 'bio_link_clicks',
+    follows: 'follows',
+    videoDurationSeconds: 'video_duration_seconds',
+    avgWatchTimeSeconds: 'avg_watch_time_seconds',
+    exits: 'exits',
+    replies: 'replies',
+    tapsForward: 'taps_forward',
+    tapsBack: 'taps_back',
+    createdBy: 'created_by',
+    createdAt: 'created_at',
+  };
+  const row: Record<string, unknown> = {};
+  for (const key of Object.keys(s) as Array<keyof ContentMetricSnapshot>) {
+    if (partial && s[key] === undefined) continue;
+    row[map[key]] = s[key];
   }
   return row;
 }

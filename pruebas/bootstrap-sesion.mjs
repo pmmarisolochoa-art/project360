@@ -45,10 +45,12 @@ try {
           }};
         ` };
         const names = path === './taskLinks' ? ['TaskLinksRepo'] :
-          ['ContentRepo','ProjectionsRepo','RopreRepo','TeamRepo','TeamMembersRepo','ProgramsRepo','FunnelLaunchRepo','LeadsRepo','LeadEventsRepo','FinanzasRepo'];
+          ['ContentRepo','ContentMetricsRepo','ProjectionsRepo','RopreRepo','TeamRepo','TeamMembersRepo','ProgramsRepo','FunnelLaunchRepo','LeadsRepo','LeadEventsRepo','FinanzasRepo'];
         return { contents: `
           export const rowToClient = r=>r, rowToTask = r=>r, rowToMeeting = r=>r;
-          ${names.map(n => `export const ${n} = {listByClientIds: async()=> ${n === 'FunnelLaunchRepo' ? '({funnels:[],phases:[]})' : n === 'ProjectionsRepo' ? '({})' : 'globalThis.__p360Test.repo()'}};`).join('\n')}
+          ${names.map(n => n === 'ContentMetricsRepo'
+            ? `export const ${n} = {listByPieceIds: async()=> []};`
+            : `export const ${n} = {listByClientIds: async()=> ${n === 'FunnelLaunchRepo' ? '({funnels:[],phases:[]})' : n === 'ProjectionsRepo' ? '({})' : 'globalThis.__p360Test.repo()'}};`).join('\n')}
         ` };
       });
     }}],

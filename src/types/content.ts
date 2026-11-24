@@ -116,3 +116,50 @@ export const FORMAT_LABEL: Record<ContentFormat, string> = {
   carousel: 'Carrusel',
   short: 'Short',
 };
+
+/**
+ * Una lectura en el tiempo de las métricas orgánicas de una pieza publicada
+ * (migración 066, 24-nov-2026). Serie de tiempo a propósito, no un solo
+ * valor: necesario para Historias (expiran en 24h) y para comparar piezas
+ * en el mismo punto de su vida, no en momentos distintos.
+ *
+ * `frameIndex` distingue cada frame de una secuencia de Historia (0 para
+ * post/reel/carrusel/video normal; 1,2,3… por cada historia de la secuencia).
+ *
+ * Límites reales de la API de Meta que este modelo respeta a propósito:
+ * - No hay retención por segmento (hook/cuerpo/CTA) — se aproxima con
+ *   avgWatchTimeSeconds / videoDurationSeconds (% agregado, no por tramo).
+ * - No hay swipe-through por slide de carrusel — solo el agregado.
+ * - `follows` SÍ es atribuible por pieza (Meta expone `profile_activity`
+ *   con breakdown FOLLOWS en Insights nativo) — no es una estimación.
+ */
+export interface ContentMetricSnapshot {
+  id: string;
+  contentPieceId: string;
+  frameIndex: number;
+  capturedAt: string;
+  source: 'manual' | 'meta_api';
+  // comunes a cualquier formato
+  reach?: number;
+  impressions?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  profileVisits?: number;
+  bioLinkClicks?: number;
+  follows?: number;
+  // solo video/reel
+  videoDurationSeconds?: number;
+  avgWatchTimeSeconds?: number;
+  // solo historia (por frame)
+  exits?: number;
+  replies?: number;
+  tapsForward?: number;
+  tapsBack?: number;
+  createdBy?: string;
+  createdAt: string;
+}
+
+/** Formatos donde aplica el proxy de retención (avg watch time / duración). */
+export const RETENTION_FORMATS: ContentFormat[] = ['reel', 'video', 'short'];

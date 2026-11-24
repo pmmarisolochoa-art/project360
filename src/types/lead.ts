@@ -95,6 +95,13 @@ export interface Lead {
   closerComisionPct?: number;
   lostReason?: string;
   externalId?: string;
+  /**
+   * Pieza de contenido de origen — cuando el lead entró por el CTA de una
+   * pieza específica (migración 066, 24-nov-2026). Contenido usa esto SOLO
+   * para contar cuántos leads apuntan a cada pieza; esta tabla sigue siendo
+   * la única fuente de verdad del lead.
+   */
+  originContentPieceId?: string;
   createdAt: string;
   updatedAt: string;
   closedAt?: string;

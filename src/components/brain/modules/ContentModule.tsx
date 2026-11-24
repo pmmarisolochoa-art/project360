@@ -6,6 +6,7 @@ import {
   ChevronLeft, ChevronRight, Magnet, Upload, ArrowRight, ChevronDown, Check,
 } from 'lucide-react';
 import { ImportarContenidoCSVModal } from './ImportarContenidoCSVModal';
+import { ContentMetricsPanel } from './ContentMetricsPanel';
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, differenceInDays,
   format, parseISO, isSameMonth, isToday, addMonths, subMonths,
@@ -1125,6 +1126,13 @@ function ContentDrawer({
             options={STATUS_FLOW.map((s) => ({ value: s, label: CONTENT_STATUS_META[s].label }))}
             disabled={readOnly}
           />
+
+          {!isNew && draft.status === 'published' && (
+            <>
+              <SectionLabel>Métricas orgánicas</SectionLabel>
+              <ContentMetricsPanel piece={piece!} accent={accent} readOnly={readOnly} />
+            </>
+          )}
 
           <SectionLabel>Extras</SectionLabel>
           <div className="rounded-[10px] border border-border-subtle bg-bg-base/30 p-3">

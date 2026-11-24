@@ -5,11 +5,12 @@ import { motion } from 'framer-motion';
 import {
   Plus, Filter, Clock, AlertTriangle, Trash2, ArrowRight, MessageSquare, Link2,
   LayoutGrid, List, GanttChartSquare, FileInput, FileOutput, Lock, FolderOpen, ChevronDown, Send, CheckCircle2,
-  CalendarDays,
+  CalendarDays, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import {
   differenceInDays, differenceInHours, format, parseISO,
   max as dateMax, min as dateMin,
+  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isToday,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Client } from '@/types/client';
@@ -182,7 +183,7 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
   const [editing, setEditing] = useState<Task | null>(null);
   const [creating, setCreating] = useState(false);
   const [sendingReminder, setSendingReminder] = useState(false);
-  const [view, setView] = useState<'kanban' | 'list' | 'gantt'>('kanban');
+  const [view, setView] = useState<'kanban' | 'list' | 'gantt' | 'calendar'>('kanban');
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<TaskStatus | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -614,6 +615,9 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
             <button onClick={() => setView('gantt')} className={cn('px-2 py-1 rounded-md text-xs inline-flex items-center gap-1', view === 'gantt' ? 'bg-bg-elevated text-text-primary' : 'text-text-secondary')}>
               <GanttChartSquare className="h-3 w-3" /> Gantt
             </button>
+            <button onClick={() => setView('calendar')} className={cn('px-2 py-1 rounded-md text-xs inline-flex items-center gap-1', view === 'calendar' ? 'bg-bg-elevated text-text-primary' : 'text-text-secondary')}>
+              <CalendarDays className="h-3 w-3" /> Calendario
+            </button>
           </div>
           {!readOnly && remindable.length > 0 && (
             <Button
@@ -783,6 +787,10 @@ export function TasksModule({ client, readOnly = false }: { client: Client | nul
 
       {tasks.length > 0 && view === 'gantt' && (
         <TasksGantt tasks={sorted} accent={accent} allTasks={tasks} onOpen={setEditing} />
+      )}
+
+      {tasks.length > 0 && view === 'calendar' && (
+        <TasksCalendar tasks={sorted} accent={accent} isGlobal={isGlobal} clientById={clientById} onOpen={setEditing} />
       )}
 
       {/* Barra flotante de acciones bulk — aparece cuando hay 1+ seleccionada */}
@@ -1914,6 +1922,140 @@ function TasksList({
           {done.map(row)}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/* ───────────────────────── Vista Calendario ───────────────────────── */
+
+// Solo lectura: ver R-23 (no sincronizar/mutar por drag en vistas de solo
+// consulta) — a diferencia del Calendario de Contenidos, aquí mover la
+// fecha de vencimiento arrastrando no está pedido; se edita abriendo la tarea.
+function TasksCalendar({
+  tasks, accent, isGlobal, clientById, onOpen,
+}: {
+  tasks: Task[];
+  accent: string;
+  isGlobal: boolean;
+  clientById: Record<string, Client>;
+  onOpen: (t: Task) => void;
+}) {
+  const [cursor, setCursor] = useState<Date>(new Date());
+
+  const monthStart = startOfMonth(cursor);
+  const monthEnd = endOfMonth(cursor);
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const days: Date[] = [];
+  for (let d = gridStart; d <= gridEnd; d = addDays(d, 1)) days.push(d);
+
+  const tasksByDay = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const t of tasks) {
+      if (!t.dueDate) continue;
+      const key = format(parseISO(t.dueDate), 'yyyy-MM-dd');
+      const arr = map.get(key) ?? [];
+      arr.push(t);
+      map.set(key, arr);
+    }
+    return map;
+  }, [tasks]);
+
+  return (
+    <div className="surface p-4">
+      <header className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCursor(subMonths(cursor, 1))} className="h-8 w-8 rounded-md border border-border-subtle bg-bg-base/40 hover:bg-bg-elevated text-text-secondary">
+            <ChevronLeft className="h-4 w-4 mx-auto" />
+          </button>
+          <button onClick={() => setCursor(new Date())} className="text-xs text-text-muted hover:text-text-primary px-2">
+            Hoy
+          </button>
+          <button onClick={() => setCursor(addMonths(cursor, 1))} className="h-8 w-8 rounded-md border border-border-subtle bg-bg-base/40 hover:bg-bg-elevated text-text-secondary">
+            <ChevronRight className="h-4 w-4 mx-auto" />
+          </button>
+          <h3 className="heading text-lg font-bold ml-2 capitalize">
+            {format(cursor, 'MMMM yyyy', { locale: es })}
+          </h3>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-7 gap-1 text-[10px] uppercase tracking-wider text-text-muted mb-1.5">
+        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d) => (
+          <div key={d} className="px-1.5 py-1">{d}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {days.map((d) => {
+          const inMonth = isSameMonth(d, cursor);
+          const today = isToday(d);
+          const dayKey = format(d, 'yyyy-MM-dd');
+          const dayTasks = tasksByDay.get(dayKey) ?? [];
+          const visibleTasks = dayTasks.slice(0, 3);
+          const overflow = dayTasks.length - visibleTasks.length;
+
+          return (
+            <div
+              key={dayKey}
+              className={cn(
+                'rounded-md border p-1.5 min-h-[110px]',
+                inMonth ? 'bg-bg-base/30' : 'bg-bg-base/10 opacity-50',
+              )}
+              style={
+                today
+                  ? { borderColor: accent, boxShadow: `inset 0 0 0 1px ${withAlpha(accent, 0.35)}` }
+                  : { borderColor: 'rgba(255,255,255,0.06)' }
+              }
+            >
+              <span
+                className={cn(
+                  'text-[11px] font-mono',
+                  today ? 'font-bold' : inMonth ? 'text-text-secondary' : 'text-text-muted',
+                )}
+                style={today ? { color: accent } : undefined}
+              >
+                {format(d, 'd')}
+              </span>
+
+              <div className="space-y-1 mt-1">
+                {visibleTasks.map((t) => {
+                  const col = COLUMNS.find((c) => c.status === t.status);
+                  const overdue = t.status !== 'completed' && estaVencida(t);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => onOpen(t)}
+                      className="w-full text-left rounded-md px-1.5 py-1 text-[10.5px] leading-tight hover:brightness-110 transition"
+                      style={{ background: withAlpha(accent, 0.1) }}
+                    >
+                      <span className="flex items-center gap-1">
+                        <Badge tone={overdue ? 'danger' : col?.tone ?? 'neutral'} className="shrink-0 !px-1 !py-0 !text-[9px]">
+                          {t.priority}
+                        </Badge>
+                        <span className="truncate text-text-primary">{t.title}</span>
+                      </span>
+                      {isGlobal && (
+                        <span className="block truncate text-text-muted">
+                          {clientById[t.clientId]?.name ?? ''}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                {overflow > 0 && (
+                  <button
+                    onClick={() => onOpen(dayTasks[3])}
+                    className="w-full text-[10px] text-text-muted hover:text-text-primary py-0.5"
+                  >
+                    +{overflow} más
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
